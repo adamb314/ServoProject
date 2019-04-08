@@ -210,13 +210,13 @@ void setup()
 
                 case 20:
                     startTime = micros();
-                    dt = param.testRunTimeMs / 100 * 1000;
+                    dt = param.testRunTimeMs / 100 * 1000 / 16;
                     i = 0;
 
                     state = 21;
 
                 case 21:
-                    if (i >= sizeof(testOutputArray2) / sizeof(testOutputArray2[0]))
+                    if (i / 16 >= sizeof(testOutputArray2) / sizeof(testOutputArray2[0]))
                     {
                         int pwm = 0;
                         currentControlLoop->overidePwmDuty(pwm);
@@ -232,7 +232,7 @@ void setup()
                     }
 
                     {
-                        int pwm = param.amplitude * testOutputArray[i];
+                        int pwm = param.amplitude * testOutputArray[i / 16];
                         ++i;
                         currentControlLoop->overidePwmDuty(pwm);
 
