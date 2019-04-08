@@ -14,27 +14,24 @@ public:
 
     ~CurrentControlLoop();
 
-    void setReference(float ref);
+    void setReference(int16_t ref);
 
     void overidePwmDuty(int16_t pwm);
 
-    float getCurrent();
+    int16_t getCurrent();
 
 private:
     void run();
 
     PwmHandler* pwmInstance;
     CurrentSampler* currentSampler;
-    float integral;
-    float ref;
-    float y;
-    float controlError;
-    float u;
-    float limitedU;
     bool disableLoop;
+    int16_t ref;
+    int16_t y;
+    int16_t u;
+    int16_t limitedU;
     uint32_t startTime;
     int32_t loopTime;
-    Eigen::Vector3f L;
     std::vector<FunctionThread*> threads;
 };
 
