@@ -1,4 +1,4 @@
-#include "FilteredADC.h"
+#include "CurrentSampler.h"
 
 #include "wiring_private.h"
 // Wait for synchronization of registers between the clock domains
@@ -27,11 +27,9 @@ static void syncTCC(Tcc* TCCx) {
   while (TCCx->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
 }
 
-FilteredADC::FilteredADC(float filterConstant) :
-    readSumValue(0),
-    numberOfReads(0),
-    filteredValue(0),
-    a(filterConstant),
+CurrentSampler::CurrentSampler() :
+    value(0),
+    offset(0),
     activeSample(false)
 {
     analogReference(AR_DEFAULT);
@@ -46,24 +44,42 @@ FilteredADC::FilteredADC(float filterConstant) :
     syncDAC();
 }
 
-FilteredADC::~FilteredADC()
+CurrentSampler::~CurrentSampler()
 {}
 
-void FilteredADC::initOffset(uint32_t pin)
+void CurrentSampler::init(uint32_t pin)
 {
-    for (size_t i = 0; i < 100; i++)
+    configureAdcPin(pin);
+
+    const size_t numberOfReads = 100;
+    offset = 0;
+    for (size_t i = 0; i < numberOfReads; i++)
     {
-        triggerSample(pin);
-        collectSample();
+        triggerSample();
+        offset += getValue();
     }
 
-    offset = static_cast<float>(readSumValue) / numberOfReads;
+    offset = offset / numberOfReads;
 
-    readSumValue = 0;
-    numberOfReads = 0;
+    value = 0;
 }
 
-void FilteredADC::configureAdcPin(uint32_t pin)
+
+void CurrentSampler::triggerSample()
+{
+    ADC->SWTRIG.bit.START = 1;
+
+    activeSample = true;
+}
+
+int32_t CurrentSampler::getValue()
+{
+    collectSample();
+
+    return value;
+}
+
+void CurrentSampler::configureAdcPin(uint32_t pin)
 {
     if (pin < A0) {
         pin += A0;
@@ -109,22 +125,7 @@ void FilteredADC::configureAdcPin(uint32_t pin)
 
 }
 
-void FilteredADC::triggerSample(uint32_t pin)
-{
-    configureAdcPin(pin);
-    ADC->SWTRIG.bit.START = 1;
-
-    activeSample = true;
-}
-
-void FilteredADC::triggerSample()
-{
-    ADC->SWTRIG.bit.START = 1;
-
-    activeSample = true;
-}
-
-void FilteredADC::collectSample()
+void CurrentSampler::collectSample()
 {
     if (!activeSample)
     {
@@ -134,28 +135,5 @@ void FilteredADC::collectSample()
     // Store the value
     while (ADC->INTFLAG.bit.RESRDY == 0);   // Waiting for conversion to complete
 
-    readSumValue += ADC->RESULT.reg;
-    numberOfReads++;
-
-    //syncADC();
-    //ADC->CTRLA.bit.ENABLE = 0x00;             // Disable ADC
-    //syncADC();
-}
-
-float FilteredADC::getValue()
-{
-    if (numberOfReads == 0)
-    {
-        return filteredValue;
-    }
-
-    float newValue = static_cast<float>(readSumValue);// / numberOfReads;
-    newValue -= offset;
-
-    readSumValue = 0;
-    numberOfReads = 0;
-
-    filteredValue = a * filteredValue + (1 - a) * newValue;
-
-    return filteredValue;
+    value = ADC->RESULT.reg - offset;
 }

@@ -2,7 +2,7 @@
 #define CURRENT_CONTROL_LOOP_H
 
 #include "ThreadHandler.h"
-#include "FilteredADC.h"
+#include "CurrentSampler.h"
 #include "PwmHandler.h"
 #include <Eigen.h>
 #include <vector>
@@ -24,7 +24,7 @@ private:
     void run();
 
     PwmHandler* pwmInstance;
-    FilteredADC* filteredADC;
+    CurrentSampler* currentSampler;
     float integral;
     float ref;
     float y;

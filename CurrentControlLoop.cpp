@@ -2,7 +2,7 @@
 
 CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     pwmInstance(HBridge4WirePwm::getInstance()),
-    filteredADC(new FilteredADC(0.9)),
+    currentSampler(new CurrentSampler()),
     integral(0),
     ref(0),
     y(0),
@@ -15,13 +15,12 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     //L = L / 16;
     L << 4.43039669, -0.73717586287, 0.5 * -0.73717586287;
 
-    filteredADC->configureAdcPin(A1);
-    filteredADC->initOffset(A1);
+    currentSampler->init(A1);
 
     threads.push_back(new FunctionThread(2, period, 0,
         [&]()
         {
-            filteredADC->triggerSample();
+            currentSampler->triggerSample();
         }));
 
     threads.push_back(new FunctionThread(2, period, 200,
@@ -57,8 +56,7 @@ float CurrentControlLoop::getCurrent()
 
 void CurrentControlLoop::run()
 {
-    filteredADC->collectSample();
-    y = filteredADC->getValue();
+    y = currentSampler->getValue();
 
     if (disableLoop)
     {
