@@ -15,7 +15,8 @@ DCServo::DCServo() :
         currentControl(std::make_unique<CurrentControlLoop>(400)),
         encoderHandler(std::make_unique<EncoderHandler>()),
         kalmanFilter(std::make_unique<KalmanFilter>()),
-        dotStarLed(1, 41, 40, DOTSTAR_BGR)
+        dotStarLed(1, 41, 40, DOTSTAR_BGR),
+        pwmOutputOnDisabled(0)
 
 {
     L << 29.466422097397437, 2.1666222001611266, -0.07733338643510186;
@@ -94,7 +95,11 @@ int16_t DCServo::getVelocity()
 int16_t DCServo::getControlSignal()
 {
     ThreadInterruptBlocker blocker;
-    return controlSignal;
+    if (controlEnabled)
+    {
+        return controlSignal;
+    }
+    return pwmOutputOnDisabled;
 }
 
 int16_t DCServo::getCurrent()
@@ -149,7 +154,8 @@ void DCServo::controlLoop()
         setReference(x[0], 0, 0);
         Ivel = 0;
 
-        controlSignal = setOutput(0);
+        controlSignal = 0;
+        currentControl->overidePwmDuty(pwmOutputOnDisabled);
         current = currentControl->getCurrent();
     }
 

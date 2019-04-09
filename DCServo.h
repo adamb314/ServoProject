@@ -67,6 +67,8 @@ class DCServo
 
     Adafruit_DotStar dotStarLed;
 
+    int16_t pwmOutputOnDisabled;
+
     std::vector<FunctionThread*> threads;
 };
 #endif
