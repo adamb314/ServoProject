@@ -32,8 +32,6 @@ class DCServo
 
     uint16_t getLoopNumber();
 
-    void run();
-
  private:
     DCServo();
 
