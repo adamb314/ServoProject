@@ -33,9 +33,10 @@ void setup()
 
             communication->intArray[3] = dcServo->getPosition();
             communication->intArray[4] = dcServo->getVelocity();
-            communication->intArray[5] = dcServo->getCurrent();
-            communication->intArray[6] = threadHandler->getCpuLoad();
-            communication->intArray[7] = dcServo->getLoopNumber();
+            communication->intArray[5] = dcServo->getControlSignal();
+            communication->intArray[6] = dcServo->getCurrent();
+            communication->intArray[7] = threadHandler->getCpuLoad();
+            communication->intArray[8] = dcServo->getLoopNumber();
 
             communication->run();
 
