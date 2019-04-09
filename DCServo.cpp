@@ -8,6 +8,7 @@ DCServo* DCServo::getInstance()
 
 DCServo::DCServo() :
         controlEnabled(true),
+        loopNumber(0),
         controlSignal(0),
         Ivel(0),
         currentControl(std::make_unique<CurrentControlLoop>(400)),
@@ -46,6 +47,7 @@ DCServo::DCServo() :
         [&]()
         {
             controlLoop();
+            loopNumber++;
         }));
 }
 
@@ -92,6 +94,12 @@ int16_t DCServo::getControlSignal()
 {
     ThreadInterruptBlocker blocker;
     return controlSignal;
+}
+
+uint16_t DCServo::getLoopNumber()
+{
+    ThreadInterruptBlocker blocker;
+    return loopNumber;
 }
 
 void DCServo::controlLoop()

@@ -28,6 +28,8 @@ class DCServo
     
     int16_t getControlSignal();
 
+    uint16_t getLoopNumber();
+
     void run();
 
  private:
@@ -41,6 +43,7 @@ class DCServo
 
     Eigen::Vector3f L;
 
+    uint16_t loopNumber;
     int16_t rawPos;
     Eigen::Vector3f x;
 
