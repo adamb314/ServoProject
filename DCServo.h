@@ -28,6 +28,8 @@ class DCServo
     
     int16_t getControlSignal();
 
+    int16_t getCurrent();
+
     uint16_t getLoopNumber();
 
     void run();
@@ -51,6 +53,7 @@ class DCServo
     Eigen::Vector3f xSim;
 #endif
 
+    int16_t current;
     int16_t controlSignal;
     int16_t feedForwardU;
     int16_t velRef;

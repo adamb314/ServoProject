@@ -9,6 +9,7 @@ DCServo* DCServo::getInstance()
 DCServo::DCServo() :
         controlEnabled(true),
         loopNumber(0),
+        current(0),
         controlSignal(0),
         Ivel(0),
         currentControl(std::make_unique<CurrentControlLoop>(400)),
@@ -96,6 +97,12 @@ int16_t DCServo::getControlSignal()
     return controlSignal;
 }
 
+int16_t DCServo::getCurrent()
+{
+    ThreadInterruptBlocker blocker;
+    return current;
+}
+
 uint16_t DCServo::getLoopNumber()
 {
     ThreadInterruptBlocker blocker;
@@ -132,6 +139,7 @@ void DCServo::controlLoop()
         }
 
         controlSignal = setOutput(controlSignal);
+        current = currentControl->getCurrent();
 
         Ivel -= L[2] * (vControlRef - x[1]);
         Ivel += 10 * L[2] * (u - controlSignal);
@@ -142,6 +150,7 @@ void DCServo::controlLoop()
         Ivel = 0;
 
         controlSignal = setOutput(0);
+        current = currentControl->getCurrent();
     }
 
 }
