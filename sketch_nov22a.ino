@@ -33,7 +33,7 @@ void setup()
 
             communication->intArray[3] = dcServo->getPosition();
             communication->intArray[4] = dcServo->getVelocity();
-            communication->intArray[5] = dcServo->getControlSignal();
+            communication->intArray[5] = dcServo->getCurrent();
             communication->intArray[6] = static_cast<int16_t>(threadHandler->getCpuLoad());
             communication->intArray[7] = dcServo->getLoopNumber();
 
