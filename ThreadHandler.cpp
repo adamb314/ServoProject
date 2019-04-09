@@ -297,9 +297,9 @@ void ThreadHandler::run()
     }
 }
 
-uint32_t ThreadHandler::getCpuLoad()
+uint16_t ThreadHandler::getCpuLoad()
 {
-    int32_t out = (cpuLoadTime * 1000) / totalTime;
+    uint16_t out = static_cast<uint16_t>((cpuLoadTime * 1000) / totalTime);
     return out;
 }
 

@@ -90,7 +90,7 @@ public:
 
     void run();
 
-    uint32_t getCpuLoad();
+    uint16_t getCpuLoad();
 
 protected:
     ThreadHandler(uint16_t interruptTick);
