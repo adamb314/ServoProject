@@ -53,13 +53,14 @@ void CurrentSampler::init(uint32_t pin)
 
     const size_t numberOfReads = 100;
     offset = 0;
+    int32_t temp = 0;
     for (size_t i = 0; i < numberOfReads; i++)
     {
         triggerSample();
-        offset += getValue();
+        temp += getValue();
     }
 
-    offset = offset / numberOfReads;
+    offset = temp / numberOfReads;
 
     value = 0;
 }
