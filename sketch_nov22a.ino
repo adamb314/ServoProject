@@ -25,6 +25,7 @@ void setup()
     communication->intArray[0] = dcServo->getPosition();
     communication->intArray[1] = 0;
     communication->intArray[2] = 0;
+    communication->charArray[1] = 0;
 
     threads.push_back(new FunctionThread(0, 200, 0,
         [&]()
@@ -40,19 +41,44 @@ void setup()
 
             communication->run();
 
-            if (communication->intArrayChanged[0])
+            if (communication->charArray[1] == 0)
             {
-                lastPosRefTimestamp = millis();
+                if (communication->intArrayChanged[0])
+                {
+                    lastPosRefTimestamp = millis();
 
-                 dcServo->enable(true);
+                     dcServo->enable(true);
+                }
+                else if (static_cast<int32_t>(millis() - lastPosRefTimestamp) > 100)
+                {
+                    dcServo->enable(false);
+                }
+
+                dcServo->setReference(communication->intArray[0], communication->intArray[1], communication->intArray[2]);
+                communication->intArrayChanged[0] = false;
             }
-            else if (static_cast<int32_t>(millis() - lastPosRefTimestamp) > 100)
+            else
             {
-                dcServo->enable(false);
+                int16_t amplitude = communication->intArray[2];
+                if (communication->charArray[1] == 1)
+                {
+                    if (dcServo->runIdentTest1(amplitude))
+                    {
+                        communication->charArray[1] = 0;
+                    }
+                }
+                else
+                {
+                    if (communication->charArray[1] == 2)
+                    {
+                        if (dcServo->runIdentTest2(amplitude))
+                        {
+                            communication->charArray[1] = 0;
+                        }
+                    }
+                }
             }
 
-            dcServo->setReference(communication->intArray[0], communication->intArray[1], communication->intArray[2]);
-            communication->intArrayChanged[0] = false;
         }));
 }
 

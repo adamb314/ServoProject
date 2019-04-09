@@ -16,6 +16,9 @@ DCServo::DCServo() :
         encoderHandler(std::make_unique<EncoderHandler>()),
         kalmanFilter(std::make_unique<KalmanFilter>()),
         dotStarLed(1, 41, 40, DOTSTAR_BGR),
+        identTestState(NORMAL_CONTROL),
+        identTestArrayIndex(0),
+        identTestAmplitude(0),
         pwmOutputOnDisabled(0)
 
 {
@@ -48,6 +51,14 @@ DCServo::DCServo() :
     threads.push_back(new FunctionThread(1, 1200, 0,
         [&]()
         {
+            if (identTestState == NORMAL_CONTROL)
+            {
+                pwmOutputOnDisabled = 0;
+            }
+            else
+            {
+                identTestLoop();
+            }
             controlLoop();
             loopNumber++;
         }));
@@ -112,6 +123,98 @@ uint16_t DCServo::getLoopNumber()
 {
     ThreadInterruptBlocker blocker;
     return loopNumber;
+}
+
+bool DCServo::runIdentTest1(int16_t amplitude)
+{
+    ThreadInterruptBlocker blocker;
+    if (identTestState == IDENT_TEST_1_COMP)
+    {
+        identTestState = NORMAL_CONTROL;
+        return true;
+    }
+
+    if (identTestState != IDENT_TEST_1)
+    {
+        identTestState = IDENT_TEST_1_INIT;
+        identTestAmplitude = amplitude;
+    }
+    return false;
+}
+
+bool DCServo::runIdentTest2(int16_t amplitude)
+{
+    ThreadInterruptBlocker blocker;
+    if (identTestState == IDENT_TEST_2_COMP)
+    {
+        identTestState = NORMAL_CONTROL;
+        return true;
+    }
+
+    if (identTestState != IDENT_TEST_2)
+    {
+        identTestState = IDENT_TEST_2_INIT;
+        identTestAmplitude = amplitude;
+    }
+    return false;
+}
+
+void DCServo::identTestLoop()
+{
+    controlEnabled = false;
+    size_t i;
+    switch (identTestState)
+    {
+        case IDENT_TEST_1_INIT:
+            identTestArrayIndex = 0;
+            identTestState = IDENT_TEST_1;
+        //|||||||||||||||||||||||||||||
+        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        //INTENTIONAL FALL THROUGH HERE
+        case IDENT_TEST_1:
+            i = (identTestArrayIndex >> 4);
+            if (i < sizeof(testOutputArray) / sizeof(testOutputArray[0]))
+            {
+                pwmOutputOnDisabled = identTestAmplitude * testOutputArray[i];
+                identTestArrayIndex++;
+                break;
+            }
+
+            identTestState = IDENT_TEST_1_COMP;
+        //|||||||||||||||||||||||||||||
+        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        //INTENTIONAL FALL THROUGH HERE
+        case IDENT_TEST_1_COMP:
+            pwmOutputOnDisabled = 0;
+            break;
+
+        case IDENT_TEST_2_INIT:
+            identTestArrayIndex = 0;
+            identTestState = IDENT_TEST_2;
+        //|||||||||||||||||||||||||||||
+        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        //INTENTIONAL FALL THROUGH HERE
+        case IDENT_TEST_2:
+            i = (identTestArrayIndex >> 4);
+            if (i < sizeof(testOutputArray2) / sizeof(testOutputArray2[0]))
+            {
+                pwmOutputOnDisabled = identTestAmplitude * testOutputArray2[i];
+                identTestArrayIndex++;
+                break;
+            }
+
+            identTestState = IDENT_TEST_2_COMP;
+        //|||||||||||||||||||||||||||||
+        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        //INTENTIONAL FALL THROUGH HERE
+        case IDENT_TEST_2_COMP:
+            pwmOutputOnDisabled = 0;
+            break;
+
+        default:
+            pwmOutputOnDisabled = 0;
+            break;
+    }
 }
 
 void DCServo::controlLoop()

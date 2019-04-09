@@ -32,10 +32,16 @@ class DCServo
 
     uint16_t getLoopNumber();
 
+    bool runIdentTest1(int16_t amplitude);
+
+    bool runIdentTest2(int16_t amplitude);
+
  private:
     DCServo();
 
     void controlLoop();
+
+    void identTestLoop();
 
     int16_t setOutput(int16_t u);
 
@@ -65,6 +71,23 @@ class DCServo
 
     Adafruit_DotStar dotStarLed;
 
+    const int16_t testOutputArray[100] = {-1, -1, 1, 1, 1, -1, -1, 1, 1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1};
+    const int16_t testOutputArray2[100] = {-1, -1, 1, 1, -1, 1, 1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, -1, 1, 1, 1, -1, 1};
+
+    enum IdentTestState
+    {
+        NORMAL_CONTROL,
+        IDENT_TEST_1_INIT,
+        IDENT_TEST_1,
+        IDENT_TEST_1_COMP,
+        IDENT_TEST_2_INIT,
+        IDENT_TEST_2,
+        IDENT_TEST_2_COMP
+    };
+
+    IdentTestState identTestState;
+    size_t identTestArrayIndex;
+    int16_t identTestAmplitude;
     int16_t pwmOutputOnDisabled;
 
     std::vector<FunctionThread*> threads;
