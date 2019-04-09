@@ -80,6 +80,13 @@ int32_t CurrentSampler::getValue()
     return value;
 }
 
+int32_t CurrentSampler::getFilteredValue()
+{
+    collectSample();
+
+    return (filteredValue >> 3);
+}
+
 void CurrentSampler::configureAdcPin(uint32_t pin)
 {
     if (pin < A0) {
@@ -137,4 +144,6 @@ void CurrentSampler::collectSample()
     while (ADC->INTFLAG.bit.RESRDY == 0);   // Waiting for conversion to complete
 
     value = ADC->RESULT.reg - offset;
+
+    filteredValue = ((7 * filteredValue) >> 3) + value;
 }
