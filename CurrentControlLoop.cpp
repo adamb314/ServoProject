@@ -5,6 +5,7 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     currentSampler(new CurrentSampler()),
     ref(0),
     y(0),
+    filteredY(0),
     u(0),
     disableLoop(true)
 {
@@ -44,12 +45,13 @@ void CurrentControlLoop::overidePwmDuty(int16_t pwm)
 int16_t CurrentControlLoop::getCurrent()
 {
     ThreadInterruptBlocker interruptBlocker;
-    return y;
+    return filteredY;
 }
 
 void CurrentControlLoop::run()
 {
     y = currentSampler->getValue();
+    filteredY = currentSampler->getFilteredValue();
 
     if (disableLoop)
     {

@@ -28,6 +28,7 @@ private:
     bool disableLoop;
     int16_t ref;
     int16_t y;
+    int16_t filteredY;
     int16_t u;
     int16_t limitedU;
     uint32_t startTime;
