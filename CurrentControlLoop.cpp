@@ -63,7 +63,6 @@ void CurrentControlLoop::run()
         controlError = ref - y;
     }
 
-
     u += (controlError >> 1);
 
     limitedU = pwmInstance->setOutput(u);
