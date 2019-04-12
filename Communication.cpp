@@ -306,3 +306,16 @@ bool Communication::run()
 
   return receiveCompleate && !communicationError;
 }
+
+bool Communication::blockingRun()
+{
+  bool receiveCompleate = false;
+  while (Serial.available() >= waitForBytes ||
+         communicationState != 0 ||
+         sendCommunicationState != 0)
+  {
+    run();
+  }
+
+  return !communicationError;
+}

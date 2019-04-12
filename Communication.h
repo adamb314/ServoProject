@@ -12,6 +12,8 @@ class Communication
 
   bool run();
 
+  bool blockingRun();
+
   int intArray[16];
   char charArray[8];
 
