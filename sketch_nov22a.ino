@@ -27,7 +27,7 @@ void setup()
     communication->intArray[2] = 0;
     communication->charArray[1] = 0;
 
-    threads.push_back(new FunctionThread(0, 600, 0,
+    threads.push_back(new FunctionThread(-1, 600, 0,
         [&]()
         {
             static uint32_t lastPosRefTimestamp = millis();

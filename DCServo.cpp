@@ -16,6 +16,8 @@ DCServo::DCServo() :
         encoderHandler(std::make_unique<EncoderHandler>()),
         kalmanFilter(std::make_unique<KalmanFilter>()),
         dotStarLed(1, 41, 40, DOTSTAR_BGR),
+        dotstarState(1),
+        dotstarStateRequest(1),
         identTestState(NORMAL_CONTROL),
         identTestArrayIndex(0),
         identTestAmplitude(0),
@@ -53,32 +55,143 @@ DCServo::DCServo() :
         {
             if (identTestState == NORMAL_CONTROL)
             {
+                dotstarStateRequest = 1;
+                if (controlEnabled)
+                {
+                    dotstarStateRequest = 2;
+                }
                 pwmOutputOnDisabled = 0;
             }
             else
             {
+                dotstarStateRequest = 3;
                 identTestLoop();
             }
             controlLoop();
             loopNumber++;
         }));
+
+    threads.push_back(new FunctionThread(0, 150000, 0,
+        [&]()
+        {
+            static int colorPulse = 0;
+            bool changedColor = false;
+
+            switch (dotstarState)
+            {
+                case 1:
+                    changedColor = true;
+                    if (colorPulse == 0)
+                    {
+                        dotStarLed.setPixelColor(0, 50, 30, 30);
+                    }
+                    else
+                    {
+                        dotStarLed.setPixelColor(0, 50, 0, 0);
+                    }
+                    dotstarState = 10;
+
+                //|||||||||||||||||||||||||||||
+                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+                //INTENTIONAL FALL THROUGH HERE
+                case 10:
+                    colorPulse++;
+                    if (colorPulse >= 5)
+                    {
+                        colorPulse = 0;
+                    }
+
+                    if (colorPulse == 0 || colorPulse == 1)
+                    {
+                        dotstarState = 1;
+                    }
+
+                    if (dotstarStateRequest != 1)
+                    {
+                        dotstarState = dotstarStateRequest;
+                    }
+                    break;
+
+                case 2:
+                    changedColor = true;
+                    if (colorPulse == 0)
+                    {
+                        dotStarLed.setPixelColor(0, 60, 50, 60);
+                    }
+                    else
+                    {
+                        dotStarLed.setPixelColor(0, 60, 50, 0);
+                    }
+                    dotstarState = 20;
+
+                //|||||||||||||||||||||||||||||
+                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+                //INTENTIONAL FALL THROUGH HERE
+                case 20:
+                    colorPulse++;
+                    if (colorPulse >= 5)
+                    {
+                        colorPulse = 0;
+                    }
+
+                    if (colorPulse == 0 || colorPulse == 1)
+                    {
+                        dotstarState = 2;
+                    }
+
+                    if (dotstarStateRequest != 2)
+                    {
+                        dotstarState = dotstarStateRequest;
+                    }
+                    break;
+
+                case 3:
+                    changedColor = true;
+                    if (colorPulse == 0)
+                    {
+                        dotStarLed.setPixelColor(0, 30, 30, 50);
+                    }
+                    else
+                    {
+                        dotStarLed.setPixelColor(0, 0, 0, 50);
+                    }
+                    dotstarState = 30;
+
+                //|||||||||||||||||||||||||||||
+                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+                //INTENTIONAL FALL THROUGH HERE
+                case 30:
+                    colorPulse++;
+                    if (colorPulse >= 5)
+                    {
+                        colorPulse = 0;
+                    }
+
+                    if (colorPulse == 0 || colorPulse == 1)
+                    {
+                        dotstarState = 3;
+                    }
+
+                    if (dotstarStateRequest != 3)
+                    {
+                        dotstarState = dotstarStateRequest;
+                    }
+                    break;
+
+                default:
+                    dotstarState = dotstarStateRequest;
+                    break;
+            }
+
+            if (changedColor)
+            {
+                dotStarLed.show();
+            }
+        }));
 }
 
 void DCServo::enable(bool b)
 {
-    if (controlEnabled != b)
-    {
-        if (b)
-        {
-            dotStarLed.setPixelColor(0, 60, 50, 0);
-        }
-        else
-        {
-            dotStarLed.setPixelColor(0, 50, 0, 0);
-        }
-        dotStarLed.show();
-    }
-
     ThreadInterruptBlocker blocker;
     controlEnabled = b;
 }
