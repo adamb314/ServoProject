@@ -31,8 +31,7 @@ private:
     int16_t filteredY;
     int16_t u;
     int16_t limitedU;
-    uint32_t startTime;
-    int32_t loopTime;
+    bool lastULimited;
     std::vector<FunctionThread*> threads;
 };
 

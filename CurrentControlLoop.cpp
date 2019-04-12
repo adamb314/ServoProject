@@ -3,11 +3,11 @@
 CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     pwmInstance(HBridge4WirePwm::getInstance()),
     currentSampler(new CurrentSampler()),
+    disableLoop(true),
     ref(0),
     y(0),
     filteredY(0),
     u(0),
-    disableLoop(true)
 {
     currentSampler->init(A1);
 
