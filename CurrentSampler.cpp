@@ -89,7 +89,7 @@ int32_t CurrentSampler::getFilteredValue()
 {
     collectSample();
 
-    return (filteredValue >> 3);
+    return (filteredValue >> 2);
 }
 
 void CurrentSampler::configureAdcPin(uint32_t pin)
@@ -152,5 +152,5 @@ void CurrentSampler::collectSample()
 
     value = ADC->RESULT.reg - offset;
 
-    filteredValue = ((7 * filteredValue) >> 3) + value;
+    filteredValue = ((3 * filteredValue) >> 2) + value;
 }
