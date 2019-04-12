@@ -379,16 +379,7 @@ void DCServo::controlLoop()
 
 int16_t DCServo::setOutput(int16_t u)
 {
-    if (u > 1023)
-    {
-        u = 1023;
-    }
-    else if (u < -1023)
-    {
-        u = -1023;
-    }
-
     currentControl->setReference(u);
     
-    return u;
+    return currentControl->getLimitedCurrent();
 }

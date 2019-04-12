@@ -8,6 +8,8 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     y(0),
     filteredY(0),
     u(0),
+    limitedU(0),
+    lastULimited(false)
 {
     currentSampler->init(A1);
 
@@ -48,10 +50,20 @@ int16_t CurrentControlLoop::getCurrent()
     return filteredY;
 }
 
+int16_t CurrentControlLoop::getLimitedCurrent()
+{
+    ThreadInterruptBlocker interruptBlocker;
+    if (lastULimited)
+    {
+        return filteredY;
+    }
+
+    return ref;
+}
+
 void CurrentControlLoop::run()
 {
     y = currentSampler->getValue();
-    filteredY = currentSampler->getFilteredValue();
 
     if (disableLoop)
     {
@@ -69,5 +81,22 @@ void CurrentControlLoop::run()
 
     limitedU = pwmInstance->setOutput(u);
 
-    u -= (u - limitedU);
+    int16_t uLimitError = u - limitedU;
+
+    if (uLimitError != 0)
+    {
+        if (!lastULimited)
+        {
+            currentSampler->resetFilteredValue();
+        }
+        lastULimited = true;
+    }
+    else
+    {
+        lastULimited = false;
+    }
+
+    u -= uLimitError;
+
+    filteredY = currentSampler->getFilteredValue();
 }

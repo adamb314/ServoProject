@@ -20,6 +20,8 @@ public:
 
     int16_t getCurrent();
 
+    int16_t getLimitedCurrent();
+
 private:
     void run();
 
