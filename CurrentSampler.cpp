@@ -148,6 +148,8 @@ void CurrentSampler::collectSample()
     // Store the value
     while (ADC->INTFLAG.bit.RESRDY == 0);   // Waiting for conversion to complete
 
+    activeSample = false;
+
     value = ADC->RESULT.reg - offset;
 
     filteredValue = ((7 * filteredValue) >> 3) + value;
