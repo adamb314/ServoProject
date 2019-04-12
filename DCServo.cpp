@@ -24,7 +24,7 @@ DCServo::DCServo() :
         pwmOutputOnDisabled(0)
 
 {
-    L << 29.466422097397437, 2.1666222001611266, -0.07733338643510186;
+    L << 29.466422097397437, 2.150282330880081, -0.07733338643510186, -0.07733338643510186 * 10;
 
     dotStarLed.begin();
     dotStarLed.show();
@@ -363,7 +363,7 @@ void DCServo::controlLoop()
         current = currentControl->getCurrent();
 
         Ivel -= L[2] * (vControlRef - x[1]);
-        Ivel += 10 * L[2] * (u - controlSignal);
+        Ivel += L[3] * (u - controlSignal);
     }
     else
     {

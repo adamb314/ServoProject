@@ -47,7 +47,7 @@ class DCServo
 
     bool controlEnabled;
 
-    Eigen::Vector3f L;
+    Eigen::Vector4f L;
 
     uint16_t loopNumber;
     int16_t rawPos;
