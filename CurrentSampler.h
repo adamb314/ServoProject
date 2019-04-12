@@ -16,6 +16,8 @@ public:
 
     void triggerSample();
 
+    void resetFilteredValue();
+
     int32_t getValue();
     int32_t getFilteredValue();
 

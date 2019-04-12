@@ -73,6 +73,11 @@ void CurrentSampler::triggerSample()
     activeSample = true;
 }
 
+void CurrentSampler::resetFilteredValue()
+{
+    filteredValue = value;
+}
+
 int32_t CurrentSampler::getValue()
 {
     collectSample();
