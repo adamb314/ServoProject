@@ -7,7 +7,7 @@ DCServo* DCServo::getInstance()
 }
 
 DCServo::DCServo() :
-        controlEnabled(true),
+        controlEnabled(false),
         loopNumber(0),
         current(0),
         controlSignal(0),
