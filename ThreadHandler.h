@@ -77,8 +77,14 @@ public:
 
     ~ThreadInterruptBlocker();
 
+    void lock();
+
+    void unlock();
+
 private:
     static uint32_t blockerCount;
+
+    bool iAmLocked;
 };
 
 class ThreadHandler

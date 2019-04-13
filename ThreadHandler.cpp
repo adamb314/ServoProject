@@ -14,15 +14,34 @@ Thread::~Thread()
 
 uint32_t ThreadInterruptBlocker::blockerCount = 0;
 
-ThreadInterruptBlocker::ThreadInterruptBlocker()
+ThreadInterruptBlocker::ThreadInterruptBlocker() :
+    iAmLocked(false)
 {
-    NVIC_DisableIRQ(TC5_IRQn);
-    blockerCount++;
+    lock();
 }
 
 ThreadInterruptBlocker::~ThreadInterruptBlocker()
 {
-    blockerCount--;
+    unlock();
+}
+
+void ThreadInterruptBlocker::lock()
+{
+    NVIC_DisableIRQ(TC5_IRQn);
+    if (!iAmLocked)
+    {
+        iAmLocked = true;
+        blockerCount++;
+    }
+}
+
+void ThreadInterruptBlocker::unlock()
+{
+    if (iAmLocked)
+    {
+        iAmLocked = false;
+        blockerCount--;
+    }
     if (blockerCount == 0)
     {
         NVIC_EnableIRQ(TC5_IRQn);
