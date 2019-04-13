@@ -461,22 +461,23 @@ void ThreadHandler::interruptRun()
         return;
     }
 
+    ThreadInterruptBlocker blocker;
+    interruptTimer->enableNewInterrupt();
+
     uint32_t currentTimestamp = micros();
     InternalThreadHolder* threadToRunHolder = getNextThreadToRun(currentTimestamp);
 
-    if (threadToRunHolder != nullptr)
+    while (threadToRunHolder != nullptr)
     {
         int8_t temp = priorityOfRunningThread;
         priorityOfRunningThread = threadToRunHolder->getPriority();
-        interruptTimer->enableNewInterrupt();
+        blocker.unlock();
 
         threadToRunHolder->runThread();
 
+        blocker.lock();
         priorityOfRunningThread = temp;
-    }
-    else
-    {
-        interruptTimer->enableNewInterrupt();
+        threadToRunHolder = getNextThreadToRun(currentTimestamp);
     }
 }
 
