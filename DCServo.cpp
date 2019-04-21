@@ -50,7 +50,7 @@ DCServo::DCServo() :
 
     setReference(x[0], 0, 0);
 
-    threads.push_back(new FunctionThread(1, 1200, 0,
+    threads.push_back(createThread(1, 1200, 0,
         [&]()
         {
             if (identTestState == NORMAL_CONTROL)
@@ -71,7 +71,7 @@ DCServo::DCServo() :
             loopNumber++;
         }));
 
-    threads.push_back(new FunctionThread(0, 150000, 0,
+    threads.push_back(createThread(0, 150000, 0,
         [&]()
         {
             static int colorPulse = 0;

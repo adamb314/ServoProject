@@ -6,9 +6,8 @@
 #include "DCServo.h"
 #include "Communication.h"
 
-START_OF_THREAD_HANDLER_CONFIG
-THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(200);
-END_OF_THREAD_HANDLER_CONFIG
+SET_THREAD_HANDLER_TICK(200);
+THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(InterruptTimer::getInstance());
 
 ThreadHandler* threadHandler = ThreadHandler::getInstance();
 
@@ -80,9 +79,10 @@ void setup()
             }
 
         }));
+
+    threadHandler->enableThreadExecution();
 }
 
 void loop()
 {
-    threadHandler->run();
 }

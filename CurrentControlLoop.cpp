@@ -13,13 +13,13 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
 {
     currentSampler->init(A1);
 
-    threads.push_back(new FunctionThread(2, period, 0,
+    threads.push_back(createThread(2, period, 0,
         [&]()
         {
             currentSampler->triggerSample();
         }));
 
-    threads.push_back(new FunctionThread(2, period, 200,
+    threads.push_back(createThread(2, period, 200,
         [&]()
         {
             this->run();

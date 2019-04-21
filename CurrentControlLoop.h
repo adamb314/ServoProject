@@ -34,7 +34,7 @@ private:
     int16_t u;
     int16_t limitedU;
     bool lastULimited;
-    std::vector<FunctionThread*> threads;
+    std::vector<Thread*> threads;
 };
 
 #endif

@@ -92,6 +92,6 @@ class DCServo
     int16_t identTestAmplitude;
     int16_t pwmOutputOnDisabled;
 
-    std::vector<FunctionThread*> threads;
+    std::vector<Thread*> threads;
 };
 #endif
