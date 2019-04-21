@@ -1,9 +1,38 @@
 #include <Arduino.h>
 #undef max
 #undef min
+#include <array>
 
 #ifndef COMMUNICATION_H
 #define COMMUNICATION_H
+
+class SerialComOptimizer
+{
+public:
+    SerialComOptimizer(Serial_* serial);
+
+    ~SerialComOptimizer();
+
+    size_t available();
+
+    uint8_t read();
+
+    void write(uint8_t byte);
+
+    void collectReadData();
+
+    void sendWrittenData();
+
+private:
+    Serial_* serial;
+
+    std::array<uint8_t, 32> readBuffer;
+    std::array<uint8_t, 32>::iterator readBufferGetIt;
+    std::array<uint8_t, 32>::iterator readBufferPutIt;
+
+    std::array<uint8_t, 32> writeBuffer;
+    std::array<uint8_t, 32>::iterator writeBufferPutIt;
+};
 
 class Communication
 {
@@ -21,6 +50,7 @@ public:
     bool charArrayChanged[8];
 
 private:
+    SerialComOptimizer serial;
     int intArrayBuffer[16];
     char charArrayBuffer[8];
 
