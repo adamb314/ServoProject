@@ -73,6 +73,11 @@ void CurrentSampler::triggerSample()
     activeSample = true;
 }
 
+bool CurrentSampler::sampleReady()
+{
+    return ADC->INTFLAG.bit.RESRDY;
+}
+
 void CurrentSampler::resetFilteredValue()
 {
     filteredValue = value;
@@ -146,7 +151,7 @@ void CurrentSampler::collectSample()
     }
 
     // Store the value
-    while (ADC->INTFLAG.bit.RESRDY == 0);   // Waiting for conversion to complete
+    while (!sampleReady());   // Waiting for conversion to complete
 
     activeSample = false;
 

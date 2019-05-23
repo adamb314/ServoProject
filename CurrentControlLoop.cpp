@@ -13,17 +13,23 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
 {
     currentSampler->init(A1);
 
-    threads.push_back(createThread(2, period, 0,
+    adcSampDoneCheck = createFunctionalWrapper<bool>(
+        [&]()
+        {
+            return currentSampler->sampleReady();
+        });
+
+    threads.push_back(createThreadWithCodeBlocks(2, period, 0,
         [&]()
         {
             currentSampler->triggerSample();
+            Thread::delayNextCodeBlockUntil(adcSampDoneCheck);
         }));
 
-    threads.push_back(createThread(2, period, 200,
-        [&]()
+    threads[0]->addCodeBlock([&]()
         {
             this->run();
-        }));
+        });
 }
 
 CurrentControlLoop::~CurrentControlLoop()

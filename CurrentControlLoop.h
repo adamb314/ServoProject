@@ -34,7 +34,8 @@ private:
     int16_t u;
     int16_t limitedU;
     bool lastULimited;
-    std::vector<Thread*> threads;
+    FunctionalWrapper<bool>* adcSampDoneCheck;
+    std::vector<CodeBlocksThread*> threads;
 };
 
 #endif

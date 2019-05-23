@@ -16,6 +16,8 @@ public:
 
     void triggerSample();
 
+    bool sampleReady();
+
     void resetFilteredValue();
 
     int32_t getValue();
