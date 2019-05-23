@@ -1,2 +1,4 @@
 .vscode/**
+enableAutoUpload
+..*
 *.sublime-workspace
