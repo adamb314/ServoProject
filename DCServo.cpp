@@ -354,11 +354,6 @@ void DCServo::controlLoop()
 
         controlSignal = u;
 
-        if (rawPos > 1410 + 800 || rawPos < 1410 - 800)
-        {
-            controlSignal = 0;
-        }
-
         controlSignal = setOutput(controlSignal);
         current = currentControl->getCurrent();
 
