@@ -196,7 +196,7 @@ void DCServo::enable(bool b)
     controlEnabled = b;
 }
 
-void DCServo::setReference(int16_t pos, int16_t vel, int16_t feedForwardU)
+void DCServo::setReference(float pos, int16_t vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
     this->feedForwardU = feedForwardU;
@@ -204,7 +204,7 @@ void DCServo::setReference(int16_t pos, int16_t vel, int16_t feedForwardU)
     posRef = pos;
 }
 
-int16_t DCServo::getPosition()
+float DCServo::getPosition()
 {
     ThreadInterruptBlocker blocker;
     return rawPos;
@@ -344,9 +344,9 @@ void DCServo::controlLoop()
 
     if (controlEnabled)
     {
-        int16_t posDiff = static_cast<int16_t>(
+        float posDiff = static_cast<int16_t>(
                         static_cast<uint16_t>(posRef * 16) -
-                        static_cast<uint16_t>(x[0] * 16)) / 16;
+                        static_cast<uint16_t>(x[0] * 16)) * (1.0 / 16);
 
         float vControlRef = L[0] * posDiff + velRef;
 

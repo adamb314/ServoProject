@@ -20,9 +20,9 @@ class DCServo
 
     void enable(bool b = true);
 
-    void setReference(int16_t pos, int16_t vel, int16_t feedForwardU = 0);
+    void setReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 
-    int16_t getPosition();
+    float getPosition();
 
     int16_t getVelocity();
     
@@ -50,7 +50,7 @@ class DCServo
     Eigen::Vector4f L;
 
     uint16_t loopNumber;
-    int16_t rawPos;
+    float rawPos;
     Eigen::Vector3f x;
 
 #ifdef SIMULATE
@@ -61,7 +61,7 @@ class DCServo
     int16_t controlSignal;
     int16_t feedForwardU;
     int16_t velRef;
-    int16_t posRef;
+    float posRef;
 
     float Ivel;
 
