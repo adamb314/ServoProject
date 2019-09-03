@@ -18,26 +18,24 @@ void EncoderHandler::init()
 
 void EncoderHandler::triggerSample()
 {
-    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE2));
+    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE1));
 
     digitalWrite(A5, LOW);
 
     delayMicroseconds(1);
 
-    uint8_t buffer[3] = {0};
+    uint16_t send = 0xffff;
+    uint16_t received;
     
-    SPI.transfer(buffer, sizeof(buffer));
+    received = SPI.transfer16(send);
     SPI.endTransaction();
     digitalWrite(A5, HIGH);
-    buffer[0] = (buffer[0] << 1) | (buffer[1] >> 7);
-    buffer[1] = (buffer[1] << 1) | (buffer[2] >> 7);
-    buffer[2] = (buffer[2] << 1);
-
-    value = (buffer[0] << 4) | (buffer[1] >> 4);
-    status = (buffer[1] << 4) | (buffer[2] >> 6);
+    
+    value = (received & 0x3fff) * 0.25;
+    status = 0;
 }
 
-uint16_t EncoderHandler::getValue()
+float EncoderHandler::getValue()
 {
     return value;
 }

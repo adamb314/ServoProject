@@ -14,12 +14,12 @@ class EncoderHandler
 
     void triggerSample();
 
-    uint16_t getValue();
+    float getValue();
 
     uint16_t getStatus();
 
   private:
-    uint16_t value;
+    float value;
     uint16_t status;
 };
 
