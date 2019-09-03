@@ -19,7 +19,7 @@ void setup()
     dcServo = DCServo::getInstance();
     communication = std::make_unique<Communication>(1, 115200);
 
-    communication->intArray[0] = dcServo->getPosition();
+    communication->intArray[0] = dcServo->getPosition() * 4;
     communication->intArray[1] = 0;
     communication->intArray[2] = 0;
     communication->charArray[1] = 0;
@@ -34,7 +34,7 @@ void loop()
 
     if (communicationIdle)
     {
-        communication->intArray[3] = dcServo->getPosition();
+        communication->intArray[3] = dcServo->getPosition() * 4;
         communication->intArray[4] = dcServo->getVelocity();
         communication->intArray[5] = dcServo->getControlSignal();
         communication->intArray[6] = dcServo->getCurrent();
@@ -62,7 +62,7 @@ void loop()
             dcServo->enable(false);
         }
 
-        dcServo->setReference(communication->intArray[0], communication->intArray[1], communication->intArray[2]);
+        dcServo->setReference(communication->intArray[0] * 0.25, communication->intArray[1], communication->intArray[2]);
         communication->intArrayChanged[0] = false;
     }
     else
