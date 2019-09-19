@@ -31,6 +31,7 @@ void EncoderHandler::triggerSample()
     SPI.endTransaction();
     digitalWrite(A5, HIGH);
     
+    received = -received;
     value = (received & 0x3fff) * 0.25;
     status = 0;
 }
