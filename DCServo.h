@@ -13,6 +13,20 @@
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
+class ReferenceInterpolator
+{
+ public:
+    ReferenceInterpolator();
+
+    void set(float position, float velocity, float feedForward);
+
+    void get(float& position, float& velocity, float& feedForward);
+
+ private:
+    float pos[2], vel[2], feed[2];
+    uint16_t time[2];
+};
+
 class DCServo
 {
  public:
@@ -59,9 +73,8 @@ class DCServo
 
     int16_t current;
     int16_t controlSignal;
-    int16_t feedForwardU;
-    int16_t velRef;
-    float posRef;
+
+    ReferenceInterpolator refInterpolator;
 
     float Ivel;
 

@@ -199,9 +199,7 @@ void DCServo::enable(bool b)
 void DCServo::setReference(float pos, int16_t vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
-    this->feedForwardU = feedForwardU;
-    velRef = vel;
-    posRef = pos;
+    refInterpolator.set(pos, vel, feedForwardU);
 }
 
 float DCServo::getPosition()
@@ -344,6 +342,12 @@ void DCServo::controlLoop()
 
     if (controlEnabled)
     {
+        float posRef;
+        float velRef;
+        float feedForwardU;
+
+        refInterpolator.get(posRef, velRef, feedForwardU);
+
         float posDiff = static_cast<int16_t>(
                         static_cast<uint16_t>(posRef * 16) -
                         static_cast<uint16_t>(x[0] * 16)) * (1.0 / 16);
@@ -377,4 +381,56 @@ int16_t DCServo::setOutput(int16_t u)
     currentControl->setReference(u);
     
     return currentControl->getLimitedCurrent();
+}
+
+ReferenceInterpolator::ReferenceInterpolator()
+{
+    set(0, 0, 0);
+    set(0, 0, 0);
+}
+
+void ReferenceInterpolator::set(float position, float velocity, float feedForward)
+{
+    time[0] = time[1];
+    time[1] = millis();
+
+    pos[0] = pos[1];
+    vel[0] = vel[1];
+    feed[0] = feed[1];
+
+    pos[1] = position;
+    vel[1] = velocity;
+    feed[1] = feedForward;
+}
+
+void ReferenceInterpolator::get(float& position, float& velocity, float& feedForward)
+{
+    uint16_t current = millis();
+
+    uint16_t diff0 = current - time[0];
+    uint16_t diff1 = time[1] - time[0];
+
+    if (diff1 == 0)
+    {
+        position = pos[1];
+        velocity = vel[1];
+        feedForward = feed[1];
+
+        return;
+    }
+
+    if (diff1 > 100 || diff0 > 100)
+    {
+        position = pos[1];
+        velocity = vel[1];
+        feedForward = feed[1];
+
+        return;
+    }
+
+    float t = diff0 / diff1;
+
+    position = pos[0] + t * (pos[1] - pos[0]);
+    velocity = vel[0] + t * (vel[1] - vel[0]);
+    feedForward = feed[0] + t * (feed[1] - feed[0]);
 }
