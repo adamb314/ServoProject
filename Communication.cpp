@@ -1,10 +1,10 @@
 #include "Communication.h"
 
 Communication::Communication(unsigned char nodeNr, unsigned long baud) :
-    serial(SerialComOptimizer(&Serial))
+    serial(SerialComOptimizer(&Serial1))
 {
   this->nodeNr = nodeNr;
-  Serial.begin(baud);
+  Serial1.begin(baud);
   waitForBytes = 1;
   communicationState = 0;
   messageLength = 0;
