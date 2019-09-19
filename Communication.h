@@ -9,7 +9,7 @@
 class SerialComOptimizer
 {
 public:
-    SerialComOptimizer(Serial_* serial);
+    SerialComOptimizer(Stream* serial);
 
     ~SerialComOptimizer();
 
@@ -24,7 +24,7 @@ public:
     void sendWrittenData();
 
 private:
-    Serial_* serial;
+    Stream* serial;
 
     std::array<uint8_t, 32> readBuffer;
     std::array<uint8_t, 32>::iterator readBufferGetIt;

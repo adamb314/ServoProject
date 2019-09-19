@@ -327,7 +327,7 @@ bool Communication::blockingRun()
          sendCommunicationState == 0;
 }
 
-SerialComOptimizer::SerialComOptimizer(Serial_* serial) :
+SerialComOptimizer::SerialComOptimizer(Stream* serial) :
     serial(serial),
     readBufferGetIt(readBuffer.end() - 1),
     readBufferPutIt(readBuffer.begin()),
