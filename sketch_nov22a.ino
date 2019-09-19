@@ -11,79 +11,113 @@ THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(InterruptTimer::getInstance());
 
 ThreadHandler* threadHandler = ThreadHandler::getInstance();
 
-DCServo* dcServo = nullptr;
-std::unique_ptr<Communication> communication;
+class CommunicationHandler : public Communication
+{
+public:
+    CommunicationHandler(DCServo* dcServo, unsigned char nodeNr, unsigned long baud) :
+        Communication(nodeNr, baud),
+        dcServo(dcServo)
+    {
+        Communication::intArray[0] = dcServo->getPosition() * 4;
+        Communication::intArray[1] = 0;
+        Communication::intArray[2] = 0;
+        Communication::charArray[1] = 0;
+
+        posRefTimeout = 100;
+
+        lastPosRefTimestamp = millis() - 2 * posRefTimeout;
+    }
+
+    ~CommunicationHandler()
+    {
+    }
+
+    virtual void onReadyToSendEvent()
+    {
+    }
+
+    virtual void onReceiveCompleteEvent()
+    {
+    }
+
+    virtual void onErrorEvent()
+    {
+    }
+
+    virtual void onComCycleEvent()
+    {
+        Communication::intArray[3] = dcServo->getPosition() * 4;
+        Communication::intArray[4] = dcServo->getVelocity();
+        Communication::intArray[5] = dcServo->getControlSignal();
+        Communication::intArray[6] = dcServo->getCurrent();
+        Communication::intArray[7] = threadHandler->getCpuLoad();
+        Communication::intArray[8] = dcServo->getLoopNumber();
+
+        if (Communication::charArray[1] == 0)
+        {
+            if (Communication::intArrayChanged[0])
+            {
+                lastPosRefTimestamp = millis();
+
+                 dcServo->enable(true);
+            }
+
+            dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
+            Communication::intArrayChanged[0] = false;
+        }
+        else
+        {
+            int16_t amplitude = Communication::intArray[2];
+            if (Communication::charArray[1] == 1)
+            {
+                if (dcServo->runIdentTest1(amplitude))
+                {
+                    Communication::charArray[1] = 0;
+                }
+            }
+            else
+            {
+                if (Communication::charArray[1] == 2)
+                {
+                    if (dcServo->runIdentTest2(amplitude))
+                    {
+                        Communication::charArray[1] = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    void checkCommunicationTimeout()
+    {
+        if (static_cast<int32_t>(millis() - lastPosRefTimestamp) > posRefTimeout)
+        {
+            dcServo->enable(false);
+        }
+    }
+
+    void run() override
+    {
+        Communication::run();
+        checkCommunicationTimeout();
+    }
+
+private:
+    DCServo* dcServo;
+    uint32_t lastPosRefTimestamp;
+    uint16_t posRefTimeout;
+};
+
+std::unique_ptr<CommunicationHandler> communication;
 
 void setup()
 {
-    dcServo = DCServo::getInstance();
-    communication = std::make_unique<Communication>(1, 115200);
-
-    communication->intArray[0] = dcServo->getPosition() * 4;
-    communication->intArray[1] = 0;
-    communication->intArray[2] = 0;
-    communication->charArray[1] = 0;
+    communication = std::make_unique<CommunicationHandler>(DCServo::getInstance(), 1, 115200);
 
     threadHandler->enableThreadExecution();
 }
 
 void loop()
 {
-    static uint32_t lastPosRefTimestamp = millis();
-    static bool communicationIdle = true;
-
-    if (communicationIdle)
-    {
-        communication->intArray[3] = dcServo->getPosition() * 4;
-        communication->intArray[4] = dcServo->getVelocity();
-        communication->intArray[5] = dcServo->getControlSignal();
-        communication->intArray[6] = dcServo->getCurrent();
-        communication->intArray[7] = threadHandler->getCpuLoad();
-        communication->intArray[8] = dcServo->getLoopNumber();
-    }
-
-    communicationIdle = communication->blockingRun();
-
-    if (!communicationIdle)
-    {
-        return;
-    }
-
-    if (communication->charArray[1] == 0)
-    {
-        if (communication->intArrayChanged[0])
-        {
-            lastPosRefTimestamp = millis();
-
-             dcServo->enable(true);
-        }
-        else if (static_cast<int32_t>(millis() - lastPosRefTimestamp) > 100)
-        {
-            dcServo->enable(false);
-        }
-
-        dcServo->setReference(communication->intArray[0] * 0.25, communication->intArray[1], communication->intArray[2]);
-        communication->intArrayChanged[0] = false;
-    }
-    else
-    {
-        int16_t amplitude = communication->intArray[2];
-        if (communication->charArray[1] == 1)
-        {
-            if (dcServo->runIdentTest1(amplitude))
-            {
-                communication->charArray[1] = 0;
-            }
-        }
-        else
-        {
-            if (communication->charArray[1] == 2)
-            {
-                if (dcServo->runIdentTest2(amplitude))
-                {
-                    communication->charArray[1] = 0;
-                }
-            }
-        }
-    }
+    communication->run();
 }

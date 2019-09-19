@@ -15,9 +15,11 @@ Communication::Communication(unsigned char nodeNr, unsigned long baud) :
   sendCommunicationState = 0;
   currentSendCommandIndex = 0;
   numberOfSendCommands = 0;
+
+  lastMessageNodeNr = 0;
 }
   
-bool Communication::run()
+void Communication::run()
 {
   bool receiveCompleate = false;
   serial.collectReadData();
@@ -35,8 +37,16 @@ bool Communication::run()
             communicationError = false;
           }
 
+          if (lastMessageNodeNr >= messageNodeNr)
+          {
+            onComCycleEvent();
+          }
+          lastMessageNodeNr = messageNodeNr;
+
           if (nodeNr == messageNodeNr)
           {
+            onReadyToSendEvent();
+
             memcpy(intArrayBuffer, intArray, sizeof(intArrayBuffer));
             memcpy(charArrayBuffer, charArray, sizeof(charArrayBuffer));
             memcpy(intArrayChangedBuffer, intArrayChanged, sizeof(intArrayChangedBuffer));
@@ -256,6 +266,8 @@ bool Communication::run()
           }
           else
           {
+            onErrorEvent();
+
             serial.write(static_cast<unsigned char>(0));
           }
 
@@ -306,25 +318,9 @@ bool Communication::run()
     memcpy(charArray, charArrayBuffer, sizeof(charArray));
     memcpy(intArrayChanged, intArrayChangedBuffer, sizeof(intArrayChanged));
     memcpy(charArrayChanged, charArrayChangedBuffer, sizeof(charArrayChanged));
-    receiveCompleate = false;
+
+    onReceiveCompleteEvent();
   }
-
-  return receiveCompleate && !communicationError;
-}
-
-bool Communication::blockingRun()
-{
-  int i = 0;
-  while (serial.available() >= waitForBytes ||
-        (sendCommunicationState != 0) ||
-        i == 0)
-  {
-    i++;
-    run();
-  }
-
-  return communicationState == 0 &&
-         sendCommunicationState == 0;
 }
 
 SerialComOptimizer::SerialComOptimizer(Stream* serial) :

@@ -39,10 +39,14 @@ class Communication
 public:
     Communication(unsigned char nodeNr, unsigned long baud = 9600);
 
-    bool run();
+    virtual void onReadyToSendEvent() = 0;
+    virtual void onReceiveCompleteEvent() = 0;
+    virtual void onErrorEvent() = 0;
+    virtual void onComCycleEvent() = 0;
 
-    bool blockingRun();
+    virtual void run();
 
+protected:
     int intArray[16];
     char charArray[8];
 
@@ -69,6 +73,8 @@ private:
     unsigned char numberOfSendCommands;
     unsigned char currentSendCommandIndex;
     unsigned char sendCommandBuffer[100];
+
+    unsigned char lastMessageNodeNr;
 
     unsigned char nodeNr;
 };
