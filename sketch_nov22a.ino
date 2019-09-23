@@ -58,8 +58,7 @@ public:
             if (Communication::intArrayChanged[0])
             {
                 lastPosRefTimestamp = millis();
-
-                 dcServo->enable(true);
+                dcServo->enable(true);
             }
 
             dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
