@@ -1,7 +1,9 @@
 #include "Communication.h"
 
 Communication::Communication(unsigned char nodeNr, unsigned long baud) :
-    serial(SerialComOptimizer(&Serial1))
+    serial(SerialComOptimizer(&Serial1)),
+    intArrayChangedBuffer({0}),
+    charArrayChangedBuffer({0})
 {
   this->nodeNr = nodeNr;
   Serial1.begin(baud);
