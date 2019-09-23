@@ -90,8 +90,10 @@ public:
 
     void checkCommunicationTimeout()
     {
-        if (static_cast<int32_t>(millis() - lastPosRefTimestamp) > posRefTimeout)
+        int32_t currentTime = millis();
+        if (static_cast<int32_t>(currentTime - lastPosRefTimestamp) > posRefTimeout)
         {
+            lastPosRefTimestamp = currentTime - 2 * posRefTimeout;
             dcServo->enable(false);
         }
     }
