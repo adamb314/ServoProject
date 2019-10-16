@@ -20,6 +20,7 @@ class EncoderHandler
 
   private:
     float value;
+    float wrapAroundCorretion;
     uint16_t status;
 };
 

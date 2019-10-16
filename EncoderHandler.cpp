@@ -1,7 +1,7 @@
 #include "EncoderHandler.h"
 
 EncoderHandler::EncoderHandler() :
-    value(0), status(0)
+    value(0), wrapAroundCorretion(0), status(0) 
 {
 }
 
@@ -32,13 +32,22 @@ void EncoderHandler::triggerSample()
     digitalWrite(A5, HIGH);
     
     received = -received;
-    value = (received & 0x3fff) * 0.25;
+    float newValue = (received & 0x3fff) * 0.25;
+    if (newValue - value > 4096 / 2)
+    {
+        wrapAroundCorretion -= 4096;
+    }
+    else if (newValue - value < -4096 / 2)
+    {
+        wrapAroundCorretion += 4096;
+    }
+    value = newValue;
     status = 0;
 }
 
 float EncoderHandler::getValue()
 {
-    return value;
+    return (value + wrapAroundCorretion);
 }
 
 uint16_t EncoderHandler::getStatus()
