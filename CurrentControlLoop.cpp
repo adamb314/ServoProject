@@ -61,7 +61,7 @@ int16_t CurrentControlLoop::getLimitedCurrent()
     ThreadInterruptBlocker interruptBlocker;
     if (lastULimited)
     {
-        return filteredY;
+        return y;
     }
 
     return ref;
@@ -91,10 +91,6 @@ void CurrentControlLoop::run()
 
     if (uLimitError != 0)
     {
-        if (!lastULimited)
-        {
-            currentSampler->resetFilteredValue();
-        }
         lastULimited = true;
     }
     else

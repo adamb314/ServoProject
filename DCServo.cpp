@@ -11,6 +11,7 @@ DCServo::DCServo() :
         loopNumber(0),
         current(0),
         controlSignal(0),
+        uLimitDiff(0),
         Ivel(0),
         currentControl(std::make_unique<CurrentControlLoop>(400)),
         encoderHandler(std::make_unique<EncoderHandler>()),
@@ -342,6 +343,10 @@ void DCServo::controlLoop()
 
     if (controlEnabled)
     {
+        uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedCurrent());
+
+        Ivel += L[3] * uLimitDiff;
+
         float posRef;
         float velRef;
         float feedForwardU;
@@ -357,11 +362,10 @@ void DCServo::controlLoop()
 
         controlSignal = u;
 
-        controlSignal = setOutput(controlSignal);
+        setOutput(controlSignal);
         current = currentControl->getCurrent();
 
         Ivel -= L[2] * (vControlRef - x[1]);
-        Ivel += L[3] * (u - controlSignal);
     }
     else
     {
@@ -375,8 +379,16 @@ void DCServo::controlLoop()
 
 }
 
-int16_t DCServo::setOutput(int16_t u)
+int16_t DCServo::setOutput(float u)
 {
+    if (u > 0x7fff)
+    {
+        u = 0x7fff;
+    }
+    else if (u < -0x7fff)
+    {
+        u = -0x7fff;
+    }
     currentControl->setReference(u);
     
     return currentControl->getLimitedCurrent();

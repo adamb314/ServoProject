@@ -57,7 +57,7 @@ class DCServo
 
     void identTestLoop();
 
-    int16_t setOutput(int16_t u);
+    int16_t setOutput(float u);
 
     bool controlEnabled;
 
@@ -72,7 +72,8 @@ class DCServo
 #endif
 
     int16_t current;
-    int16_t controlSignal;
+    float controlSignal;
+    float uLimitDiff;
 
     ReferenceInterpolator refInterpolator;
 
