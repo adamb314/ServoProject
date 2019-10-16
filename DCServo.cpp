@@ -348,9 +348,8 @@ void DCServo::controlLoop()
 
         refInterpolator.get(posRef, velRef, feedForwardU);
 
-        float posDiff = static_cast<int16_t>(
-                        static_cast<uint16_t>(posRef * 16) -
-                        static_cast<uint16_t>(x[0] * 16)) * (1.0 / 16);
+
+        float posDiff = posRef - x[0];
 
         float vControlRef = L[0] * posDiff + velRef;
 
