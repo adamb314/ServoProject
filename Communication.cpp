@@ -244,6 +244,7 @@ void Communication::run()
     {
       waitForBytes = 1;
       communicationState = 0;
+      lastMessageNodeNr = 0;
     }
   }
 
