@@ -55,14 +55,15 @@ public:
 
         if (Communication::charArray[1] == 0)
         {
+            dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
+
             if (Communication::intArrayChanged[0])
             {
+                Communication::intArrayChanged[0] = false;
+                
                 lastPosRefTimestamp = millis();
                 dcServo->enable(true);
             }
-
-            dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
-            Communication::intArrayChanged[0] = false;
         }
         else
         {
