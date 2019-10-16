@@ -14,13 +14,15 @@ HBridge4WirePwm::~HBridge4WirePwm()
 
 int HBridge4WirePwm::setOutput(int output)
 {
-    if (output > 1023)
+    const int16_t maxPwm = 1023;
+
+    if (output > maxPwm)
     {
-        output = 1023;
+        output = maxPwm;
     }
-    else if (output < -1023)
+    else if (output < -maxPwm)
     {
-        output = -1023;
+        output = -maxPwm;
     }
 
     TCC0->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
