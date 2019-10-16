@@ -47,7 +47,7 @@ void EncoderHandler::triggerSample()
 
 float EncoderHandler::getValue()
 {
-    return (value + wrapAroundCorretion);
+    return (value + wrapAroundCorretion) * (561.0 / 189504.0);
 }
 
 uint16_t EncoderHandler::getStatus()
