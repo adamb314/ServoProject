@@ -6,7 +6,7 @@
 class EncoderHandler
 {
   public:
-    EncoderHandler();
+    EncoderHandler(int chipSelectPin);
 
     ~EncoderHandler();
 
@@ -19,6 +19,7 @@ class EncoderHandler
     uint16_t getStatus();
 
   private:
+    int chipSelectPin;
     float value;
     float wrapAroundCorretion;
     uint16_t status;

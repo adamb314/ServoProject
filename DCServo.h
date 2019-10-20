@@ -64,7 +64,9 @@ class DCServo
     Eigen::Vector4f L;
 
     uint16_t loopNumber;
-    float rawPos;
+    float rawMotorPos;
+    float rawOutputPos;
+    float outputPosOffset;
     Eigen::Vector3f x;
 
 #ifdef SIMULATE
@@ -80,7 +82,8 @@ class DCServo
     float Ivel;
 
     std::unique_ptr<CurrentControlLoop> currentControl;
-    std::unique_ptr<EncoderHandler> encoderHandler;
+    std::unique_ptr<EncoderHandler> motorEncoderHandler;
+    std::unique_ptr<EncoderHandler> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
 
     Adafruit_DotStar dotStarLed;

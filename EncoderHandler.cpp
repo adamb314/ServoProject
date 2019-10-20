@@ -1,7 +1,7 @@
 #include "EncoderHandler.h"
 
-EncoderHandler::EncoderHandler() :
-    value(0), wrapAroundCorretion(0), status(0) 
+EncoderHandler::EncoderHandler(int chipSelectPin) :
+    chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0) 
 {
 }
 
@@ -12,15 +12,16 @@ EncoderHandler::~EncoderHandler()
 void EncoderHandler::init()
 {
     SPI.begin();
-    pinMode(A5, OUTPUT);
-    digitalWrite(A5, HIGH);
+    pinMode(chipSelectPin, OUTPUT);
+    digitalWrite(chipSelectPin, HIGH);
+    triggerSample();
 }
 
 void EncoderHandler::triggerSample()
 {
     SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE1));
 
-    digitalWrite(A5, LOW);
+    digitalWrite(chipSelectPin, LOW);
 
     delayMicroseconds(1);
 
@@ -29,7 +30,7 @@ void EncoderHandler::triggerSample()
     
     received = SPI.transfer16(send);
     SPI.endTransaction();
-    digitalWrite(A5, HIGH);
+    digitalWrite(chipSelectPin, HIGH);
     
     received = -received;
     float newValue = (received & 0x3fff) * 0.25;
@@ -47,7 +48,7 @@ void EncoderHandler::triggerSample()
 
 float EncoderHandler::getValue()
 {
-    return (value + wrapAroundCorretion) * (561.0 / 189504.0);
+    return (value + wrapAroundCorretion);
 }
 
 uint16_t EncoderHandler::getStatus()

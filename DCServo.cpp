@@ -14,7 +14,8 @@ DCServo::DCServo() :
         uLimitDiff(0),
         Ivel(0),
         currentControl(std::make_unique<CurrentControlLoop>(400)),
-        encoderHandler(std::make_unique<EncoderHandler>()),
+        motorEncoderHandler(std::make_unique<EncoderHandler>(A4)),
+        outputEncoderHandler(std::make_unique<EncoderHandler>(A5)),
         kalmanFilter(std::make_unique<KalmanFilter>()),
         dotStarLed(1, 41, 40, DOTSTAR_BGR),
         dotstarState(1),
@@ -29,21 +30,28 @@ DCServo::DCServo() :
     //L << 14.865806368082696, 2.0623236695442064, -0.07122297702645312, -0.07122297702645312 * 10;
     //L << 19.76190853507559, 2.7501424347363677, -0.12380201903044662, -0.12380201903044662 * 10;
     //L << 24.628722042909875, 3.422417759025543, -0.18915403084733035, -0.18915403084733035 * 10;
-    L << 57.89092015732856, 7.721727677879117, -0.9336154818877859, -0.9336154818877859 * 10;
+    //L << 57.89092015732856, 7.721727677879117, -0.9336154818877859, -0.9336154818877859 * 10;
+    L << 94.23296940236878, 11.862863259936727, -2.185085156962166, -2.185085156962166 * 10;
 
     dotStarLed.begin();
     dotStarLed.show();
 
-    encoderHandler->init();
+    motorEncoderHandler->init();
+    outputEncoderHandler->init();
 
 #ifdef SIMULATE
-    rawPos = 2048;
+    rawMotorPos = 2048;
+    rawOutputPos = rawMotorPos;
 #else
-    encoderHandler->triggerSample();
-    rawPos = encoderHandler->getValue();
+    motorEncoderHandler->triggerSample();
+    outputEncoderHandler->triggerSample();
+    rawMotorPos = motorEncoderHandler->getValue() * (561.0 / 189504.0);
+    rawOutputPos = outputEncoderHandler->getValue();
 #endif
 
-    x[0] = rawPos;
+    outputPosOffset = rawOutputPos - rawMotorPos;
+
+    x[0] = rawMotorPos;
     x[1] = 0;
     x[2] = 0;
 
@@ -210,7 +218,7 @@ void DCServo::setReference(float pos, int16_t vel, int16_t feedForwardU)
 float DCServo::getPosition()
 {
     ThreadInterruptBlocker blocker;
-    return rawPos;
+    return rawOutputPos;
 }
 
 int16_t DCServo::getVelocity()
@@ -337,13 +345,16 @@ void DCServo::controlLoop()
 {
 #ifdef SIMULATE
     xSim = kalmanFilter->getA() * xSim + kalmanFilter->getB() * controlSignal;
-    rawPos =xSim[0];
+    rawMotorPos =xSim[0];
+    rawOutputPos = rawMotorPos;
 #else
-    encoderHandler->triggerSample();
-    rawPos = encoderHandler->getValue();
+    motorEncoderHandler->triggerSample();
+    outputEncoderHandler->triggerSample();
+    rawMotorPos = motorEncoderHandler->getValue() * (561.0 / 189504.0);
+    rawOutputPos = outputEncoderHandler->getValue();
 #endif
 
-    x = kalmanFilter->update(controlSignal, rawPos);
+    x = kalmanFilter->update(controlSignal, rawMotorPos);
 
     if (controlEnabled)
     {
@@ -357,6 +368,9 @@ void DCServo::controlLoop()
 
         refInterpolator.get(posRef, velRef, feedForwardU);
 
+        outputPosOffset -= 12 * 0.0012 * (posRef - rawOutputPos);
+
+        posRef -= outputPosOffset;
 
         float posDiff = posRef - x[0];
 
@@ -375,7 +389,7 @@ void DCServo::controlLoop()
     {
         setReference(x[0], 0, 0);
         Ivel = 0;
-
+        outputPosOffset = rawOutputPos - rawMotorPos;
         controlSignal = 0;
         currentControl->overidePwmDuty(pwmOutputOnDisabled);
         current = currentControl->getCurrent();
