@@ -240,11 +240,13 @@ void Communication::run()
   }
   else
   {
-    if (static_cast<long>(millis() - lastAvailableReadTimestamp) > 500)
+    if (static_cast<long>(millis() - lastAvailableReadTimestamp) > 100)
     {
       waitForBytes = 1;
       communicationState = 0;
       lastMessageNodeNr = 0;
+
+      onComIdleEvent();
     }
   }
 

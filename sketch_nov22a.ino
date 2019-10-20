@@ -22,10 +22,6 @@ public:
         Communication::intArray[1] = 0;
         Communication::intArray[2] = 0;
         Communication::charArray[1] = 0;
-
-        posRefTimeout = 100;
-
-        lastPosRefTimestamp = millis() - 2 * posRefTimeout;
     }
 
     ~CommunicationHandler()
@@ -60,8 +56,6 @@ public:
             if (Communication::intArrayChanged[0])
             {
                 Communication::intArrayChanged[0] = false;
-                
-                lastPosRefTimestamp = millis();
                 dcServo->enable(true);
             }
         }
@@ -88,26 +82,14 @@ public:
         }
     }
 
-    void checkCommunicationTimeout()
+    void onComIdleEvent() override
     {
-        int32_t currentTime = millis();
-        if (static_cast<int32_t>(currentTime - lastPosRefTimestamp) > posRefTimeout)
-        {
-            lastPosRefTimestamp = currentTime - 2 * posRefTimeout;
-            dcServo->enable(false);
-        }
-    }
-
-    void run() override
-    {
-        Communication::run();
-        checkCommunicationTimeout();
+        Communication::intArrayChanged[0] = false;
+        dcServo->enable(false);
     }
 
 private:
     DCServo* dcServo;
-    uint32_t lastPosRefTimestamp;
-    uint16_t posRefTimeout;
 };
 
 std::unique_ptr<CommunicationHandler> communication;

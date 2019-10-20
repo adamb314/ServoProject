@@ -43,6 +43,7 @@ public:
     virtual void onReceiveCompleteEvent() = 0;
     virtual void onErrorEvent() = 0;
     virtual void onComCycleEvent() = 0;
+    virtual void onComIdleEvent() = 0;
 
     virtual void run();
 
