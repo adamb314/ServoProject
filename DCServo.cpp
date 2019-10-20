@@ -445,6 +445,15 @@ void ReferenceInterpolator::get(float& position, float& velocity, float& feedFor
 
     float t = diff0 / diff1;
 
+    if (t < 0)
+    {
+        t = 0;
+    }
+    else if (t > 1)
+    {
+        t = 1;
+    }
+
     position = pos[0] + t * (pos[1] - pos[0]);
     velocity = vel[0] + t * (vel[1] - vel[0]);
     feedForward = feed[0] + t * (feed[1] - feed[0]);
