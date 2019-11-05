@@ -249,6 +249,12 @@ uint16_t DCServo::getLoopNumber()
     return loopNumber;
 }
 
+int16_t DCServo::getMotorPosition()
+{
+    ThreadInterruptBlocker blocker;
+    return rawMotorPos * (189504.0 / 561.0);
+}
+
 bool DCServo::runIdentTest1(int16_t amplitude)
 {
     ThreadInterruptBlocker blocker;

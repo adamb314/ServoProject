@@ -48,6 +48,7 @@ public:
         Communication::intArray[6] = dcServo->getCurrent();
         Communication::intArray[7] = threadHandler->getCpuLoad();
         Communication::intArray[8] = dcServo->getLoopNumber();
+        Communication::intArray[9] = dcServo->getMotorPosition();
 
         if (Communication::charArray[1] == 0)
         {

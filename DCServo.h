@@ -46,6 +46,8 @@ class DCServo
 
     uint16_t getLoopNumber();
 
+    int16_t getMotorPosition();
+
     bool runIdentTest1(int16_t amplitude);
 
     bool runIdentTest2(int16_t amplitude);
