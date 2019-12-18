@@ -5,14 +5,16 @@
 #undef max
 #undef min
 
+#include "AdcHandler.h"
+
 class CurrentSampler
 {
 public:
-    CurrentSampler();
+    CurrentSampler(uint32_t pin);
 
     ~CurrentSampler();
 
-    void init(uint32_t pin);
+    void init();
 
     void triggerSample();
 
@@ -24,13 +26,14 @@ public:
     int32_t getFilteredValue();
 
   private:
-    void configureAdcPin(uint32_t pin);
     void collectSample();
 
     int32_t value;
     int32_t filteredValue;
     int32_t offset;
     bool activeSample;
+
+    AverageAnalogSampler sampler;
 };
 
 #endif

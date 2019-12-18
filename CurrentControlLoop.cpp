@@ -2,7 +2,7 @@
 
 CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     pwmInstance(HBridge4WirePwm::getInstance()),
-    currentSampler(new CurrentSampler()),
+    currentSampler(new CurrentSampler(A1)),
     disableLoop(true),
     ref(0),
     y(0),
@@ -11,7 +11,7 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     limitedU(0),
     lastULimited(false)
 {
-    currentSampler->init(A1);
+    currentSampler->init();
 
     adcSampDoneCheck = createFunctionalWrapper<bool>(
         [&]()
