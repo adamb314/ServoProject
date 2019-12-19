@@ -58,7 +58,7 @@ void OpticalEncoderHandler::updatePosition()
     uint16_t a = sensor1.getValue();
     uint16_t b = sensor2.getValue();
 
-    int stepSize = static_cast<int>(aVec.size() / 2.0 + 1);
+    int stepSize = static_cast<int>(vecSize / 2.0 + 1);
 
     int i = 0;
     uint32_t cost = calcCost(i, a, b);
@@ -67,7 +67,7 @@ void OpticalEncoderHandler::updatePosition()
     uint32_t bestCost = cost;
 
     i += stepSize;
-    while (i < aVec.size())
+    while (i < vecSize)
     {
         cost = calcCost(i, a, b);
 
@@ -119,7 +119,7 @@ void OpticalEncoderHandler::updatePosition()
 
     debugValue = micros() - start;
 
-    float newValue = bestI * (4096.0 / aVec.size());
+    float newValue = bestI * (4096.0 / vecSize);
 
     if (newValue - value > 4096 / 2)
     {
@@ -135,13 +135,13 @@ void OpticalEncoderHandler::updatePosition()
 
 uint32_t OpticalEncoderHandler::calcCost(int& i, uint16_t a, uint16_t b)
 {
-    if (i >= aVec.size())
+    if (i >= vecSize)
     {
-        i -= aVec.size();
+        i -= vecSize;
     }
     else if (i < 0)
     {
-        i += aVec.size();
+        i += vecSize;
     }
 
     uint32_t tempA;

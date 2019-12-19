@@ -8,7 +8,8 @@
 class OpticalEncoderHandler : public EncoderHandlerInterface
 {
   public:
-    OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec);
+    static constexpr int vecSize = 512;
+    OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec);
 
     ~OpticalEncoderHandler();
 
@@ -24,8 +25,9 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     void updatePosition();
     uint32_t calcCost(int& i, uint16_t a, uint16_t b);
 
-    std::array<uint16_t, 512> aVec;
-    std::array<uint16_t, 512> bVec;
+
+    std::array<uint16_t, vecSize> aVec;
+    std::array<uint16_t, vecSize> bVec;
 
     AnalogSampler sensor1;
     AnalogSampler sensor2;
