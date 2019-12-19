@@ -9,6 +9,9 @@ class ConfigSelectWindow(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, title="Config Selector", default_height=50, default_width=300)
 
+        self.vboxMain = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(self.vboxMain)
+
         currentConfigName = self.getSelectedConfigurationName()
 
         configurationNames = self.getConfigurations()
@@ -26,7 +29,7 @@ class ConfigSelectWindow(Gtk.Window):
 
         self.updatePeriodComboBox = Gtk.ComboBox.new_with_model(self.configurations)
         self.updatePeriodComboBox.set_margin_start(5)
-        self.updatePeriodComboBox.set_margin_end(10)
+        self.updatePeriodComboBox.set_margin_end(5)
         self.updatePeriodComboBox.set_margin_top(10)
         self.updatePeriodComboBox.set_margin_bottom(8)
         renderer_text = Gtk.CellRendererText()
@@ -35,9 +38,18 @@ class ConfigSelectWindow(Gtk.Window):
         self.updatePeriodComboBox.set_active(activeIndex)
         self.updatePeriodComboBox.connect("changed", self.onConfigSelected)
 
-        self.vboxMain = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.add(self.vboxMain)
         self.vboxMain.pack_start(self.updatePeriodComboBox, False, False, 0)
+
+        self.closeButton = Gtk.Button(label="Close")
+        self.closeButton.connect("clicked", self.onCloseButtonPressed)
+        self.closeButton.set_margin_start(5)
+        self.closeButton.set_margin_end(5)
+        self.closeButton.set_margin_top(8)
+        self.closeButton.set_margin_bottom(10)
+        self.closeButton.set_property("width-request", 120)
+        self.vboxMain.pack_end(self.closeButton, False, False, 0)
+
+        self.closeButton.grab_focus()
 
     def onConfigSelected(self, widget):
         activeIter = widget.get_active_iter()
@@ -72,6 +84,9 @@ class ConfigSelectWindow(Gtk.Window):
                 if not endI == -1:
                     return configName[0:endI]
         return ""
+
+    def onCloseButtonPressed(self, widget):
+        Gtk.main_quit()
 
 if __name__ == '__main__':
     window = ConfigSelectWindow()
