@@ -14,7 +14,7 @@ DCServo::DCServo() :
         controlSignal(0),
         uLimitDiff(0),
         Ivel(0),
-        motorEncoderHandler(std::make_unique<EncoderHandler>(A4)),
+        motorEncoderHandler(ConfigHolder::createMotorEncoderHandler()),
         outputEncoderHandler(std::make_unique<EncoderHandler>(A5)),
         kalmanFilter(std::make_unique<KalmanFilter>()),
         dotStarLed(1, 41, 40, DOTSTAR_BGR),
@@ -34,12 +34,7 @@ DCServo::DCServo() :
 
     currentControl = std::make_unique<CurrentControlLoop>(400);
 
-    //L << 9.940239281724569, 1.3586010780478561, -0.03237764040441623, -0.03237764040441623 * 10;
-    //L << 14.865806368082696, 2.0623236695442064, -0.07122297702645312, -0.07122297702645312 * 10;
-    //L << 19.76190853507559, 2.7501424347363677, -0.12380201903044662, -0.12380201903044662 * 10;
-    //L << 24.628722042909875, 3.422417759025543, -0.18915403084733035, -0.18915403084733035 * 10;
-    //L << 57.89092015732856, 7.721727677879117, -0.9336154818877859, -0.9336154818877859 * 10;
-    L << 94.23296940236878, 11.862863259936727, -2.185085156962166, -2.185085156962166 * 10;
+    L = ConfigHolder::getControlParameterVector();
 
     dotStarLed.begin();
     dotStarLed.show();
@@ -53,7 +48,7 @@ DCServo::DCServo() :
 #else
     motorEncoderHandler->triggerSample();
     outputEncoderHandler->triggerSample();
-    rawMotorPos = motorEncoderHandler->getValue() * (561.0 / 189504.0);
+    rawMotorPos = motorEncoderHandler->getValue() * ConfigHolder::getMotorGearRation();
     rawOutputPos = outputEncoderHandler->getValue();
 #endif
 
@@ -370,7 +365,7 @@ void DCServo::controlLoop()
     rawOutputPos = rawMotorPos;
 #else
     outputEncoderHandler->triggerSample();
-    rawMotorPos = motorEncoderHandler->getValue() * (561.0 / 189504.0);
+    rawMotorPos = motorEncoderHandler->getValue() * ConfigHolder::getMotorGearRation();
     rawOutputPos = outputEncoderHandler->getValue();
 #endif
 
@@ -390,7 +385,7 @@ void DCServo::controlLoop()
 
         if (!onlyUseMotorEncoderControl)
         {
-            outputPosOffset -= 12 * 0.0012 * (posRef - rawOutputPos);
+            outputPosOffset -= L[4] * 0.0012 * (posRef - rawOutputPos);
         }
 
         posRef -= outputPosOffset;

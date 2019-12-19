@@ -1,5 +1,7 @@
 #include <Eigen.h>
 
+#include "config/config.h"
+
 #ifndef KALMAN_FILTER_H
 #define KALMAN_FILTER_H
 

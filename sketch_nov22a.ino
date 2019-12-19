@@ -6,6 +6,8 @@
 #include "DCServo.h"
 #include "Communication.h"
 
+#include "config/config.h"
+
 SET_THREAD_HANDLER_TICK(200);
 THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(InterruptTimer::getInstance());
 
@@ -100,7 +102,7 @@ std::unique_ptr<CommunicationHandler> communication;
 
 void setup()
 {
-    communication = std::make_unique<CommunicationHandler>(DCServo::getInstance(), 1, 115200);
+    communication = std::make_unique<CommunicationHandler>(DCServo::getInstance(), ConfigHolder::getCommunicationId(), 115200);
 
     threadHandler->enableThreadExecution();
 }

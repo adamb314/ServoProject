@@ -8,6 +8,7 @@ uploadTool  = $(arduino-cli) upload -p$(port) --fqbn $(board)
 all: compile autoUpload
 
 compile:
+	./configSelector.py
 	@echo "------------- Build Start -------------"
 	$(compileTool) ./
 	@echo "------------- Build Done -------------"

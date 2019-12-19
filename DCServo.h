@@ -10,6 +10,8 @@
 #include "EncoderHandler.h"
 #include "KalmanFilter.h"
 
+#include "config/config.h"
+
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
@@ -66,7 +68,7 @@ class DCServo
     bool controlEnabled;
     bool onlyUseMotorEncoderControl;
 
-    Eigen::Vector4f L;
+    Eigen::Matrix<float, 5, 1> L;
 
     uint16_t loopNumber;
     float rawMotorPos;

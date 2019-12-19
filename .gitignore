@@ -2,3 +2,4 @@
 enableAutoUpload
 ..*
 *.sublime-workspace
+config/config.h
