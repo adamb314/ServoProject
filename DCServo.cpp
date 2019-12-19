@@ -14,7 +14,6 @@ DCServo::DCServo() :
         controlSignal(0),
         uLimitDiff(0),
         Ivel(0),
-        currentControl(std::make_unique<CurrentControlLoop>(400)),
         motorEncoderHandler(std::make_unique<EncoderHandler>(A4)),
         outputEncoderHandler(std::make_unique<EncoderHandler>(A5)),
         kalmanFilter(std::make_unique<KalmanFilter>()),
@@ -27,6 +26,14 @@ DCServo::DCServo() :
         pwmOutputOnDisabled(0)
 
 {
+    threads.push_back(createThread(2, 1200, 0,
+        [&]()
+        {
+            motorEncoderHandler->triggerSample();
+        }));
+
+    currentControl = std::make_unique<CurrentControlLoop>(400);
+
     //L << 9.940239281724569, 1.3586010780478561, -0.03237764040441623, -0.03237764040441623 * 10;
     //L << 14.865806368082696, 2.0623236695442064, -0.07122297702645312, -0.07122297702645312 * 10;
     //L << 19.76190853507559, 2.7501424347363677, -0.12380201903044662, -0.12380201903044662 * 10;
@@ -362,7 +369,6 @@ void DCServo::controlLoop()
     rawMotorPos =xSim[0];
     rawOutputPos = rawMotorPos;
 #else
-    motorEncoderHandler->triggerSample();
     outputEncoderHandler->triggerSample();
     rawMotorPos = motorEncoderHandler->getValue() * (561.0 / 189504.0);
     rawOutputPos = outputEncoderHandler->getValue();
