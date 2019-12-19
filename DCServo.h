@@ -84,7 +84,7 @@ class DCServo
     float Ivel;
 
     std::unique_ptr<CurrentControlLoop> currentControl;
-    std::unique_ptr<EncoderHandler> motorEncoderHandler;
+    std::unique_ptr<EncoderHandlerInterface> motorEncoderHandler;
     std::unique_ptr<EncoderHandler> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
 

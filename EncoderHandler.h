@@ -3,18 +3,28 @@
 
 #include <SPI.h>
 
-class EncoderHandler
+class EncoderHandlerInterface
+{
+  public:
+    virtual void init() = 0;
+
+    virtual void triggerSample() = 0;
+
+    virtual float getValue() = 0;
+};
+
+class EncoderHandler : public EncoderHandlerInterface
 {
   public:
     EncoderHandler(int chipSelectPin);
 
     ~EncoderHandler();
 
-    void init();
+    virtual void init() override;
 
-    void triggerSample();
+    virtual void triggerSample() override;
 
-    float getValue();
+    virtual float getValue() override;
 
     uint16_t getStatus();
 
