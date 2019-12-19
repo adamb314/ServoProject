@@ -22,6 +22,7 @@ public:
         Communication::intArray[1] = 0;
         Communication::intArray[2] = 0;
         Communication::charArray[1] = 0;
+        Communication::charArray[2] = 0;
     }
 
     ~CommunicationHandler()
@@ -48,10 +49,12 @@ public:
         Communication::intArray[6] = dcServo->getCurrent();
         Communication::intArray[7] = threadHandler->getCpuLoad();
         Communication::intArray[8] = dcServo->getLoopNumber();
-        Communication::intArray[9] = dcServo->getMotorPosition();
+        Communication::intArray[9] = dcServo->getMotorPosition() * 4;
 
         if (Communication::charArray[1] == 0)
         {
+            dcServo->onlyUseMotorEncoder(Communication::charArray[2] == 1);
+
             dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
 
             if (Communication::intArrayChanged[0])

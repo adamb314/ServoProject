@@ -8,6 +8,7 @@ DCServo* DCServo::getInstance()
 
 DCServo::DCServo() :
         controlEnabled(false),
+        onlyUseMotorEncoderControl(false),
         loopNumber(0),
         current(0),
         controlSignal(0),
@@ -49,7 +50,8 @@ DCServo::DCServo() :
     rawOutputPos = outputEncoderHandler->getValue();
 #endif
 
-    outputPosOffset = rawOutputPos - rawMotorPos;
+    initialOutputPosOffset = rawOutputPos - rawMotorPos;
+    outputPosOffset = initialOutputPosOffset;
 
     x[0] = rawMotorPos;
     x[1] = 0;
@@ -209,6 +211,12 @@ void DCServo::enable(bool b)
     controlEnabled = b;
 }
 
+void DCServo::onlyUseMotorEncoder(bool b)
+{
+    ThreadInterruptBlocker blocker;
+    onlyUseMotorEncoderControl = b;
+}
+
 void DCServo::setReference(float pos, int16_t vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
@@ -252,7 +260,7 @@ uint16_t DCServo::getLoopNumber()
 int16_t DCServo::getMotorPosition()
 {
     ThreadInterruptBlocker blocker;
-    return rawMotorPos * (189504.0 / 561.0);
+    return rawMotorPos + initialOutputPosOffset;
 }
 
 bool DCServo::runIdentTest1(int16_t amplitude)
@@ -374,7 +382,10 @@ void DCServo::controlLoop()
 
         refInterpolator.get(posRef, velRef, feedForwardU);
 
-        outputPosOffset -= 12 * 0.0012 * (posRef - rawOutputPos);
+        if (!onlyUseMotorEncoderControl)
+        {
+            outputPosOffset -= 12 * 0.0012 * (posRef - rawOutputPos);
+        }
 
         posRef -= outputPosOffset;
 

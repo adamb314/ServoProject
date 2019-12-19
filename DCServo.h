@@ -34,6 +34,8 @@ class DCServo
 
     void enable(bool b = true);
 
+    void onlyUseMotorEncoder(bool b = true);
+
     void setReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 
     float getPosition();
@@ -62,6 +64,7 @@ class DCServo
     int16_t setOutput(float u);
 
     bool controlEnabled;
+    bool onlyUseMotorEncoderControl;
 
     Eigen::Vector4f L;
 
@@ -69,6 +72,7 @@ class DCServo
     float rawMotorPos;
     float rawOutputPos;
     float outputPosOffset;
+    float initialOutputPosOffset;
     Eigen::Vector3f x;
 
 #ifdef SIMULATE
