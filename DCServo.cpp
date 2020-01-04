@@ -214,6 +214,7 @@ void DCServo::controlLoop()
     {
         setReference(x[0], 0, 0);
         Ivel = 0;
+        uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMotorPos;
         controlSignal = 0;
         currentControl->overidePwmDuty(0);
