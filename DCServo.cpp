@@ -61,7 +61,14 @@ DCServo::DCServo() :
         {
             if (controlEnabled)
             {
-                statusLight.showEnabled();
+                if (openLoopControlMode)
+                {
+                    statusLight.showOpenLoop();
+                }
+                else
+                {
+                    statusLight.showEnabled();
+                }
             }
             else
             {
@@ -76,6 +83,12 @@ void DCServo::enable(bool b)
 {
     ThreadInterruptBlocker blocker;
     controlEnabled = b;
+}
+
+void DCServo::openLoopMode(bool b)
+{
+    ThreadInterruptBlocker blocker;
+    openLoopControlMode = b;
 }
 
 void DCServo::onlyUseMotorEncoder(bool b)
@@ -146,35 +159,56 @@ void DCServo::controlLoop()
 
     if (controlEnabled)
     {
-        uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedCurrent());
-
-        Ivel += L[3] * uLimitDiff;
-
-        float posRef;
-        float velRef;
-        float feedForwardU;
-
-        refInterpolator.get(posRef, velRef, feedForwardU);
-
-        if (!onlyUseMotorEncoderControl)
+        if (!openLoopControlMode)
         {
-            outputPosOffset -= L[4] * 0.0012 * (posRef - rawOutputPos);
+            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedCurrent());
+
+            Ivel += L[3] * uLimitDiff;
+
+            float posRef;
+            float velRef;
+            float feedForwardU;
+
+            refInterpolator.get(posRef, velRef, feedForwardU);
+
+            if (!onlyUseMotorEncoderControl)
+            {
+                outputPosOffset -= L[4] * 0.0012 * (posRef - rawOutputPos);
+            }
+
+            posRef -= outputPosOffset;
+
+            float posDiff = posRef - x[0];
+
+            float vControlRef = L[0] * posDiff + velRef;
+
+            float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
+
+            controlSignal = u;
+
+            setOutput(controlSignal);
+            current = currentControl->getCurrent();
+
+            Ivel -= L[2] * (vControlRef - x[1]);
         }
+        else
+        {
+            setReference(x[0], 0, 0);
+            Ivel = 0;
+            uLimitDiff = 0;
+            outputPosOffset = rawOutputPos - rawMotorPos;
 
-        posRef -= outputPosOffset;
+            float posRef;
+            float velRef;
+            float feedForwardU;
 
-        float posDiff = posRef - x[0];
+            refInterpolator.get(posRef, velRef, feedForwardU);
 
-        float vControlRef = L[0] * posDiff + velRef;
+            controlSignal = feedForwardU;
 
-        float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
-
-        controlSignal = u;
-
-        setOutput(controlSignal);
-        current = currentControl->getCurrent();
-
-        Ivel -= L[2] * (vControlRef - x[1]);
+            setOutput(controlSignal);
+            current = currentControl->getCurrent();
+        }
     }
     else
     {

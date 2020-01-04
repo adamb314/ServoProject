@@ -60,6 +60,13 @@ public:
         if (Communication::intArrayChanged[0])
         {
             Communication::intArrayChanged[0] = false;
+            dcServo->openLoopMode(false);
+            dcServo->enable(true);
+        }
+        else if (Communication::intArrayChanged[2])
+        {
+            Communication::intArrayChanged[2] = false;
+            dcServo->openLoopMode(true);
             dcServo->enable(true);
         }
         else
@@ -71,6 +78,7 @@ public:
     void onComIdleEvent() override
     {
         Communication::intArrayChanged[0] = false;
+        Communication::intArrayChanged[2] = false;
         dcServo->enable(false);
     }
 

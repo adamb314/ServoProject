@@ -36,6 +36,8 @@ class DCServo
 
     void enable(bool b = true);
 
+    void openLoopMode(bool  b);
+
     void onlyUseMotorEncoder(bool b = true);
 
     void setReference(float pos, int16_t vel, int16_t feedForwardU = 0);
@@ -63,6 +65,7 @@ class DCServo
 
     bool controlEnabled;
     bool onlyUseMotorEncoderControl;
+    bool openLoopControlMode;
 
     Eigen::Matrix<float, 5, 1> L;
 
