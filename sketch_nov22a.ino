@@ -62,6 +62,10 @@ public:
             Communication::intArrayChanged[0] = false;
             dcServo->enable(true);
         }
+        else
+        {
+            dcServo->enable(false);
+        }
     }
 
     void onComIdleEvent() override
