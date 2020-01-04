@@ -90,9 +90,25 @@ class DCServo
     std::unique_ptr<EncoderHandler> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
 
-    Adafruit_DotStar dotStarLed;
-    uint8_t dotstarState;
-    uint8_t dotstarStateRequest;
+    class StatusLightHandler
+    {
+     public:
+        StatusLightHandler();
+        ~StatusLightHandler() = default;
+
+        void showDisabled();
+        void showEnabled();
+        void showOpenLoop();
+
+     private:
+        Adafruit_DotStar dotStarLed;
+        uint8_t dotstarState;
+        uint8_t dotstarStateRequest;
+
+        std::vector<Thread*> threads;
+    };
+
+    StatusLightHandler statusLight;
 
     std::vector<Thread*> threads;
 };

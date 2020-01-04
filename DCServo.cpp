@@ -16,10 +16,7 @@ DCServo::DCServo() :
         Ivel(0),
         motorEncoderHandler(ConfigHolder::createMotorEncoderHandler()),
         outputEncoderHandler(std::make_unique<EncoderHandler>(A5)),
-        kalmanFilter(std::make_unique<KalmanFilter>()),
-        dotStarLed(1, 41, 40, DOTSTAR_BGR),
-        dotstarState(1),
-        dotstarStateRequest(1)
+        kalmanFilter(std::make_unique<KalmanFilter>())
 {
     threads.push_back(createThread(2, 1200, 0,
         [&]()
@@ -30,9 +27,6 @@ DCServo::DCServo() :
     currentControl = std::make_unique<CurrentControlLoop>(400);
 
     L = ConfigHolder::getControlParameterVector();
-
-    dotStarLed.begin();
-    dotStarLed.show();
 
     motorEncoderHandler->init();
     outputEncoderHandler->init();
@@ -65,126 +59,16 @@ DCServo::DCServo() :
     threads.push_back(createThread(1, 1200, 0,
         [&]()
         {
+            if (controlEnabled)
+            {
+                statusLight.showEnabled();
+            }
+            else
+            {
+                statusLight.showDisabled();
+            }
             controlLoop();
             loopNumber++;
-        }));
-
-    threads.push_back(createThread(0, 150000, 0,
-        [&]()
-        {
-            static int colorPulse = 0;
-            bool changedColor = false;
-
-            switch (dotstarState)
-            {
-                case 1:
-                    changedColor = true;
-                    if (colorPulse == 0)
-                    {
-                        dotStarLed.setPixelColor(0, 50, 30, 30);
-                    }
-                    else
-                    {
-                        dotStarLed.setPixelColor(0, 50, 0, 0);
-                    }
-                    dotstarState = 10;
-
-                //|||||||||||||||||||||||||||||
-                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-                //INTENTIONAL FALL THROUGH HERE
-                case 10:
-                    colorPulse++;
-                    if (colorPulse >= 5)
-                    {
-                        colorPulse = 0;
-                    }
-
-                    if (colorPulse == 0 || colorPulse == 1)
-                    {
-                        dotstarState = 1;
-                    }
-
-                    if (dotstarStateRequest != 1)
-                    {
-                        dotstarState = dotstarStateRequest;
-                    }
-                    break;
-
-                case 2:
-                    changedColor = true;
-                    if (colorPulse == 0)
-                    {
-                        dotStarLed.setPixelColor(0, 60, 50, 60);
-                    }
-                    else
-                    {
-                        dotStarLed.setPixelColor(0, 60, 50, 0);
-                    }
-                    dotstarState = 20;
-
-                //|||||||||||||||||||||||||||||
-                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-                //INTENTIONAL FALL THROUGH HERE
-                case 20:
-                    colorPulse++;
-                    if (colorPulse >= 5)
-                    {
-                        colorPulse = 0;
-                    }
-
-                    if (colorPulse == 0 || colorPulse == 1)
-                    {
-                        dotstarState = 2;
-                    }
-
-                    if (dotstarStateRequest != 2)
-                    {
-                        dotstarState = dotstarStateRequest;
-                    }
-                    break;
-
-                case 3:
-                    changedColor = true;
-                    if (colorPulse == 0)
-                    {
-                        dotStarLed.setPixelColor(0, 30, 30, 50);
-                    }
-                    else
-                    {
-                        dotStarLed.setPixelColor(0, 0, 0, 50);
-                    }
-                    dotstarState = 30;
-
-                //|||||||||||||||||||||||||||||
-                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-                //INTENTIONAL FALL THROUGH HERE
-                case 30:
-                    colorPulse++;
-                    if (colorPulse >= 5)
-                    {
-                        colorPulse = 0;
-                    }
-
-                    if (colorPulse == 0 || colorPulse == 1)
-                    {
-                        dotstarState = 3;
-                    }
-
-                    if (dotstarStateRequest != 3)
-                    {
-                        dotstarState = dotstarStateRequest;
-                    }
-                    break;
-
-                default:
-                    dotstarState = dotstarStateRequest;
-                    break;
-            }
-
-            if (changedColor)
-            {
-                dotStarLed.show();
-            }
         }));
 }
 
@@ -378,4 +262,146 @@ void ReferenceInterpolator::get(float& position, float& velocity, float& feedFor
     position = pos[0] + t * (pos[1] - pos[0]);
     velocity = vel[0] + t * (vel[1] - vel[0]);
     feedForward = feed[0] + t * (feed[1] - feed[0]);
+}
+
+DCServo::StatusLightHandler::StatusLightHandler() :
+        dotStarLed(1, 41, 40, DOTSTAR_BGR),
+        dotstarState(1),
+        dotstarStateRequest(1)
+{
+    dotStarLed.begin();
+    dotStarLed.show();
+
+    threads.push_back(createThread(0, 150000, 0,
+        [&]()
+        {
+            static int colorPulse = 0;
+            bool changedColor = false;
+
+            switch (dotstarState)
+            {
+                case 1:
+                    changedColor = true;
+                    if (colorPulse == 0)
+                    {
+                        dotStarLed.setPixelColor(0, 50, 30, 30);
+                    }
+                    else
+                    {
+                        dotStarLed.setPixelColor(0, 50, 0, 0);
+                    }
+                    dotstarState = 10;
+
+                //|||||||||||||||||||||||||||||
+                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+                //INTENTIONAL FALL THROUGH HERE
+                case 10:
+                    colorPulse++;
+                    if (colorPulse >= 5)
+                    {
+                        colorPulse = 0;
+                    }
+
+                    if (colorPulse == 0 || colorPulse == 1)
+                    {
+                        dotstarState = 1;
+                    }
+
+                    if (dotstarStateRequest != 1)
+                    {
+                        dotstarState = dotstarStateRequest;
+                    }
+                    break;
+
+                case 2:
+                    changedColor = true;
+                    if (colorPulse == 0)
+                    {
+                        dotStarLed.setPixelColor(0, 60, 50, 60);
+                    }
+                    else
+                    {
+                        dotStarLed.setPixelColor(0, 60, 50, 0);
+                    }
+                    dotstarState = 20;
+
+                //|||||||||||||||||||||||||||||
+                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+                //INTENTIONAL FALL THROUGH HERE
+                case 20:
+                    colorPulse++;
+                    if (colorPulse >= 5)
+                    {
+                        colorPulse = 0;
+                    }
+
+                    if (colorPulse == 0 || colorPulse == 1)
+                    {
+                        dotstarState = 2;
+                    }
+
+                    if (dotstarStateRequest != 2)
+                    {
+                        dotstarState = dotstarStateRequest;
+                    }
+                    break;
+
+                case 3:
+                    changedColor = true;
+                    if (colorPulse == 0)
+                    {
+                        dotStarLed.setPixelColor(0, 30, 30, 50);
+                    }
+                    else
+                    {
+                        dotStarLed.setPixelColor(0, 0, 0, 50);
+                    }
+                    dotstarState = 30;
+
+                //|||||||||||||||||||||||||||||
+                //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+                //INTENTIONAL FALL THROUGH HERE
+                case 30:
+                    colorPulse++;
+                    if (colorPulse >= 5)
+                    {
+                        colorPulse = 0;
+                    }
+
+                    if (colorPulse == 0 || colorPulse == 1)
+                    {
+                        dotstarState = 3;
+                    }
+
+                    if (dotstarStateRequest != 3)
+                    {
+                        dotstarState = dotstarStateRequest;
+                    }
+                    break;
+
+                default:
+                    dotstarState = dotstarStateRequest;
+                    break;
+            }
+
+            if (changedColor)
+            {
+                dotStarLed.show();
+            }
+        }));
+}
+
+void DCServo::StatusLightHandler::showDisabled()
+{
+    dotstarStateRequest = 1;
+}
+
+void DCServo::StatusLightHandler::showEnabled()
+{
+    dotstarStateRequest = 2;
+}
+
+void DCServo::StatusLightHandler::showOpenLoop()
+{
+    dotstarStateRequest = 3;
 }
