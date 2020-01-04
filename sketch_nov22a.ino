@@ -45,13 +45,17 @@ public:
 
     virtual void onComCycleEvent()
     {
-        Communication::intArray[3] = dcServo->getPosition() * 4;
-        Communication::intArray[4] = dcServo->getVelocity();
-        Communication::intArray[5] = dcServo->getControlSignal();
-        Communication::intArray[6] = dcServo->getCurrent();
-        Communication::intArray[7] = threadHandler->getCpuLoad();
-        Communication::intArray[8] = dcServo->getLoopNumber();
-        Communication::intArray[9] = dcServo->getMotorPosition() * 4;
+        {
+            ThreadInterruptBlocker blocker;
+
+            Communication::intArray[3] = dcServo->getPosition() * 4;
+            Communication::intArray[4] = dcServo->getVelocity();
+            Communication::intArray[5] = dcServo->getControlSignal();
+            Communication::intArray[6] = dcServo->getCurrent();
+            Communication::intArray[7] = threadHandler->getCpuLoad();
+            Communication::intArray[8] = dcServo->getLoopNumber();
+            Communication::intArray[9] = dcServo->getMotorPosition() * 4;
+        }
 
         dcServo->onlyUseMotorEncoder(Communication::charArray[2] == 1);
 
