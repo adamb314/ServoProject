@@ -52,10 +52,6 @@ class DCServo
 
     int16_t getMotorPosition();
 
-    bool runIdentTest1(int16_t amplitude);
-
-    bool runIdentTest2(int16_t amplitude);
-
  private:
     DCServo();
 
@@ -97,25 +93,6 @@ class DCServo
     Adafruit_DotStar dotStarLed;
     uint8_t dotstarState;
     uint8_t dotstarStateRequest;
-
-    const int16_t testOutputArray[100] = {-1, -1, 1, 1, 1, -1, -1, 1, 1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1};
-    const int16_t testOutputArray2[100] = {-1, -1, 1, 1, -1, 1, 1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, 1, -1, -1, 1, -1, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, -1, 1, 1, 1, -1, 1};
-
-    enum IdentTestState
-    {
-        NORMAL_CONTROL,
-        IDENT_TEST_1_INIT,
-        IDENT_TEST_1,
-        IDENT_TEST_1_COMP,
-        IDENT_TEST_2_INIT,
-        IDENT_TEST_2,
-        IDENT_TEST_2_COMP
-    };
-
-    IdentTestState identTestState;
-    size_t identTestArrayIndex;
-    int16_t identTestAmplitude;
-    int16_t pwmOutputOnDisabled;
 
     std::vector<Thread*> threads;
 };

@@ -53,38 +53,14 @@ public:
         Communication::intArray[8] = dcServo->getLoopNumber();
         Communication::intArray[9] = dcServo->getMotorPosition() * 4;
 
-        if (Communication::charArray[1] == 0)
-        {
-            dcServo->onlyUseMotorEncoder(Communication::charArray[2] == 1);
+        dcServo->onlyUseMotorEncoder(Communication::charArray[2] == 1);
 
-            dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
+        dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
 
-            if (Communication::intArrayChanged[0])
-            {
-                Communication::intArrayChanged[0] = false;
-                dcServo->enable(true);
-            }
-        }
-        else
+        if (Communication::intArrayChanged[0])
         {
-            int16_t amplitude = Communication::intArray[2];
-            if (Communication::charArray[1] == 1)
-            {
-                if (dcServo->runIdentTest1(amplitude))
-                {
-                    Communication::charArray[1] = 0;
-                }
-            }
-            else
-            {
-                if (Communication::charArray[1] == 2)
-                {
-                    if (dcServo->runIdentTest2(amplitude))
-                    {
-                        Communication::charArray[1] = 0;
-                    }
-                }
-            }
+            Communication::intArrayChanged[0] = false;
+            dcServo->enable(true);
         }
     }
 

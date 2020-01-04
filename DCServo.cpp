@@ -19,12 +19,7 @@ DCServo::DCServo() :
         kalmanFilter(std::make_unique<KalmanFilter>()),
         dotStarLed(1, 41, 40, DOTSTAR_BGR),
         dotstarState(1),
-        dotstarStateRequest(1),
-        identTestState(NORMAL_CONTROL),
-        identTestArrayIndex(0),
-        identTestAmplitude(0),
-        pwmOutputOnDisabled(0)
-
+        dotstarStateRequest(1)
 {
     threads.push_back(createThread(2, 1200, 0,
         [&]()
@@ -70,20 +65,6 @@ DCServo::DCServo() :
     threads.push_back(createThread(1, 1200, 0,
         [&]()
         {
-            if (identTestState == NORMAL_CONTROL)
-            {
-                dotstarStateRequest = 1;
-                if (controlEnabled)
-                {
-                    dotstarStateRequest = 2;
-                }
-                pwmOutputOnDisabled = 0;
-            }
-            else
-            {
-                dotstarStateRequest = 3;
-                identTestLoop();
-            }
             controlLoop();
             loopNumber++;
         }));
@@ -244,7 +225,7 @@ int16_t DCServo::getControlSignal()
     {
         return controlSignal;
     }
-    return pwmOutputOnDisabled;
+    return 0;
 }
 
 int16_t DCServo::getCurrent()
@@ -263,98 +244,6 @@ int16_t DCServo::getMotorPosition()
 {
     ThreadInterruptBlocker blocker;
     return rawMotorPos + initialOutputPosOffset;
-}
-
-bool DCServo::runIdentTest1(int16_t amplitude)
-{
-    ThreadInterruptBlocker blocker;
-    if (identTestState == IDENT_TEST_1_COMP)
-    {
-        identTestState = NORMAL_CONTROL;
-        return true;
-    }
-
-    if (identTestState != IDENT_TEST_1)
-    {
-        identTestState = IDENT_TEST_1_INIT;
-        identTestAmplitude = amplitude;
-    }
-    return false;
-}
-
-bool DCServo::runIdentTest2(int16_t amplitude)
-{
-    ThreadInterruptBlocker blocker;
-    if (identTestState == IDENT_TEST_2_COMP)
-    {
-        identTestState = NORMAL_CONTROL;
-        return true;
-    }
-
-    if (identTestState != IDENT_TEST_2)
-    {
-        identTestState = IDENT_TEST_2_INIT;
-        identTestAmplitude = amplitude;
-    }
-    return false;
-}
-
-void DCServo::identTestLoop()
-{
-    controlEnabled = false;
-    size_t i;
-    switch (identTestState)
-    {
-        case IDENT_TEST_1_INIT:
-            identTestArrayIndex = 0;
-            identTestState = IDENT_TEST_1;
-        //|||||||||||||||||||||||||||||
-        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-        //INTENTIONAL FALL THROUGH HERE
-        case IDENT_TEST_1:
-            i = (identTestArrayIndex >> 4);
-            if (i < sizeof(testOutputArray) / sizeof(testOutputArray[0]))
-            {
-                pwmOutputOnDisabled = identTestAmplitude * testOutputArray[i];
-                identTestArrayIndex++;
-                break;
-            }
-
-            identTestState = IDENT_TEST_1_COMP;
-        //|||||||||||||||||||||||||||||
-        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-        //INTENTIONAL FALL THROUGH HERE
-        case IDENT_TEST_1_COMP:
-            pwmOutputOnDisabled = 0;
-            break;
-
-        case IDENT_TEST_2_INIT:
-            identTestArrayIndex = 0;
-            identTestState = IDENT_TEST_2;
-        //|||||||||||||||||||||||||||||
-        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-        //INTENTIONAL FALL THROUGH HERE
-        case IDENT_TEST_2:
-            i = (identTestArrayIndex >> 4);
-            if (i < sizeof(testOutputArray2) / sizeof(testOutputArray2[0]))
-            {
-                pwmOutputOnDisabled = identTestAmplitude * testOutputArray2[i];
-                identTestArrayIndex++;
-                break;
-            }
-
-            identTestState = IDENT_TEST_2_COMP;
-        //|||||||||||||||||||||||||||||
-        //VVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-        //INTENTIONAL FALL THROUGH HERE
-        case IDENT_TEST_2_COMP:
-            pwmOutputOnDisabled = 0;
-            break;
-
-        default:
-            pwmOutputOnDisabled = 0;
-            break;
-    }
 }
 
 void DCServo::controlLoop()
@@ -409,7 +298,7 @@ void DCServo::controlLoop()
         Ivel = 0;
         outputPosOffset = rawOutputPos - rawMotorPos;
         controlSignal = 0;
-        currentControl->overidePwmDuty(pwmOutputOnDisabled);
+        currentControl->overidePwmDuty(0);
         current = currentControl->getCurrent();
     }
 
