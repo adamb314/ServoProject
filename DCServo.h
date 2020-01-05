@@ -67,6 +67,11 @@ class DCServo
     bool onlyUseMotorEncoderControl;
     bool openLoopControlMode;
 
+    //L[0]: Proportional gain of position control loop
+    //L[1]: Proportional gain of velocity control loop
+    //L[2]: Integral action gain of velocity control loop
+    //L[3]: Integral anti windup gain of velocity control loop
+    //L[4]: Backlash compensation integral action gain
     Eigen::Matrix<float, 5, 1> L;
 
     uint16_t loopNumber;
@@ -74,6 +79,10 @@ class DCServo
     float rawOutputPos;
     float outputPosOffset;
     float initialOutputPosOffset;
+
+    //x[0]: Estimated position
+    //x[1]: Estimated velocity
+    //x[2]: Estimated load disturbance
     Eigen::Vector3f x;
 
 #ifdef SIMULATE
