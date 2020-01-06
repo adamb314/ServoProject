@@ -1,0 +1,248 @@
+#include "MasterCommunication.h"
+
+Communication::Communication(std::string devName) :
+        io(), port(io), reader(port, 50)
+{
+    nodeNr = 1;
+
+    port.open(devName);
+    port.set_option(boost::asio::serial_port_base::baud_rate(115200));
+}
+
+void Communication::setNodeNr(unsigned char nr)
+{
+    nodeNr = nr;
+}
+
+void Communication::write(unsigned char nr, char value)
+{
+    commandArray.push_back(nr);
+    commandArray.push_back(value);
+}
+
+void Communication::write(unsigned char nr, int value)
+{
+    commandArray.push_back(nr + 64);
+    commandArray.push_back(static_cast<unsigned char>(value));
+    commandArray.push_back(static_cast<unsigned short>(value) / 256);
+}
+
+void Communication::requestReadChar(unsigned char nr)
+{
+    commandArray.push_back(nr + 128);
+    receiveArray.push_back(nr);
+}
+
+void Communication::requestReadInt(unsigned char nr)
+{
+    commandArray.push_back(nr + 128 + 64);
+    receiveArray.push_back(nr + 64);
+}
+
+char Communication::getLastReadChar(unsigned char nr)
+{
+    if (nr < sizeof(charArray) / sizeof(charArray[0]))
+    {
+        return charArray[nr];
+    }
+    return 0;
+}
+
+int Communication::getLastReadInt(unsigned char nr)
+{
+    if (nr < sizeof(intArray) / sizeof(intArray[0]))
+    {
+        return intArray[nr];
+    }
+    return 0;
+}
+
+bool Communication::execute()
+{
+    unsigned char checksum = 0;
+    unsigned char messageLenght = 0;
+
+    checksum -= nodeNr;
+
+    for (auto it = commandArray.begin(); it != commandArray.end(); ++it)
+    {
+        if (*it >= 128)
+        {
+            checksum -= *it;
+            messageLenght += 1;
+        }
+        else if (*it >= 64)
+        {
+            checksum -= *it;
+            ++it;
+            checksum -= *it;
+            ++it;
+            checksum -= *it;
+            messageLenght += 3;
+        }
+        else
+        {
+            checksum -= *it;
+            ++it;
+            checksum -= *it;
+            messageLenght += 2;
+        }
+    }
+
+    checksum -= messageLenght;
+
+    sendBuffer.clear();
+    sendBuffer.push_back(nodeNr);
+    sendBuffer.push_back(checksum);
+    sendBuffer.push_back(messageLenght);
+    sendBuffer.insert(sendBuffer.end(), commandArray.begin(), commandArray.end());
+
+    ::write(port.lowest_layer().native_handle(), &sendBuffer[0], sendBuffer.size());
+
+    commandArray.clear();
+
+    std::vector<unsigned char> receiveArrayCopy = receiveArray;
+    receiveArray.clear();
+
+    char c = 0;
+    bool error = false;
+    for (auto it = receiveArrayCopy.begin(); it != receiveArrayCopy.end(); ++it)
+    {
+        error = !reader.read_char(c);
+        if (error)
+        {
+            std::cout << "error1\n";
+            reader.read_char(c);
+            return false;
+        }
+
+        if (*it == c)
+        {
+            if (*it >= 64)
+            {
+                error = !reader.read_char(c);
+                if (error)
+                {
+                    std::cout << "error2\n";
+                    reader.read_char(c);
+                    return false;
+                }
+                short value = static_cast<unsigned char>(c);
+
+                error = !reader.read_char(c);
+                if (error)
+                {
+                    std::cout << "error3\n";
+                    reader.read_char(c);
+                    return false;
+                }
+                value += static_cast<unsigned char>(c) * static_cast<unsigned short>(256);
+                intArray[*it - 64] = value;
+            }
+            else
+            {
+                error = !reader.read_char(c);
+                if (error)
+                {
+                    std::cout << "error4\n";
+                    reader.read_char(c);
+                    return false;
+                }
+                charArray[*it] = c;
+            }
+        }
+        else
+        {
+            std::cout << "error5\n";
+
+            while (true)
+            {
+                error = !reader.read_char(c);
+                if (error)
+                {
+                    reader.read_char(c);
+                    break;
+                }
+            }
+        }
+    }
+    error = !reader.read_char(c);
+    if (error)
+    {
+        reader.read_char(c);
+        return false;
+    }
+    if (static_cast<unsigned char>(c) != 0xff)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void Communication::blocking_reader::read_complete(const boost::system::error_code& error,
+                    size_t bytes_transferred)
+{        
+
+    read_error = (error || bytes_transferred == 0);
+    
+    // Read has finished, so cancel the
+    // timer.
+    timer.cancel();
+}
+
+void Communication::blocking_reader::time_out(const boost::system::error_code& error)
+{
+
+    // Was the timeout was cancelled?
+    if (error)
+    {
+        // yes
+        return;
+    }
+
+    // no, we have timed out, so kill
+    // the read operation
+    // The read callback will be called
+    // with an error
+    port.cancel();
+}
+
+Communication::blocking_reader::blocking_reader(boost::asio::serial_port& port, size_t timeout) :
+                                            port(port), timeout(timeout),
+                                            timer(port.get_io_service()),
+                                            read_error(true)
+{
+     
+}
+
+bool Communication::blocking_reader::read_char(char& val)
+{
+    
+    val = c = '\0';
+
+    // After a timeout & cancel it seems we need
+    // to do a reset for subsequent reads to work.
+    port.get_io_service().reset();
+
+    // Asynchronously read 1 character.
+    boost::asio::async_read(port, boost::asio::buffer(&c, 1), 
+            boost::bind(&blocking_reader::read_complete, 
+                    this, 
+                    boost::asio::placeholders::error, 
+                    boost::asio::placeholders::bytes_transferred)); 
+
+    // Setup a deadline time to implement our timeout.
+    timer.expires_from_now(boost::posix_time::milliseconds(timeout));
+    timer.async_wait(boost::bind(&blocking_reader::time_out,
+                            this, boost::asio::placeholders::error));
+
+    // This will block until a character is read
+    // or until the it is cancelled.
+    port.get_io_service().run();
+
+    if (!read_error)
+        val = c;
+
+    return !read_error;
+}
