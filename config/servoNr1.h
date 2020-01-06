@@ -8,14 +8,19 @@
 class ConfigHolder
 {
 public:
-    static constexpr float getMotorGearRation()
+    static constexpr float getMainEncoderGearRation()
     {
         return 561.0 / 189504.0;
     }
 
-    static std::unique_ptr<EncoderHandlerInterface> createMotorEncoderHandler()
+    static std::unique_ptr<EncoderHandlerInterface> createMainEncoderHandler()
     {
         return std::make_unique<EncoderHandler>(A4);
+    }
+
+    static std::unique_ptr<EncoderHandlerInterface> ()
+    {
+        return std::make_unique<EncoderHandler>(A5);
     }
 
     static constexpr unsigned char getCommunicationId()

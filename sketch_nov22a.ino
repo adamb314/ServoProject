@@ -54,10 +54,10 @@ public:
             Communication::intArray[6] = dcServo->getCurrent();
             Communication::intArray[7] = threadHandler->getCpuLoad();
             Communication::intArray[8] = dcServo->getLoopNumber();
-            Communication::intArray[9] = dcServo->getMotorPosition() * 4;
+            Communication::intArray[9] = dcServo->getMainEncoderPosition() * 4;
         }
 
-        dcServo->onlyUseMotorEncoder(Communication::charArray[2] == 1);
+        dcServo->onlyUseMainEncoder(Communication::charArray[2] == 1);
 
         dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
 

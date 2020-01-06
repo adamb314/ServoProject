@@ -38,7 +38,7 @@ class DCServo
 
     void openLoopMode(bool  b);
 
-    void onlyUseMotorEncoder(bool b = true);
+    void onlyUseMainEncoder(bool b = true);
 
     void setReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 
@@ -52,7 +52,7 @@ class DCServo
 
     uint16_t getLoopNumber();
 
-    int16_t getMotorPosition();
+    int16_t getMainEncoderPosition();
 
  private:
     DCServo();
@@ -64,7 +64,7 @@ class DCServo
     int16_t setOutput(float u);
 
     bool controlEnabled;
-    bool onlyUseMotorEncoderControl;
+    bool onlyUseMainEncoderControl;
     bool openLoopControlMode;
 
     //L[0]: Proportional gain of position control loop
@@ -75,7 +75,7 @@ class DCServo
     Eigen::Matrix<float, 5, 1> L;
 
     uint16_t loopNumber;
-    float rawMotorPos;
+    float rawMainPos;
     float rawOutputPos;
     float outputPosOffset;
     float initialOutputPosOffset;
@@ -98,8 +98,8 @@ class DCServo
     float Ivel;
 
     std::unique_ptr<CurrentControlLoop> currentControl;
-    std::unique_ptr<EncoderHandlerInterface> motorEncoderHandler;
-    std::unique_ptr<EncoderHandler> outputEncoderHandler;
+    std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;
+    std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
 
     class StatusLightHandler

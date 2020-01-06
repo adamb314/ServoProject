@@ -8,43 +8,61 @@ DCServo* DCServo::getInstance()
 
 DCServo::DCServo() :
         controlEnabled(false),
-        onlyUseMotorEncoderControl(false),
+        onlyUseMainEncoderControl(false),
         loopNumber(0),
         current(0),
         controlSignal(0),
         uLimitDiff(0),
         Ivel(0),
-        motorEncoderHandler(ConfigHolder::createMotorEncoderHandler()),
-        outputEncoderHandler(std::make_unique<EncoderHandler>(A5)),
+        mainEncoderHandler(ConfigHolder::createMainEncoderHandler()),
+        outputEncoderHandler(ConfigHolder::createOutputEncoderHandler()),
         kalmanFilter(std::make_unique<KalmanFilter>())
 {
     threads.push_back(createThread(2, 1200, 0,
         [&]()
         {
-            motorEncoderHandler->triggerSample();
+            mainEncoderHandler->triggerSample();
+            if (outputEncoderHandler)
+            {
+                outputEncoderHandler->triggerSample();
+            }
         }));
 
     currentControl = std::make_unique<CurrentControlLoop>(400);
 
     L = ConfigHolder::getControlParameterVector();
 
-    motorEncoderHandler->init();
-    outputEncoderHandler->init();
+    mainEncoderHandler->init();
+    if (outputEncoderHandler)
+    {
+        outputEncoderHandler->init();
+    }
 
 #ifdef SIMULATE
-    rawMotorPos = 2048;
-    rawOutputPos = rawMotorPos;
+    rawMainPos = 2048;
+    rawOutputPos = rawMainPos;
 #else
-    motorEncoderHandler->triggerSample();
-    outputEncoderHandler->triggerSample();
-    rawMotorPos = motorEncoderHandler->getValue() * ConfigHolder::getMotorGearRation();
-    rawOutputPos = outputEncoderHandler->getValue();
+    mainEncoderHandler->triggerSample();
+    if (outputEncoderHandler)
+    {
+        outputEncoderHandler->triggerSample();
+    }
+
+    rawMainPos = mainEncoderHandler->getValue() * ConfigHolder::getMainEncoderGearRation();
+    if (outputEncoderHandler)
+    {
+        rawOutputPos = outputEncoderHandler->getValue();
+    }
+    else
+    {
+        rawOutputPos = rawMainPos;
+    }
 #endif
 
-    initialOutputPosOffset = rawOutputPos - rawMotorPos;
+    initialOutputPosOffset = rawOutputPos - rawMainPos;
     outputPosOffset = initialOutputPosOffset;
 
-    x[0] = rawMotorPos;
+    x[0] = rawMainPos;
     x[1] = 0;
     x[2] = 0;
 
@@ -91,10 +109,10 @@ void DCServo::openLoopMode(bool b)
     openLoopControlMode = b;
 }
 
-void DCServo::onlyUseMotorEncoder(bool b)
+void DCServo::onlyUseMainEncoder(bool b)
 {
     ThreadInterruptBlocker blocker;
-    onlyUseMotorEncoderControl = b;
+    onlyUseMainEncoderControl = b;
 }
 
 void DCServo::setReference(float pos, int16_t vel, int16_t feedForwardU)
@@ -137,25 +155,31 @@ uint16_t DCServo::getLoopNumber()
     return loopNumber;
 }
 
-int16_t DCServo::getMotorPosition()
+int16_t DCServo::getMainEncoderPosition()
 {
     ThreadInterruptBlocker blocker;
-    return rawMotorPos + initialOutputPosOffset;
+    return rawMainPos + initialOutputPosOffset;
 }
 
 void DCServo::controlLoop()
 {
 #ifdef SIMULATE
     xSim = kalmanFilter->getA() * xSim + kalmanFilter->getB() * controlSignal;
-    rawMotorPos =xSim[0];
-    rawOutputPos = rawMotorPos;
+    rawMainPos =xSim[0];
+    rawOutputPos = rawMainPos;
 #else
-    outputEncoderHandler->triggerSample();
-    rawMotorPos = motorEncoderHandler->getValue() * ConfigHolder::getMotorGearRation();
-    rawOutputPos = outputEncoderHandler->getValue();
+    rawMainPos = mainEncoderHandler->getValue() * ConfigHolder::getMainEncoderGearRation();
+    if (outputEncoderHandler)
+    {
+        rawOutputPos = outputEncoderHandler->getValue();
+    }
+    else
+    {
+        rawOutputPos = rawMainPos;
+    }
 #endif
 
-    x = kalmanFilter->update(controlSignal, rawMotorPos);
+    x = kalmanFilter->update(controlSignal, rawMainPos);
 
     if (controlEnabled)
     {
@@ -171,7 +195,7 @@ void DCServo::controlLoop()
 
             refInterpolator.get(posRef, velRef, feedForwardU);
 
-            if (!onlyUseMotorEncoderControl)
+            if (!onlyUseMainEncoderControl)
             {
                 outputPosOffset -= L[4] * 0.0012 * (posRef - rawOutputPos);
             }
@@ -196,7 +220,7 @@ void DCServo::controlLoop()
             setReference(x[0], 0, 0);
             Ivel = 0;
             uLimitDiff = 0;
-            outputPosOffset = rawOutputPos - rawMotorPos;
+            outputPosOffset = rawOutputPos - rawMainPos;
 
             float posRef;
             float velRef;
@@ -215,7 +239,7 @@ void DCServo::controlLoop()
         setReference(x[0], 0, 0);
         Ivel = 0;
         uLimitDiff = 0;
-        outputPosOffset = rawOutputPos - rawMotorPos;
+        outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
         currentControl->overidePwmDuty(0);
         current = currentControl->getCurrent();
