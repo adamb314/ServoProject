@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name AS5048A-HTSP-500)(type Legacy)(uri ${KIPRJMOD}/AS5048A-HTSP-500.mod)(options "")(descr ""))
+)
