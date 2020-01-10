@@ -42,6 +42,8 @@ class DCServoCommunicator
     int initState;
     bool newReference;
 
+    std::array<bool, 10> activeIntReads;
+
     float encoderPos;
     int encoderVel;
     int controlSignal;

@@ -1,6 +1,7 @@
 #include "DCServoCommunicator.h"
 
-DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus)
+DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus) :
+        activeIntReads{false}
 {
     this->nodeNr = nodeNr;
     this->bus = bus;
@@ -52,36 +53,43 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
 
 float DCServoCommunicator::getPosition()
 {
+    activeIntReads[3] = true;
     return scale * encoderPos + offset;
 }
 
 float DCServoCommunicator::getVelocity()
 {
+    activeIntReads[4] = true;
     return scale * encoderVel;
 }
 
 float DCServoCommunicator::getControlSignal()
 {
+    activeIntReads[5] = true;
     return controlSignal;
 }
 
 float DCServoCommunicator::getControlError()
 {
+    activeIntReads[3] = true;
     return scale * (activeRefPos[2] * 0.25 - encoderPos);
 }
 
 float DCServoCommunicator::getCurrent()
 {
+    activeIntReads[6] = true;
     return current;
 }
 
 int DCServoCommunicator::getCpuLoad()
 {
+    activeIntReads[7] = true;
     return cpuLoad;
 }
 
 int DCServoCommunicator::getLoopTime()
 {
+    activeIntReads[8] = true;
     return loopTime;
 }
 
@@ -89,13 +97,14 @@ void DCServoCommunicator::run()
 {
     bus->setNodeNr(nodeNr);
 
-    bus->requestReadInt(3);
-    bus->requestReadInt(4);
-    bus->requestReadInt(5);
-    bus->requestReadInt(6);
-    bus->requestReadInt(7);
-    bus->requestReadInt(8);
-
+    for (size_t i = 0; i < activeIntReads.size(); i++)
+    {
+        if (activeIntReads[i] || !isInitComplete())
+        {
+            activeIntReads[i] = false;
+            bus->requestReadInt(i);
+        }
+    }
 
     if (isInitComplete() && newReference)
     {
