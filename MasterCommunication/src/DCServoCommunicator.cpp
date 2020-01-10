@@ -8,7 +8,8 @@ DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bu
 
     communicationIsOk = false;
     initState = 0;
-    newReference = false;
+    newPositionReference = false;
+    newOpenLoopControlSignal = false;
 
     setOffsetAndScaling(1.0, 0);
 }
@@ -45,9 +46,17 @@ bool DCServoCommunicator::isCommunicationOk()
 
 void DCServoCommunicator::setReference(const float& pos, const float& vel, const float& feedforwardU)
 {
-    newReference = true;
+    newPositionReference = true;
+    newOpenLoopControlSignal = false;
     refPos = (pos - offset) / scale * 4;
     refVel = vel / scale;
+    this->feedforwardU = feedforwardU;
+}
+
+void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU)
+{
+    newOpenLoopControlSignal = true;
+    newPositionReference = false;
     this->feedforwardU = feedforwardU;
 }
 
@@ -106,20 +115,29 @@ void DCServoCommunicator::run()
         }
     }
 
-    if (isInitComplete() && newReference)
+    if (isInitComplete())
     {
-        newReference = false;
-        bus->write(0, refPos);
-        bus->write(1, refVel);
-        bus->write(2, feedforwardU);
+        if (newPositionReference)
+        {
+            bus->write(0, refPos);
+            bus->write(1, refVel);
+            bus->write(2, feedforwardU);
 
-        activeRefPos[4] = activeRefPos[3];
-        activeRefPos[3] = activeRefPos[2];
-        activeRefPos[2] = activeRefPos[1];
-        activeRefPos[1] = activeRefPos[0];
-        activeRefPos[0] = refPos;
+            activeRefPos[4] = activeRefPos[3];
+            activeRefPos[3] = activeRefPos[2];
+            activeRefPos[2] = activeRefPos[1];
+            activeRefPos[1] = activeRefPos[0];
+            activeRefPos[0] = refPos;
+
+            newPositionReference = false;
+        }
+        else if (newOpenLoopControlSignal)
+        {
+            bus->write(2, feedforwardU);
+
+            newOpenLoopControlSignal = false;
+        }
     }
-
 
     communicationIsOk = bus->execute();
 
@@ -135,7 +153,7 @@ void DCServoCommunicator::run()
             activeRefPos[3] = activeRefPos[2];
             activeRefPos[4] = activeRefPos[3];
 
-            bus->write(2, static_cast<char>(0));
+            bus->write(2, static_cast<char>(backlashControlDisabled));
         }
 
         encoderPos = bus->getLastReadInt(3) * 0.25;

@@ -17,6 +17,8 @@ class DCServoCommunicator
 
     void setReference(const float& pos, const float& vel, const float& feedforwardU);
 
+    void setOpenLoopControlSignal(const float& feedforwardU);
+
     float getPosition();
 
     float getVelocity();
@@ -40,7 +42,8 @@ class DCServoCommunicator
     bool communicationIsOk;
 
     int initState;
-    bool newReference;
+    bool newPositionReference;
+    bool newOpenLoopControlSignal;
 
     std::array<bool, 10> activeIntReads;
 
