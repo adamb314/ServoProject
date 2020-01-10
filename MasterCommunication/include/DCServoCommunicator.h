@@ -1,5 +1,6 @@
 #include "MasterCommunication.h"
 #include <sstream>
+#include <array>
 
 #ifndef DC_SERVO_COMMUNICATION_H
 #define DC_SERVO_COMMUNICATION_H
@@ -11,6 +12,8 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset);
 
+    void disableBacklashControl(bool b = true);
+
     bool isInitComplete();
 
     bool isCommunicationOk();
@@ -19,7 +22,7 @@ class DCServoCommunicator
 
     void setOpenLoopControlSignal(const float& feedforwardU);
 
-    float getPosition();
+    float getPosition(bool withBacklash = true);
 
     float getVelocity();
 
@@ -42,11 +45,13 @@ class DCServoCommunicator
     bool communicationIsOk;
 
     int initState;
+    bool backlashControlDisabled;
     bool newPositionReference;
     bool newOpenLoopControlSignal;
 
     std::array<bool, 10> activeIntReads;
 
+    float backlashEncoderPos;
     float encoderPos;
     int encoderVel;
     int controlSignal;

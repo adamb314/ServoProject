@@ -8,6 +8,7 @@ DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bu
 
     communicationIsOk = false;
     initState = 0;
+    backlashControlDisabled = false;
     newPositionReference = false;
     newOpenLoopControlSignal = false;
 
@@ -32,6 +33,11 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset)
             this->offset += 4096 * scale;
         }
     }
+}
+
+void DCServoCommunicator::disableBacklashControl(bool b)
+{
+    backlashControlDisabled = b;
 }
 
 bool DCServoCommunicator::isInitComplete()
@@ -60,10 +66,21 @@ void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU)
     this->feedforwardU = feedforwardU;
 }
 
-float DCServoCommunicator::getPosition()
+float DCServoCommunicator::getPosition(bool withBacklash)
 {
-    activeIntReads[3] = true;
-    return scale * encoderPos + offset;
+    float pos;
+    if (withBacklash && !backlashControlDisabled)
+    {
+        activeIntReads[3] = true;
+        pos = backlashEncoderPos;
+    }
+    else
+    {
+        activeIntReads[9] = true;
+        pos = encoderPos;
+    }
+
+    return scale * pos + offset;
 }
 
 float DCServoCommunicator::getVelocity()
@@ -80,8 +97,19 @@ float DCServoCommunicator::getControlSignal()
 
 float DCServoCommunicator::getControlError()
 {
-    activeIntReads[3] = true;
-    return scale * (activeRefPos[2] * 0.25 - encoderPos);
+    float pos;
+    if (!backlashControlDisabled)
+    {
+        activeIntReads[3] = true;
+        pos = backlashEncoderPos;
+    }
+    else
+    {
+        activeIntReads[9] = true;
+        pos = encoderPos;
+    }
+
+    return scale * (activeRefPos[2] * 0.25 - pos);
 }
 
 float DCServoCommunicator::getCurrent()
@@ -147,7 +175,17 @@ void DCServoCommunicator::run()
         {
             initState++;
 
-            activeRefPos[0] = encoderPos * 4;
+            float pos;
+            if (!backlashControlDisabled)
+            {
+                pos = backlashEncoderPos;
+            }
+            else
+            {
+                pos = encoderPos;
+            }
+
+            activeRefPos[0] = pos * 4;
             activeRefPos[1] = activeRefPos[0];
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];
@@ -155,8 +193,9 @@ void DCServoCommunicator::run()
 
             bus->write(2, static_cast<char>(backlashControlDisabled));
         }
-
-        encoderPos = bus->getLastReadInt(3) * 0.25;
+        
+        backlashEncoderPos = bus->getLastReadInt(3) * 0.25;
+        encoderPos = bus->getLastReadInt(9) * 0.25;
         encoderVel = bus->getLastReadInt(4);
         controlSignal = bus->getLastReadInt(5);
         current = bus->getLastReadInt(6);
