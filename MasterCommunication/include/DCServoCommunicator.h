@@ -60,7 +60,7 @@ class DCServoCommunicator
     int loopTime;
 
     int refPos;
-    int activeRefPos[5];
+    std::array<int, 5> activeRefPos;
     int refVel;
     int feedforwardU;
 
