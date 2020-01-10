@@ -85,16 +85,6 @@ int DCServoCommunicator::getLoopTime()
     return loopTime;
 }
 
-bool DCServoCommunicator::runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude)
-{
-    return modelIdentHandler.runModelIdentTest(testSequenceNumber, amplitude);
-}
-
-std::string DCServoCommunicator::getRecordedModelIdentData()
-{
-    return modelIdentHandler.getRecordedData();
-}
-
 void DCServoCommunicator::run()
 {
     bus->setNodeNr(nodeNr);
@@ -106,29 +96,21 @@ void DCServoCommunicator::run()
     bus->requestReadInt(7);
     bus->requestReadInt(8);
 
-    if (modelIdentHandler.activeRecording())
-    {
-        if (isInitComplete())
-        {
-            modelIdentHandler.handleWrite(bus);
-        }
-    }
-    else
-    {
-        if (isInitComplete() && newReference)
-        {
-            newReference = false;
-            bus->write(0, refPos);
-            bus->write(1, refVel);
-            bus->write(2, feedforwardU);
 
-            activeRefPos[4] = activeRefPos[3];
-            activeRefPos[3] = activeRefPos[2];
-            activeRefPos[2] = activeRefPos[1];
-            activeRefPos[1] = activeRefPos[0];
-            activeRefPos[0] = refPos;
-        }
+    if (isInitComplete() && newReference)
+    {
+        newReference = false;
+        bus->write(0, refPos);
+        bus->write(1, refVel);
+        bus->write(2, feedforwardU);
+
+        activeRefPos[4] = activeRefPos[3];
+        activeRefPos[3] = activeRefPos[2];
+        activeRefPos[2] = activeRefPos[1];
+        activeRefPos[1] = activeRefPos[0];
+        activeRefPos[0] = refPos;
     }
+
 
     communicationIsOk = bus->execute();
 
@@ -153,81 +135,5 @@ void DCServoCommunicator::run()
         current = bus->getLastReadInt(6);
         cpuLoad = bus->getLastReadInt(7);
         loopTime = bus->getLastReadInt(8);
-
-        modelIdentHandler.handleRead(bus, round(encoderPos), controlSignal, current, loopTime);
-    }
-}
-
-DCServoCommunicator::ModelIdentHandler::ModelIdentHandler() :
-    runModelIdentState(0)
-{
-}
-
-bool DCServoCommunicator::ModelIdentHandler::runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude)
-{
-    this->amplitude = amplitude;
-    this->testSequenceNumber = testSequenceNumber;
-
-    if (runModelIdentState == 0)
-    {
-        runModelIdentState = 1;
-    }
-    else if (runModelIdentState == 100)
-    {
-        runModelIdentState = 0;
-        return true;
-    }
-
-    return false;
-}
-
-std::string DCServoCommunicator::ModelIdentHandler::getRecordedData()
-{
-    return dataBuilder.str();
-}
-
-bool DCServoCommunicator::ModelIdentHandler::activeRecording()
-{
-    return runModelIdentState != 0;
-}
-
-void DCServoCommunicator::ModelIdentHandler::handleWrite(Communication* bus)
-{
-    if (runModelIdentState == 1)
-    {
-        dataBuilder.str("");
-        bus->write(2, static_cast<int>(amplitude));
-        bus->write(1, static_cast<char>(testSequenceNumber));
-        bus->requestReadChar(1);
-        runModelIdentState = 2;
-    }
-    else
-    {
-        bus->requestReadChar(1);
-    }
-}
-
-void DCServoCommunicator::ModelIdentHandler::handleRead(Communication* bus, int encoderPos, int controlSignal, int current, int loopTime)
-{
-    if (runModelIdentState == 2)
-    {
-        if (bus->getLastReadChar(1) == testSequenceNumber)
-        {
-            runModelIdentState = 3;
-            lastLoopTime = loopTime - 1;
-        }
-    }
-    if (runModelIdentState == 3)
-    {
-        if (lastLoopTime != loopTime)
-        {
-            dataBuilder << static_cast<int16_t>(loopTime - lastLoopTime) <<
-                    " " << controlSignal << " " << current << " " << encoderPos << "\n";
-            lastLoopTime = loopTime;
-        }
-        if (bus->getLastReadChar(1) != testSequenceNumber)
-        {
-            runModelIdentState = 100;
-        }
     }
 }

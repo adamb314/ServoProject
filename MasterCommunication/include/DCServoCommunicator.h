@@ -31,10 +31,6 @@ class DCServoCommunicator
 
     int getLoopTime();
 
-    bool runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude);
-
-    std::string getRecordedModelIdentData();
-
     void run();
 
   private:
@@ -60,30 +56,6 @@ class DCServoCommunicator
 
     double offset;
     double scale;
-
-    class ModelIdentHandler
-    {
-    public:
-        ModelIdentHandler();
-
-        bool runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude);
-
-        std::string getRecordedData();
-
-        bool activeRecording();
-
-        void handleWrite(Communication* bus);
-
-        void handleRead(Communication* bus, int encoderPos, int controlSignal, int current, int loopTime);
-
-        unsigned int runModelIdentState;
-        unsigned char testSequenceNumber;
-        unsigned int amplitude;
-        int lastLoopTime;
-        std::stringstream dataBuilder;
-    };
-
-    ModelIdentHandler modelIdentHandler;
 };
 
 #endif
