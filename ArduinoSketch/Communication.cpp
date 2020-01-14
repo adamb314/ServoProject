@@ -240,8 +240,10 @@ void Communication::run()
   }
   else
   {
-    if (static_cast<long>(millis() - lastAvailableReadTimestamp) > 100)
+    unsigned long timeStamp = millis();
+    if (static_cast<long>(timeStamp - lastAvailableReadTimestamp) > 100)
     {
+      lastAvailableReadTimestamp = timeStamp;
       waitForBytes = 1;
       communicationState = 0;
       lastMessageNodeNr = 0;
