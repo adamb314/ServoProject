@@ -18,7 +18,7 @@ public:
         return std::make_unique<EncoderHandler>(A4);
     }
 
-    static std::unique_ptr<EncoderHandlerInterface> ()
+    static std::unique_ptr<EncoderHandlerInterface> createOutputEncoderHandler()
     {
         return std::make_unique<EncoderHandler>(A5);
     }
