@@ -166,6 +166,10 @@ void DCServoCommunicator::run()
             newOpenLoopControlSignal = false;
         }
     }
+    else
+    {
+        bus->write(2, static_cast<char>(backlashControlDisabled));
+    }
 
     communicationIsOk = bus->execute();
 
@@ -190,8 +194,6 @@ void DCServoCommunicator::run()
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];
             activeRefPos[4] = activeRefPos[3];
-
-            bus->write(2, static_cast<char>(backlashControlDisabled));
         }
         
         backlashEncoderPos = bus->getLastReadInt(3) * 0.25;
