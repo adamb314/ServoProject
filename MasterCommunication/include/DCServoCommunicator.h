@@ -1,5 +1,6 @@
 #include "MasterCommunication.h"
 #include <sstream>
+#include <array>
 
 #ifndef DC_SERVO_COMMUNICATION_H
 #define DC_SERVO_COMMUNICATION_H
@@ -11,13 +12,17 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset);
 
+    void disableBacklashControl(bool b = true);
+
     bool isInitComplete();
 
     bool isCommunicationOk();
 
     void setReference(const float& pos, const float& vel, const float& feedforwardU);
 
-    float getPosition();
+    void setOpenLoopControlSignal(const float& feedforwardU);
+
+    float getPosition(bool withBacklash = true);
 
     float getVelocity();
 
@@ -31,10 +36,6 @@ class DCServoCommunicator
 
     int getLoopTime();
 
-    bool runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude);
-
-    std::string getRecordedModelIdentData();
-
     void run();
 
   private:
@@ -44,8 +45,13 @@ class DCServoCommunicator
     bool communicationIsOk;
 
     int initState;
-    bool newReference;
+    bool backlashControlDisabled;
+    bool newPositionReference;
+    bool newOpenLoopControlSignal;
 
+    std::array<bool, 10> activeIntReads;
+
+    float backlashEncoderPos;
     float encoderPos;
     int encoderVel;
     int controlSignal;
@@ -54,36 +60,12 @@ class DCServoCommunicator
     int loopTime;
 
     int refPos;
-    int activeRefPos[5];
+    std::array<int, 5> activeRefPos;
     int refVel;
     int feedforwardU;
 
     double offset;
     double scale;
-
-    class ModelIdentHandler
-    {
-    public:
-        ModelIdentHandler();
-
-        bool runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude);
-
-        std::string getRecordedData();
-
-        bool activeRecording();
-
-        void handleWrite(Communication* bus);
-
-        void handleRead(Communication* bus, int encoderPos, int controlSignal, int current, int loopTime);
-
-        unsigned int runModelIdentState;
-        unsigned char testSequenceNumber;
-        unsigned int amplitude;
-        int lastLoopTime;
-        std::stringstream dataBuilder;
-    };
-
-    ModelIdentHandler modelIdentHandler;
 };
 
 #endif

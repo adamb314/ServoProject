@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Adafruit_DotStar.h>
 #undef max
 #undef min
 #include "ArduinoC++BugFixes.h"
@@ -101,26 +100,6 @@ class DCServo
     std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;
     std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
-
-    class StatusLightHandler
-    {
-     public:
-        StatusLightHandler();
-        ~StatusLightHandler() = default;
-
-        void showDisabled();
-        void showEnabled();
-        void showOpenLoop();
-
-     private:
-        Adafruit_DotStar dotStarLed;
-        uint8_t dotstarState;
-        uint8_t dotstarStateRequest;
-
-        std::vector<Thread*> threads;
-    };
-
-    StatusLightHandler statusLight;
 
     std::vector<Thread*> threads;
 };

@@ -1,13 +1,16 @@
 #include "DCServoCommunicator.h"
 
-DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus)
+DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus) :
+        activeIntReads{false}
 {
     this->nodeNr = nodeNr;
     this->bus = bus;
 
     communicationIsOk = false;
     initState = 0;
-    newReference = false;
+    backlashControlDisabled = false;
+    newPositionReference = false;
+    newOpenLoopControlSignal = false;
 
     setOffsetAndScaling(1.0, 0);
 }
@@ -32,6 +35,11 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset)
     }
 }
 
+void DCServoCommunicator::disableBacklashControl(bool b)
+{
+    backlashControlDisabled = b;
+}
+
 bool DCServoCommunicator::isInitComplete()
 {
     return initState == 10;
@@ -44,80 +52,101 @@ bool DCServoCommunicator::isCommunicationOk()
 
 void DCServoCommunicator::setReference(const float& pos, const float& vel, const float& feedforwardU)
 {
-    newReference = true;
+    newPositionReference = true;
+    newOpenLoopControlSignal = false;
     refPos = (pos - offset) / scale * 4;
     refVel = vel / scale;
     this->feedforwardU = feedforwardU;
 }
 
-float DCServoCommunicator::getPosition()
+void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU)
 {
-    return scale * encoderPos + offset;
+    newOpenLoopControlSignal = true;
+    newPositionReference = false;
+    this->feedforwardU = feedforwardU;
+}
+
+float DCServoCommunicator::getPosition(bool withBacklash)
+{
+    float pos;
+    if (withBacklash && !backlashControlDisabled)
+    {
+        activeIntReads[3] = true;
+        pos = backlashEncoderPos;
+    }
+    else
+    {
+        activeIntReads[9] = true;
+        pos = encoderPos;
+    }
+
+    return scale * pos + offset;
 }
 
 float DCServoCommunicator::getVelocity()
 {
+    activeIntReads[4] = true;
     return scale * encoderVel;
 }
 
 float DCServoCommunicator::getControlSignal()
 {
+    activeIntReads[5] = true;
     return controlSignal;
 }
 
 float DCServoCommunicator::getControlError()
 {
-    return scale * (activeRefPos[2] * 0.25 - encoderPos);
+    float pos;
+    if (!backlashControlDisabled)
+    {
+        activeIntReads[3] = true;
+        pos = backlashEncoderPos;
+    }
+    else
+    {
+        activeIntReads[9] = true;
+        pos = encoderPos;
+    }
+
+    return scale * (activeRefPos[2] * 0.25 - pos);
 }
 
 float DCServoCommunicator::getCurrent()
 {
+    activeIntReads[6] = true;
     return current;
 }
 
 int DCServoCommunicator::getCpuLoad()
 {
+    activeIntReads[7] = true;
     return cpuLoad;
 }
 
 int DCServoCommunicator::getLoopTime()
 {
+    activeIntReads[8] = true;
     return loopTime;
-}
-
-bool DCServoCommunicator::runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude)
-{
-    return modelIdentHandler.runModelIdentTest(testSequenceNumber, amplitude);
-}
-
-std::string DCServoCommunicator::getRecordedModelIdentData()
-{
-    return modelIdentHandler.getRecordedData();
 }
 
 void DCServoCommunicator::run()
 {
     bus->setNodeNr(nodeNr);
 
-    bus->requestReadInt(3);
-    bus->requestReadInt(4);
-    bus->requestReadInt(5);
-    bus->requestReadInt(6);
-    bus->requestReadInt(7);
-    bus->requestReadInt(8);
-
-    if (modelIdentHandler.activeRecording())
+    for (size_t i = 0; i < activeIntReads.size(); i++)
     {
-        if (isInitComplete())
+        if (activeIntReads[i] || !isInitComplete())
         {
-            modelIdentHandler.handleWrite(bus);
+            activeIntReads[i] = false;
+            bus->requestReadInt(i);
         }
     }
-    else
+
+    if (isInitComplete())
     {
-        if (isInitComplete() && newReference)
+        if (newPositionReference)
         {
-            newReference = false;
             bus->write(0, refPos);
             bus->write(1, refVel);
             bus->write(2, feedforwardU);
@@ -127,7 +156,19 @@ void DCServoCommunicator::run()
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[1] = activeRefPos[0];
             activeRefPos[0] = refPos;
+
+            newPositionReference = false;
         }
+        else if (newOpenLoopControlSignal)
+        {
+            bus->write(2, feedforwardU);
+
+            newOpenLoopControlSignal = false;
+        }
+    }
+    else
+    {
+        bus->write(2, static_cast<char>(backlashControlDisabled));
     }
 
     communicationIsOk = bus->execute();
@@ -138,96 +179,29 @@ void DCServoCommunicator::run()
         {
             initState++;
 
-            activeRefPos[0] = encoderPos * 4;
+            float pos;
+            if (!backlashControlDisabled)
+            {
+                pos = backlashEncoderPos;
+            }
+            else
+            {
+                pos = encoderPos;
+            }
+
+            activeRefPos[0] = pos * 4;
             activeRefPos[1] = activeRefPos[0];
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];
             activeRefPos[4] = activeRefPos[3];
-
-            bus->write(2, static_cast<char>(0));
         }
-
-        encoderPos = bus->getLastReadInt(3) * 0.25;
+        
+        backlashEncoderPos = bus->getLastReadInt(3) * 0.25;
+        encoderPos = bus->getLastReadInt(9) * 0.25;
         encoderVel = bus->getLastReadInt(4);
         controlSignal = bus->getLastReadInt(5);
         current = bus->getLastReadInt(6);
         cpuLoad = bus->getLastReadInt(7);
         loopTime = bus->getLastReadInt(8);
-
-        modelIdentHandler.handleRead(bus, round(encoderPos), controlSignal, current, loopTime);
-    }
-}
-
-DCServoCommunicator::ModelIdentHandler::ModelIdentHandler() :
-    runModelIdentState(0)
-{
-}
-
-bool DCServoCommunicator::ModelIdentHandler::runModelIdentTest(unsigned char testSequenceNumber, unsigned int amplitude)
-{
-    this->amplitude = amplitude;
-    this->testSequenceNumber = testSequenceNumber;
-
-    if (runModelIdentState == 0)
-    {
-        runModelIdentState = 1;
-    }
-    else if (runModelIdentState == 100)
-    {
-        runModelIdentState = 0;
-        return true;
-    }
-
-    return false;
-}
-
-std::string DCServoCommunicator::ModelIdentHandler::getRecordedData()
-{
-    return dataBuilder.str();
-}
-
-bool DCServoCommunicator::ModelIdentHandler::activeRecording()
-{
-    return runModelIdentState != 0;
-}
-
-void DCServoCommunicator::ModelIdentHandler::handleWrite(Communication* bus)
-{
-    if (runModelIdentState == 1)
-    {
-        dataBuilder.str("");
-        bus->write(2, static_cast<int>(amplitude));
-        bus->write(1, static_cast<char>(testSequenceNumber));
-        bus->requestReadChar(1);
-        runModelIdentState = 2;
-    }
-    else
-    {
-        bus->requestReadChar(1);
-    }
-}
-
-void DCServoCommunicator::ModelIdentHandler::handleRead(Communication* bus, int encoderPos, int controlSignal, int current, int loopTime)
-{
-    if (runModelIdentState == 2)
-    {
-        if (bus->getLastReadChar(1) == testSequenceNumber)
-        {
-            runModelIdentState = 3;
-            lastLoopTime = loopTime - 1;
-        }
-    }
-    if (runModelIdentState == 3)
-    {
-        if (lastLoopTime != loopTime)
-        {
-            dataBuilder << static_cast<int16_t>(loopTime - lastLoopTime) <<
-                    " " << controlSignal << " " << current << " " << encoderPos << "\n";
-            lastLoopTime = loopTime;
-        }
-        if (bus->getLastReadChar(1) != testSequenceNumber)
-        {
-            runModelIdentState = 100;
-        }
     }
 }

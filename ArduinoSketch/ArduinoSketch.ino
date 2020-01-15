@@ -4,6 +4,7 @@
 #include "ArduinoC++BugFixes.h"
 #include "ThreadHandler.h"
 #include "DCServo.h"
+#include "StatusLightHandler.h"
 #include "Communication.h"
 
 #include "config/config.h"
@@ -66,17 +67,25 @@ public:
             Communication::intArrayChanged[0] = false;
             dcServo->openLoopMode(false);
             dcServo->enable(true);
+
+            statusLight.showEnabled();
         }
         else if (Communication::intArrayChanged[2])
         {
             Communication::intArrayChanged[2] = false;
             dcServo->openLoopMode(true);
             dcServo->enable(true);
+
+            statusLight.showOpenLoop();
         }
         else
         {
             dcServo->enable(false);
+
+            statusLight.showDisabled();
         }
+
+        statusLight.showCommunicationActive();
     }
 
     void onComIdleEvent() override
@@ -84,10 +93,14 @@ public:
         Communication::intArrayChanged[0] = false;
         Communication::intArrayChanged[2] = false;
         dcServo->enable(false);
+
+        statusLight.showDisabled();
+        statusLight.showCommunicationInactive();
     }
 
 private:
     DCServo* dcServo;
+    StatusLightHandler statusLight;
 };
 
 std::unique_ptr<CommunicationHandler> communication;
