@@ -71,6 +71,8 @@ void CurrentControlLoop::run()
 {
     y = currentSampler->getValue();
 
+    filteredY = currentSampler->getFilteredValue();
+
     if (disableLoop)
     {
         pwmInstance->setOutput(u);
@@ -99,6 +101,4 @@ void CurrentControlLoop::run()
     }
 
     u -= uLimitError;
-
-    filteredY = currentSampler->getFilteredValue();
 }
