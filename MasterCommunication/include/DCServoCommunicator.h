@@ -10,6 +10,8 @@ class DCServoCommunicator
   public:
     DCServoCommunicator(unsigned char nodeNr, Communication* bus);
 
+    DCServoCommunicator(const DCServoCommunicator&) = delete;
+
     void setOffsetAndScaling(double scale, double offset);
 
     void disableBacklashControl(bool b = true);
