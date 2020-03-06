@@ -143,7 +143,7 @@ uint16_t DCServo::getLoopNumber()
     return loopNumber;
 }
 
-int16_t DCServo::getMainEncoderPosition()
+float DCServo::getMainEncoderPosition()
 {
     ThreadInterruptBlocker blocker;
     return rawMainPos + initialOutputPosOffset;

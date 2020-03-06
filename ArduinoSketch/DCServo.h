@@ -51,7 +51,7 @@ class DCServo
 
     uint16_t getLoopNumber();
 
-    int16_t getMainEncoderPosition();
+    float getMainEncoderPosition();
 
  private:
     DCServo();
