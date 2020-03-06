@@ -73,7 +73,7 @@ public:
         else if (Communication::intArrayChanged[2])
         {
             Communication::intArrayChanged[2] = false;
-            dcServo->openLoopMode(true);
+            dcServo->openLoopMode(true, Communication::charArray[1] == 1);
             dcServo->enable(true);
 
             statusLight.showOpenLoop();

@@ -35,7 +35,7 @@ class DCServo
 
     void enable(bool b = true);
 
-    void openLoopMode(bool  b);
+    void openLoopMode(bool enable, bool pwmMode = false);
 
     void onlyUseMainEncoder(bool b = true);
 
@@ -65,6 +65,7 @@ class DCServo
     bool controlEnabled;
     bool onlyUseMainEncoderControl;
     bool openLoopControlMode;
+    bool pwmOpenLoopMode;
 
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop

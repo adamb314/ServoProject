@@ -9,6 +9,8 @@ DCServo* DCServo::getInstance()
 DCServo::DCServo() :
         controlEnabled(false),
         onlyUseMainEncoderControl(false),
+        openLoopControlMode(false),
+        pwmOpenLoopMode(false),
         loopNumber(0),
         current(0),
         controlSignal(0),
@@ -88,10 +90,11 @@ void DCServo::enable(bool b)
     controlEnabled = b;
 }
 
-void DCServo::openLoopMode(bool b)
+void DCServo::openLoopMode(bool enable, bool pwmMode)
 {
     ThreadInterruptBlocker blocker;
-    openLoopControlMode = b;
+    openLoopControlMode = enable;
+    pwmOpenLoopMode = pwmMode;
 }
 
 void DCServo::onlyUseMainEncoder(bool b)
@@ -202,7 +205,6 @@ void DCServo::controlLoop()
         }
         else
         {
-            setReference(x[0], 0, 0);
             Ivel = 0;
             uLimitDiff = 0;
             outputPosOffset = rawOutputPos - rawMainPos;
@@ -213,9 +215,16 @@ void DCServo::controlLoop()
 
             refInterpolator.get(posRef, velRef, feedForwardU);
 
-            controlSignal = feedForwardU;
-
-            setOutput(controlSignal);
+            if (pwmOpenLoopMode)
+            {
+                controlSignal = 0;
+                currentControl->overidePwmDuty(feedForwardU);
+            }
+            else
+            {
+                controlSignal = feedForwardU;
+                setOutput(controlSignal);
+            }
             current = currentControl->getCurrent();
         }
     }
