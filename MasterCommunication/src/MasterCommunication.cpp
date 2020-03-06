@@ -89,7 +89,11 @@ bool SerialCommunication::execute()
     sendBuffer.push_back(messageLenght);
     sendBuffer.insert(sendBuffer.end(), commandArray.begin(), commandArray.end());
 
-    ::write(port.lowest_layer().native_handle(), &sendBuffer[0], sendBuffer.size());
+    size_t bytesSent = ::write(port.lowest_layer().native_handle(), &sendBuffer[0], sendBuffer.size());
+    if (bytesSent != sendBuffer.size())
+    {
+        throw -1;
+    }
 
     commandArray.clear();
 
