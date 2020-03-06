@@ -39,33 +39,33 @@ class DCServoCommunicator
     void run();
 
   private:
-    Communication* bus;
-    unsigned char nodeNr;
+    Communication* bus{nullptr};
+    unsigned char nodeNr{0};
 
-    bool communicationIsOk;
+    bool communicationIsOk{false};
 
-    int initState;
-    bool backlashControlDisabled;
-    bool newPositionReference;
-    bool newOpenLoopControlSignal;
+    int initState{0};
+    bool backlashControlDisabled{false};
+    bool newPositionReference{false};
+    bool newOpenLoopControlSignal{false};
 
-    std::array<bool, 10> activeIntReads;
+    std::array<bool, 10> activeIntReads{false};
 
-    float backlashEncoderPos;
-    float encoderPos;
-    int encoderVel;
-    int controlSignal;
-    int current;
-    int cpuLoad;
-    int loopTime;
+    float backlashEncoderPos{0.0};
+    float encoderPos{0.0};
+    int encoderVel{0};
+    int controlSignal{0};
+    int current{0};
+    int cpuLoad{0};
+    int loopTime{0};
 
-    int refPos;
-    std::array<int, 5> activeRefPos;
-    int refVel;
-    int feedforwardU;
+    int refPos{0};
+    std::array<int, 5> activeRefPos{0};
+    int refVel{0};
+    int feedforwardU{0};
 
-    double offset;
-    double scale;
+    double offset{0.0};
+    double scale{1.0};
 };
 
 #endif
