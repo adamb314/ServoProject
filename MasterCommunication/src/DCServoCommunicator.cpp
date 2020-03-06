@@ -136,6 +136,15 @@ int DCServoCommunicator::getLoopTime()
     return loopTime;
 }
 
+DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData()
+{
+    activeIntReads[10] = true;
+    activeIntReads[11] = true;
+    activeIntReads[12] = true;
+    activeIntReads[13] = true;
+    return opticalEncoderChannelData;
+}
+
 void DCServoCommunicator::run()
 {
     bus->setNodeNr(nodeNr);
@@ -216,5 +225,9 @@ void DCServoCommunicator::run()
         current = bus->getLastReadInt(6);
         cpuLoad = bus->getLastReadInt(7);
         loopTime = bus->getLastReadInt(8);
+        opticalEncoderChannelData.a = bus->getLastReadInt(10);
+        opticalEncoderChannelData.b = bus->getLastReadInt(11);
+        opticalEncoderChannelData.minCostIndex = bus->getLastReadInt(12);
+        opticalEncoderChannelData.minCost = bus->getLastReadInt(13);
     }
 }

@@ -8,6 +8,15 @@
 class DCServoCommunicator
 {
   public:
+    class OpticalEncoderChannelData
+    {
+    public:
+        unsigned int a{0};
+        unsigned int b{0};
+        unsigned int minCostIndex{0};
+        unsigned int minCost{0};
+    };
+
     DCServoCommunicator(unsigned char nodeNr, Communication* bus);
 
     DCServoCommunicator(const DCServoCommunicator&) = delete;
@@ -40,6 +49,8 @@ class DCServoCommunicator
 
     int getLoopTime();
 
+    OpticalEncoderChannelData getOpticalEncoderChannelData();
+
     void run();
 
   private:
@@ -54,7 +65,7 @@ class DCServoCommunicator
     bool newOpenLoopControlSignal{false};
     bool pwmOpenLoopMode{false};
 
-    std::array<bool, 10> activeIntReads{false};
+    std::array<bool, 16> activeIntReads{false};
 
     float backlashEncoderPos{0.0};
     float encoderPos{0.0};
@@ -63,6 +74,7 @@ class DCServoCommunicator
     int current{0};
     int cpuLoad{0};
     int loopTime{0};
+    OpticalEncoderChannelData opticalEncoderChannelData;
 
     int refPos{0};
     std::array<int, 5> activeRefPos{0};
