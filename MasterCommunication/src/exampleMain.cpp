@@ -17,7 +17,7 @@ const double pi = 3.1415926535897932384626433832795028841972;
 
 int main ()
 {
-    Communication communication("/dev/ttyACM0");
+    SerialCommunication communication("/dev/ttyACM0");
     DCServoCommunicator dcServo1(1, &communication);
     DCServoCommunicator dcServo2(2, &communication);
     DCServoCommunicator dcServo3(3, &communication);

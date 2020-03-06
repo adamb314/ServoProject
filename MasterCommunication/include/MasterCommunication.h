@@ -9,30 +9,52 @@
 #ifndef MASTER_COMMUNICATION_H
 #define MASTER_COMMUNICATION_H
 
-
 class Communication
 {
-  public:
-    Communication(std::string devName);
+public:
+    Communication(){}
+    ~Communication(){};
 
-    void setNodeNr(unsigned char nr);
+    virtual void setNodeNr(unsigned char nr) = 0;
 
-    void write(unsigned char nr, char value);
+    virtual void write(unsigned char nr, char value) = 0;
 
-    void write(unsigned char nr, int value);
+    virtual void write(unsigned char nr, int value) = 0;
 
-    void requestReadChar(unsigned char nr);
+    virtual void requestReadChar(unsigned char nr) = 0;
 
-    void requestReadInt(unsigned char nr);
+    virtual void requestReadInt(unsigned char nr) = 0;
 
-    char getLastReadChar(unsigned char nr);
+    virtual char getLastReadChar(unsigned char nr) = 0;
 
-    int getLastReadInt(unsigned char nr);
+    virtual int getLastReadInt(unsigned char nr) = 0;
 
-    bool execute();
+    virtual bool execute() = 0;
+};
 
-  private:
-  	class blocking_reader
+class SerialCommunication : public Communication
+{
+public:
+    SerialCommunication(std::string devName);
+
+    virtual void setNodeNr(unsigned char nr);
+
+    virtual void write(unsigned char nr, char value);
+
+    virtual void write(unsigned char nr, int value);
+
+    virtual void requestReadChar(unsigned char nr);
+
+    virtual void requestReadInt(unsigned char nr);
+
+    virtual char getLastReadChar(unsigned char nr);
+
+    virtual int getLastReadInt(unsigned char nr);
+
+    virtual bool execute();
+
+protected:
+    class blocking_reader
     {
         boost::asio::serial_port& port;
         size_t timeout;
@@ -71,6 +93,34 @@ class Communication
     boost::asio::serial_port port;
 
     blocking_reader reader;
+};
+
+class SimulateCommunication : public SerialCommunication
+{
+public:
+    SimulateCommunication() :
+        SerialCommunication{""}
+    {
+    }
+
+    virtual bool execute() override;
+
+    class ServoSim
+    {
+    public:
+        void run()
+        {
+            intArray.at(3) = intArray.at(0);
+            intArray.at(9) = intArray.at(0);
+            intArray.at(4) = intArray.at(1);
+            intArray.at(5) = intArray.at(2);
+        }
+
+        std::array<char, 8> charArray{0};
+        std::array<int, 16> intArray{0};
+    };
+
+    std::array<ServoSim, 6> servoSims{};
 };
 
 #endif
