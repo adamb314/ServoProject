@@ -149,6 +149,26 @@ float DCServo::getMainEncoderPosition()
     return rawMainPos + initialOutputPosOffset;
 }
 
+template <class T>
+OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(T& encoder)
+{
+    OpticalEncoderHandler::DiagnosticData out = {0};
+    return out;
+}
+
+template <>
+OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(std::unique_ptr<OpticalEncoderHandler>& encoder)
+{
+    return encoder->getDiagnosticData();
+}
+
+template <>
+OpticalEncoderHandler::DiagnosticData DCServo::getMainEncoderDiagnosticData()
+{
+    ThreadInterruptBlocker blocker;
+    return getMainEncoderRawDiagnosticDataDispatch(mainEncoderHandler);
+}
+
 void DCServo::controlLoop()
 {
 #ifdef SIMULATE

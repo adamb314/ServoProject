@@ -56,6 +56,12 @@ public:
             Communication::intArray[7] = threadHandler->getCpuLoad();
             Communication::intArray[8] = dcServo->getLoopNumber();
             Communication::intArray[9] = dcServo->getMainEncoderPosition() * 4;
+
+            auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
+            Communication::intArray[10] = opticalEncoderChannelData.a;
+            Communication::intArray[11] = opticalEncoderChannelData.b;
+            Communication::intArray[12] = opticalEncoderChannelData.minCostIndex;
+            Communication::intArray[13] = opticalEncoderChannelData.minCost;
         }
 
         dcServo->onlyUseMainEncoder(Communication::charArray[2] == 1);

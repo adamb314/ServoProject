@@ -1,12 +1,5 @@
 #include "OpticalEncoderHandler.h"
 
-uint16_t debugValue = 0;
-
-uint16_t OpticalEncoderHandler::getDebugValue()
-{
-    return debugValue;
-}
-
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec) :
     aVec(aVec), bVec(bVec), sensor1(A2), sensor2(A3), value(0), wrapAroundCorretion(0), newData(false)
 {
@@ -43,17 +36,21 @@ float OpticalEncoderHandler::getValue()
     return (value + wrapAroundCorretion);
 }
 
+
+OpticalEncoderHandler::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
+{
+    return diagnosticData;
+}
+
 void OpticalEncoderHandler::updatePosition()
 {
-    uint16_t start = micros();
-
-    uint16_t a = sensor1.getValue();
-    uint16_t b = sensor2.getValue();
+    diagnosticData.a = sensor1.getValue();
+    diagnosticData.b = sensor2.getValue();
 
     int stepSize = static_cast<int>(vecSize / 2.0 + 1);
 
     int i = 0;
-    uint32_t cost = calcCost(i, a, b);
+    uint32_t cost = calcCost(i, diagnosticData.a, diagnosticData.b);
 
     int bestI = i;
     uint32_t bestCost = cost;
@@ -61,7 +58,7 @@ void OpticalEncoderHandler::updatePosition()
     i += stepSize;
     while (i < vecSize)
     {
-        cost = calcCost(i, a, b);
+        cost = calcCost(i, diagnosticData.a, diagnosticData.b);
 
         if (cost < bestCost)
         {
@@ -86,7 +83,7 @@ void OpticalEncoderHandler::updatePosition()
 
         i += stepSize * checkDir;
 
-        cost = calcCost(i, a, b);
+        cost = calcCost(i, diagnosticData.a, diagnosticData.b);
 
         if (cost < bestCost)
         {
@@ -100,7 +97,7 @@ void OpticalEncoderHandler::updatePosition()
 
         i -= 2 * stepSize * checkDir;
 
-        cost = calcCost(i, a, b);
+        cost = calcCost(i, diagnosticData.a, diagnosticData.b);
 
         if (cost < bestCost)
         {
@@ -109,7 +106,8 @@ void OpticalEncoderHandler::updatePosition()
         }
     }
 
-    debugValue = micros() - start;
+    diagnosticData.minCostIndex = bestI;
+    diagnosticData.minCost = bestCost;
 
     float newValue = bestI * (4096.0 / vecSize);
 
