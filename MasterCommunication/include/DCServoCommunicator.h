@@ -22,7 +22,7 @@ class DCServoCommunicator
 
     void setReference(const float& pos, const float& vel, const float& feedforwardU);
 
-    void setOpenLoopControlSignal(const float& feedforwardU);
+    void setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode);
 
     float getPosition(bool withBacklash = true);
 
@@ -52,6 +52,7 @@ class DCServoCommunicator
     bool backlashControlDisabled{false};
     bool newPositionReference{false};
     bool newOpenLoopControlSignal{false};
+    bool pwmOpenLoopMode{false};
 
     std::array<bool, 10> activeIntReads{false};
 

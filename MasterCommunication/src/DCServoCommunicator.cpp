@@ -59,10 +59,11 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     this->feedforwardU = feedforwardU;
 }
 
-void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU)
+void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)
 {
     newOpenLoopControlSignal = true;
     newPositionReference = false;
+    pwmOpenLoopMode = pwmMode;
     this->feedforwardU = feedforwardU;
 }
 
@@ -167,6 +168,7 @@ void DCServoCommunicator::run()
         else if (newOpenLoopControlSignal)
         {
             bus->write(2, feedforwardU);
+            bus->write(1, static_cast<char>(pwmOpenLoopMode));
 
             newOpenLoopControlSignal = false;
         }
