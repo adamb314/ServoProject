@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <array>
 
 #include <boost/asio.hpp>
 #include <boost/asio/serial_port.hpp> 
@@ -86,8 +87,8 @@ protected:
     std::vector<unsigned char> sendBuffer;
 
     unsigned char nodeNr;
-    char charArray[8];
-    int intArray[16];
+    std::array<char, 8> charArray;
+    std::array<int, 16> intArray;
 
     boost::asio::io_service io;
     boost::asio::serial_port port;

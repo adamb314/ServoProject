@@ -41,20 +41,12 @@ void SerialCommunication::requestReadInt(unsigned char nr)
 
 char SerialCommunication::getLastReadChar(unsigned char nr)
 {
-    if (nr < sizeof(charArray) / sizeof(charArray[0]))
-    {
-        return charArray[nr];
-    }
-    return 0;
+    return charArray.at(nr);
 }
 
 int SerialCommunication::getLastReadInt(unsigned char nr)
 {
-    if (nr < sizeof(intArray) / sizeof(intArray[0]))
-    {
-        return intArray[nr];
-    }
-    return 0;
+    return intArray.at(nr);
 }
 
 bool SerialCommunication::execute()
@@ -137,7 +129,7 @@ bool SerialCommunication::execute()
                     return false;
                 }
                 value += static_cast<unsigned char>(c) * static_cast<unsigned short>(256);
-                intArray[*it - 64] = value;
+                intArray.at(*it - 64) = value;
             }
             else
             {
@@ -148,7 +140,7 @@ bool SerialCommunication::execute()
                     reader.read_char(c);
                     return false;
                 }
-                charArray[*it] = c;
+                charArray.at(*it) = c;
             }
         }
         else
