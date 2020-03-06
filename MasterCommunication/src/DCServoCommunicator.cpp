@@ -95,6 +95,11 @@ float DCServoCommunicator::getControlSignal()
     return controlSignal;
 }
 
+float DCServoCommunicator::getFeedforwardU()
+{
+    return activeFeedforwardU[2];
+}
+
 float DCServoCommunicator::getControlError()
 {
     float pos;
@@ -165,6 +170,12 @@ void DCServoCommunicator::run()
 
             newOpenLoopControlSignal = false;
         }
+
+        activeFeedforwardU[4] = activeFeedforwardU[3];
+        activeFeedforwardU[3] = activeFeedforwardU[2];
+        activeFeedforwardU[2] = activeFeedforwardU[1];
+        activeFeedforwardU[1] = activeFeedforwardU[0];
+        activeFeedforwardU[0] = feedforwardU;
     }
     else
     {

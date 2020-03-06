@@ -30,6 +30,8 @@ class DCServoCommunicator
 
     float getControlSignal();
 
+    float getFeedforwardU();
+
     float getCurrent();
 
     float getControlError();
@@ -65,6 +67,7 @@ class DCServoCommunicator
     std::array<int, 5> activeRefPos{0};
     int refVel{0};
     int feedforwardU{0};
+    std::array<int, 5> activeFeedforwardU{0};
 
     double offset{0.0};
     double scale{1.0};
