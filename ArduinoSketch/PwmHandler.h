@@ -9,6 +9,7 @@ class PwmHandler
   public:
     ~PwmHandler() {};
     virtual int setOutput(int output) = 0;
+    virtual void activateBrake() = 0;
     virtual void disconnectOutput() = 0;
     virtual void connectOutput() = 0;
 };
@@ -26,6 +27,8 @@ class HBridge4WirePwm : public PwmHandler
     HBridge4WirePwm& operator=(HBridge4WirePwm&&) = delete;
 
     virtual int setOutput(int output);
+
+    virtual void activateBrake();
 
     virtual void disconnectOutput();
 

@@ -255,7 +255,7 @@ void DCServo::controlLoop()
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
-        currentControl->overidePwmDuty(0);
+        currentControl->activateBrake();
         current = currentControl->getCurrent();
     }
 

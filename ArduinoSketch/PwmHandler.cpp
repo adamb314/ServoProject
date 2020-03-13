@@ -45,6 +45,20 @@ int HBridge4WirePwm::setOutput(int output)
     return output;
 }
 
+void HBridge4WirePwm::activateBrake()
+{
+    TCC0->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
+                         TCC_CTRLBCLR_LUPD;
+
+    TCC0->CCB[0].bit.CCB = 2 * 1023;
+    TCC0->CCB[1].bit.CCB = 2 * 1023;
+
+    TCC0->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
+                         TCC_CTRLBCLR_LUPD;
+
+    return;
+}
+
 void HBridge4WirePwm::disconnectOutput()
 {
     TCC0->CTRLA.bit.ENABLE = false;
