@@ -48,19 +48,19 @@ public:
     virtual void run();
 
 protected:
-    int intArray[16];
-    char charArray[8];
+    std::array<int, 16> intArray;
+    std::array<char, 8> charArray;
 
-    bool intArrayChanged[16];
-    bool charArrayChanged[8];
+    std::array<bool, 16> intArrayChanged;
+    std::array<bool, 8> charArrayChanged;
 
 private:
     SerialComOptimizer serial;
-    int intArrayBuffer[16];
-    char charArrayBuffer[8];
+    std::array<int, 16> intArrayBuffer;
+    std::array<char, 8> charArrayBuffer;
 
-    bool intArrayChangedBuffer[16];
-    bool charArrayChangedBuffer[8];
+    std::array<bool, 16> intArrayChangedBuffer;
+    std::array<bool, 8> charArrayChangedBuffer;
 
     int communicationState;
     unsigned char waitForBytes;
@@ -73,7 +73,7 @@ private:
     int sendCommunicationState;
     unsigned char numberOfSendCommands;
     unsigned char currentSendCommandIndex;
-    unsigned char sendCommandBuffer[100];
+    std::array<unsigned char, 100> sendCommandBuffer;
 
     unsigned char lastMessageNodeNr;
 

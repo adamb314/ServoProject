@@ -51,10 +51,10 @@ void Communication::run()
           {
             onReadyToSendEvent();
 
-            memcpy(intArrayBuffer, intArray, sizeof(intArrayBuffer));
-            memcpy(charArrayBuffer, charArray, sizeof(charArrayBuffer));
-            memcpy(intArrayChangedBuffer, intArrayChanged, sizeof(intArrayChangedBuffer));
-            memcpy(charArrayChangedBuffer, charArrayChanged, sizeof(charArrayChangedBuffer));
+            intArrayBuffer = intArray;
+            charArrayBuffer = charArray;
+            intArrayChangedBuffer = intArrayChanged;
+            charArrayChangedBuffer = charArrayChanged;
 
             waitForBytes = 1;
             communicationState = 2;
@@ -148,7 +148,7 @@ void Communication::run()
         break;
 
       case 20:
-        if (command < sizeof(charArrayBuffer) / sizeof(charArrayBuffer[0]))
+        if (command < charArrayBuffer.size())
         {
           unsigned char byteValue = serial.read();
 
@@ -188,7 +188,7 @@ void Communication::run()
         }
 
         if (command >= 64 &&
-            command < 64 + sizeof(intArrayBuffer) / sizeof(intArrayBuffer[0]))
+            command < 64 + intArrayBuffer.size())
         {
           unsigned char byteValue = serial.read();
           signed short value = byteValue;
@@ -296,7 +296,7 @@ void Communication::run()
         {
           int value = 0;
           if (sendCommand >= 64 &&
-              sendCommand < 64 + sizeof(intArray) / sizeof(intArray[0]))
+              sendCommand < 64 + intArray.size())
           {
             value = intArray[sendCommand - 64];
           }
@@ -307,7 +307,7 @@ void Communication::run()
         else
         {
           char value = 0;
-          if (sendCommand < sizeof(charArray) / sizeof(charArray[0]))
+          if (sendCommand < charArray.size())
           {
             value = charArray[sendCommand];
           }
@@ -323,10 +323,10 @@ void Communication::run()
 
   if (receiveCompleate && checksum == 0)
   {
-    memcpy(intArray, intArrayBuffer, sizeof(intArray));
-    memcpy(charArray, charArrayBuffer, sizeof(charArray));
-    memcpy(intArrayChanged, intArrayChangedBuffer, sizeof(intArrayChanged));
-    memcpy(charArrayChanged, charArrayChangedBuffer, sizeof(charArrayChanged));
+    intArray = intArrayBuffer;
+    charArray = charArrayBuffer;
+    intArrayChanged = intArrayChangedBuffer;
+    charArrayChanged = charArrayChangedBuffer;
 
     onReceiveCompleteEvent();
   }
