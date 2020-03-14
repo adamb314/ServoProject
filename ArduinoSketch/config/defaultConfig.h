@@ -1,6 +1,7 @@
 #include <Eigen.h>
 #include "../EncoderHandler.h"
 #include "../ArduinoC++BugFixes.h"
+#include "../CommunicationHandlers.h"
 
 #ifndef CONFIG_HOLDER_H
 #define CONFIG_HOLDER_H
@@ -26,6 +27,11 @@ public:
     static constexpr unsigned char getCommunicationId()
     {
         return 1;
+    }
+
+    static std::unique_ptr<CommunicationInterface> getCommunicationHandler()
+    {
+        return std::make_unique<DCServoCommunicationHandler>(getCommunicationId(), 115200);
     }
 
     static Eigen::Matrix<float, 5, 1> getControlParameterVector()
