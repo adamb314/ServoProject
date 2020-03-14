@@ -14,18 +14,18 @@ THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(InterruptTimer::getInstance());
 
 ThreadHandler* threadHandler = ThreadHandler::getInstance();
 
-class CommunicationHandler : public Communication
+class CommunicationHandler : public Communication<1>
 {
 public:
     CommunicationHandler(DCServo* dcServo, unsigned char nodeNr, unsigned long baud) :
-        Communication(nodeNr, baud),
+        Communication({{nodeNr}}, baud),
         dcServo(dcServo)
     {
-        Communication::intArray[0] = dcServo->getPosition() * 4;
-        Communication::intArray[1] = 0;
-        Communication::intArray[2] = 0;
-        Communication::charArray[1] = 0;
-        Communication::charArray[2] = 0;
+        Communication::intArray[0][0] = dcServo->getPosition() * 4;
+        Communication::intArray[0][1] = 0;
+        Communication::intArray[0][2] = 0;
+        Communication::charArray[0][1] = 0;
+        Communication::charArray[0][2] = 0;
     }
 
     ~CommunicationHandler()
@@ -49,37 +49,37 @@ public:
         {
             ThreadInterruptBlocker blocker;
 
-            Communication::intArray[3] = dcServo->getPosition() * 4;
-            Communication::intArray[4] = dcServo->getVelocity();
-            Communication::intArray[5] = dcServo->getControlSignal();
-            Communication::intArray[6] = dcServo->getCurrent();
-            Communication::intArray[7] = threadHandler->getCpuLoad();
-            Communication::intArray[8] = dcServo->getLoopNumber();
-            Communication::intArray[9] = dcServo->getMainEncoderPosition() * 4;
+            Communication::intArray[0][3] = dcServo->getPosition() * 4;
+            Communication::intArray[0][4] = dcServo->getVelocity();
+            Communication::intArray[0][5] = dcServo->getControlSignal();
+            Communication::intArray[0][6] = dcServo->getCurrent();
+            Communication::intArray[0][7] = threadHandler->getCpuLoad();
+            Communication::intArray[0][8] = dcServo->getLoopNumber();
+            Communication::intArray[0][9] = dcServo->getMainEncoderPosition() * 4;
 
             auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
-            Communication::intArray[10] = opticalEncoderChannelData.a;
-            Communication::intArray[11] = opticalEncoderChannelData.b;
-            Communication::intArray[12] = opticalEncoderChannelData.minCostIndex;
-            Communication::intArray[13] = opticalEncoderChannelData.minCost;
+            Communication::intArray[0][10] = opticalEncoderChannelData.a;
+            Communication::intArray[0][11] = opticalEncoderChannelData.b;
+            Communication::intArray[0][12] = opticalEncoderChannelData.minCostIndex;
+            Communication::intArray[0][13] = opticalEncoderChannelData.minCost;
         }
 
-        dcServo->onlyUseMainEncoder(Communication::charArray[2] == 1);
+        dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
 
-        dcServo->setReference(Communication::intArray[0] * 0.25, Communication::intArray[1], Communication::intArray[2]);
+        dcServo->setReference(Communication::intArray[0][0] * 0.25, Communication::intArray[0][1], Communication::intArray[0][2]);
 
-        if (Communication::intArrayChanged[0])
+        if (Communication::intArrayChanged[0][0])
         {
-            Communication::intArrayChanged[0] = false;
+            Communication::intArrayChanged[0][0] = false;
             dcServo->openLoopMode(false);
             dcServo->enable(true);
 
             statusLight.showEnabled();
         }
-        else if (Communication::intArrayChanged[2])
+        else if (Communication::intArrayChanged[0][2])
         {
-            Communication::intArrayChanged[2] = false;
-            dcServo->openLoopMode(true, Communication::charArray[1] == 1);
+            Communication::intArrayChanged[0][2] = false;
+            dcServo->openLoopMode(true, Communication::charArray[0][1] == 1);
             dcServo->enable(true);
 
             statusLight.showOpenLoop();
@@ -96,8 +96,8 @@ public:
 
     void onComIdleEvent() override
     {
-        Communication::intArrayChanged[0] = false;
-        Communication::intArrayChanged[2] = false;
+        Communication::intArrayChanged[0][0] = false;
+        Communication::intArrayChanged[0][2] = false;
         dcServo->enable(false);
 
         statusLight.showDisabled();

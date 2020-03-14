@@ -1,13 +1,14 @@
-#include "Communication.h"
+#ifdef COMMUNICATION_CPP
 
-Communication::Communication(unsigned char nodeNr, unsigned long baud) :
+template <size_t N>
+Communication<N>::Communication(std::array<unsigned char, N> nodeNrArray, unsigned long baud) :
     serial(SerialComOptimizer(&Serial1)),
     intArray{0},
     charArray{0},
     intArrayChanged{false},
-    charArrayChanged{false}
+    charArrayChanged{false},
+    nodeNrArray(std::move(nodeNrArray))
 {
-  this->nodeNr = nodeNr;
   Serial1.begin(baud);
   waitForBytes = 1;
   communicationState = 0;
@@ -23,7 +24,8 @@ Communication::Communication(unsigned char nodeNr, unsigned long baud) :
   lastMessageNodeNr = 0;
 }
   
-void Communication::run()
+template <size_t N>
+void Communication<N>::run()
 {
   bool receiveCompleate = false;
   serial.collectReadData();
@@ -47,14 +49,23 @@ void Communication::run()
           }
           lastMessageNodeNr = messageNodeNr;
 
-          if (nodeNr == messageNodeNr)
+          for (size_t i = 0; i != nodeNrArray.size(); ++i)
+          {
+              if (messageNodeNr == nodeNrArray[i])
+              {
+                  nodeNrIndex = i;
+                  break;
+              }
+          }
+
+          if (nodeNrArray[nodeNrIndex] == messageNodeNr)
           {
             onReadyToSendEvent();
 
-            intArrayBuffer = intArray;
-            charArrayBuffer = charArray;
-            intArrayChangedBuffer = intArrayChanged;
-            charArrayChangedBuffer = charArrayChanged;
+            intArrayBuffer = intArray[nodeNrIndex];
+            charArrayBuffer = charArray[nodeNrIndex];
+            intArrayChangedBuffer = intArrayChanged[nodeNrIndex];
+            charArrayChangedBuffer = charArrayChanged[nodeNrIndex];
 
             waitForBytes = 1;
             communicationState = 2;
@@ -75,7 +86,7 @@ void Communication::run()
 
       case 2:
         checksum = serial.read();
-        checksum += nodeNr;
+        checksum += nodeNrArray[nodeNrIndex];
 
         waitForBytes = 1;
         communicationState = 4;
@@ -296,9 +307,9 @@ void Communication::run()
         {
           int value = 0;
           if (sendCommand >= 64 &&
-              sendCommand < 64 + intArray.size())
+              sendCommand < 64 + intArray[nodeNrIndex].size())
           {
-            value = intArray[sendCommand - 64];
+            value = intArray[nodeNrIndex][sendCommand - 64];
           }
           serial.write(sendCommand);
           serial.write(static_cast<unsigned char>(value));
@@ -307,9 +318,9 @@ void Communication::run()
         else
         {
           char value = 0;
-          if (sendCommand < charArray.size())
+          if (sendCommand < charArray[nodeNrIndex].size())
           {
-            value = charArray[sendCommand];
+            value = charArray[nodeNrIndex][sendCommand];
           }
           serial.write(sendCommand);
           serial.write(static_cast<unsigned char>(value));
@@ -323,95 +334,13 @@ void Communication::run()
 
   if (receiveCompleate && checksum == 0)
   {
-    intArray = intArrayBuffer;
-    charArray = charArrayBuffer;
-    intArrayChanged = intArrayChangedBuffer;
-    charArrayChanged = charArrayChangedBuffer;
+    intArray[nodeNrIndex] = intArrayBuffer;
+    charArray[nodeNrIndex] = charArrayBuffer;
+    intArrayChanged[nodeNrIndex] = intArrayChangedBuffer;
+    charArrayChanged[nodeNrIndex] = charArrayChangedBuffer;
 
     onReceiveCompleteEvent();
   }
 }
 
-SerialComOptimizer::SerialComOptimizer(Stream* serial) :
-    serial(serial),
-    readBufferGetIt(readBuffer.end() - 1),
-    readBufferPutIt(readBuffer.begin()),
-    writeBufferPutIt(writeBuffer.begin())
-{
-}
-
-SerialComOptimizer::~SerialComOptimizer()
-{
-}
-
-size_t SerialComOptimizer::available()
-{
-    int8_t bufferedAmount = readBufferPutIt - (readBufferGetIt + 1);
-    if (bufferedAmount < 0)
-    {
-        bufferedAmount = readBuffer.size() + bufferedAmount;
-    }
-    return bufferedAmount;
-}
-
-uint8_t SerialComOptimizer::read()
-{
-    ++readBufferGetIt;
-    if (readBufferGetIt == readBuffer.end())
-    {
-        readBufferGetIt = readBuffer.begin();
-    }
-
-    return *readBufferGetIt;
-}
-
-void SerialComOptimizer::write(uint8_t byte)
-{
-    *writeBufferPutIt = byte;
-    ++writeBufferPutIt;
-}
-
-void SerialComOptimizer::collectReadData()
-{
-    int32_t readAmount = readBufferGetIt - readBufferPutIt;
-    if (readAmount < 0)
-    {
-        readAmount = readBuffer.size() + readAmount;
-    }
-
-    if (readAmount == 0)
-    {
-        return;
-    }
-
-    int32_t availableInHardwarBuffer = serial->available();
-    if (availableInHardwarBuffer < readAmount)
-    {
-        readAmount = availableInHardwarBuffer;
-    }
-
-    std::array<char, 32> tempReadBuffer;
-    readAmount = serial->readBytes(tempReadBuffer.data(), static_cast<size_t>(readAmount));
-
-    if (readAmount < 0)
-    {
-        readAmount = 0;
-    }
-
-    for (auto it = tempReadBuffer.begin(); it != tempReadBuffer.begin() + readAmount; ++it)
-    {
-        *readBufferPutIt = *it;
-
-        ++readBufferPutIt;
-        if (readBufferPutIt == readBuffer.end())
-        {
-            readBufferPutIt = readBuffer.begin();
-        }
-    }
-}
-
-void SerialComOptimizer::sendWrittenData()
-{
-    serial->write(writeBuffer.data(), writeBufferPutIt - writeBuffer.begin());
-    writeBufferPutIt = writeBuffer.begin();
-}
+#endif
