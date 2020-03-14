@@ -18,6 +18,8 @@ public:
 
     void overidePwmDuty(int16_t pwm);
 
+    void activateBrake();
+
     int16_t getCurrent();
 
     int16_t getLimitedCurrent();
@@ -28,6 +30,7 @@ private:
     PwmHandler* pwmInstance;
     CurrentSampler* currentSampler;
     bool disableLoop;
+    bool brake;
     int16_t ref;
     int16_t y;
     int16_t filteredY;

@@ -9,6 +9,8 @@ DCServo* DCServo::getInstance()
 DCServo::DCServo() :
         controlEnabled(false),
         onlyUseMainEncoderControl(false),
+        openLoopControlMode(false),
+        pwmOpenLoopMode(false),
         loopNumber(0),
         current(0),
         controlSignal(0),
@@ -88,10 +90,11 @@ void DCServo::enable(bool b)
     controlEnabled = b;
 }
 
-void DCServo::openLoopMode(bool b)
+void DCServo::openLoopMode(bool enable, bool pwmMode)
 {
     ThreadInterruptBlocker blocker;
-    openLoopControlMode = b;
+    openLoopControlMode = enable;
+    pwmOpenLoopMode = pwmMode;
 }
 
 void DCServo::onlyUseMainEncoder(bool b)
@@ -140,10 +143,30 @@ uint16_t DCServo::getLoopNumber()
     return loopNumber;
 }
 
-int16_t DCServo::getMainEncoderPosition()
+float DCServo::getMainEncoderPosition()
 {
     ThreadInterruptBlocker blocker;
     return rawMainPos + initialOutputPosOffset;
+}
+
+template <class T>
+OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(T& encoder)
+{
+    OpticalEncoderHandler::DiagnosticData out = {0};
+    return out;
+}
+
+template <>
+OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(std::unique_ptr<OpticalEncoderHandler>& encoder)
+{
+    return encoder->getDiagnosticData();
+}
+
+template <>
+OpticalEncoderHandler::DiagnosticData DCServo::getMainEncoderDiagnosticData()
+{
+    ThreadInterruptBlocker blocker;
+    return getMainEncoderRawDiagnosticDataDispatch(mainEncoderHandler);
 }
 
 void DCServo::controlLoop()
@@ -202,7 +225,6 @@ void DCServo::controlLoop()
         }
         else
         {
-            setReference(x[0], 0, 0);
             Ivel = 0;
             uLimitDiff = 0;
             outputPosOffset = rawOutputPos - rawMainPos;
@@ -213,9 +235,16 @@ void DCServo::controlLoop()
 
             refInterpolator.get(posRef, velRef, feedForwardU);
 
-            controlSignal = feedForwardU;
-
-            setOutput(controlSignal);
+            if (pwmOpenLoopMode)
+            {
+                controlSignal = 0;
+                currentControl->overidePwmDuty(feedForwardU);
+            }
+            else
+            {
+                controlSignal = feedForwardU;
+                setOutput(controlSignal);
+            }
             current = currentControl->getCurrent();
         }
     }
@@ -226,7 +255,7 @@ void DCServo::controlLoop()
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
-        currentControl->overidePwmDuty(0);
+        currentControl->activateBrake();
         current = currentControl->getCurrent();
     }
 

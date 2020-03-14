@@ -19,12 +19,22 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
 
     virtual float getValue() override;
 
-    static uint16_t getDebugValue();
+    class DiagnosticData
+    {
+      public:
+        uint16_t a;
+        uint16_t b;
+        uint16_t minCostIndex;
+        uint16_t minCost;
+    };
+
+    DiagnosticData getDiagnosticData();
 
   private:
     void updatePosition();
     uint32_t calcCost(int& i, uint16_t a, uint16_t b);
 
+    DiagnosticData diagnosticData;
 
     std::array<uint16_t, vecSize> aVec;
     std::array<uint16_t, vecSize> bVec;

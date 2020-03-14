@@ -4,6 +4,7 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     pwmInstance(HBridge4WirePwm::getInstance()),
     currentSampler(new CurrentSampler(A1)),
     disableLoop(true),
+    brake(true),
     ref(0),
     y(0),
     filteredY(0),
@@ -47,7 +48,15 @@ void CurrentControlLoop::overidePwmDuty(int16_t pwm)
 {
     ThreadInterruptBlocker interruptBlocker;
     disableLoop = true;
+    brake = false;
     this->u = pwm;
+}
+
+void CurrentControlLoop::activateBrake()
+{
+    ThreadInterruptBlocker interruptBlocker;
+    disableLoop = true;
+    brake = true;
 }
 
 int16_t CurrentControlLoop::getCurrent()
@@ -71,8 +80,15 @@ void CurrentControlLoop::run()
 {
     y = currentSampler->getValue();
 
+    filteredY = currentSampler->getFilteredValue();
+
     if (disableLoop)
     {
+        if (brake)
+        {
+            pwmInstance->activateBrake();
+            return;
+        }
         pwmInstance->setOutput(u);
         return;
     }
@@ -99,6 +115,4 @@ void CurrentControlLoop::run()
     }
 
     u -= uLimitError;
-
-    filteredY = currentSampler->getFilteredValue();
 }

@@ -2,42 +2,28 @@
 #undef max
 #undef min
 #include <array>
+#include "SerialComOptimizer.h"
 
 #ifndef COMMUNICATION_H
 #define COMMUNICATION_H
 
-class SerialComOptimizer
+class CommunicationInterface
 {
 public:
-    SerialComOptimizer(Stream* serial);
+    virtual void onReadyToSendEvent() = 0;
+    virtual void onReceiveCompleteEvent() = 0;
+    virtual void onErrorEvent() = 0;
+    virtual void onComCycleEvent() = 0;
+    virtual void onComIdleEvent() = 0;
 
-    ~SerialComOptimizer();
-
-    size_t available();
-
-    uint8_t read();
-
-    void write(uint8_t byte);
-
-    void collectReadData();
-
-    void sendWrittenData();
-
-private:
-    Stream* serial;
-
-    std::array<uint8_t, 32> readBuffer;
-    std::array<uint8_t, 32>::iterator readBufferGetIt;
-    std::array<uint8_t, 32>::iterator readBufferPutIt;
-
-    std::array<uint8_t, 32> writeBuffer;
-    std::array<uint8_t, 32>::iterator writeBufferPutIt;
+    virtual void run() = 0;
 };
 
-class Communication
+template <size_t N = 1>
+class Communication : public CommunicationInterface
 {
 public:
-    Communication(unsigned char nodeNr, unsigned long baud = 9600);
+    Communication(std::array<unsigned char, N> nodeNrArray, unsigned long baud = 9600);
 
     virtual void onReadyToSendEvent() = 0;
     virtual void onReceiveCompleteEvent() = 0;
@@ -48,19 +34,19 @@ public:
     virtual void run();
 
 protected:
-    int intArray[16];
-    char charArray[8];
+    std::array<std::array<int, 16>, N> intArray;
+    std::array<std::array<char, 8>, N> charArray;
 
-    bool intArrayChanged[16];
-    bool charArrayChanged[8];
+    std::array<std::array<bool, 16>, N> intArrayChanged;
+    std::array<std::array<bool, 8>, N> charArrayChanged;
 
 private:
     SerialComOptimizer serial;
-    int intArrayBuffer[16];
-    char charArrayBuffer[8];
+    std::array<int, 16> intArrayBuffer;
+    std::array<char, 8> charArrayBuffer;
 
-    bool intArrayChangedBuffer[16];
-    bool charArrayChangedBuffer[8];
+    std::array<bool, 16> intArrayChangedBuffer;
+    std::array<bool, 8> charArrayChangedBuffer;
 
     int communicationState;
     unsigned char waitForBytes;
@@ -73,10 +59,16 @@ private:
     int sendCommunicationState;
     unsigned char numberOfSendCommands;
     unsigned char currentSendCommandIndex;
-    unsigned char sendCommandBuffer[100];
+    std::array<unsigned char, 100> sendCommandBuffer;
 
     unsigned char lastMessageNodeNr;
 
-    unsigned char nodeNr;
+    std::array<unsigned char, N> nodeNrArray;
+    size_t nodeNrIndex;
 };
+
+#define COMMUNICATION_CPP
+#include "Communication.cpp"
+#undef COMMUNICATION_CPP
+
 #endif

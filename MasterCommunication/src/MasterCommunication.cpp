@@ -1,6 +1,6 @@
 #include "MasterCommunication.h"
 
-Communication::Communication(std::string devName) :
+SerialCommunication::SerialCommunication(std::string devName) :
         io(), port(io), reader(port, 50)
 {
     nodeNr = 1;
@@ -9,55 +9,47 @@ Communication::Communication(std::string devName) :
     port.set_option(boost::asio::serial_port_base::baud_rate(115200));
 }
 
-void Communication::setNodeNr(unsigned char nr)
+void SerialCommunication::setNodeNr(unsigned char nr)
 {
     nodeNr = nr;
 }
 
-void Communication::write(unsigned char nr, char value)
+void SerialCommunication::write(unsigned char nr, char value)
 {
     commandArray.push_back(nr);
     commandArray.push_back(value);
 }
 
-void Communication::write(unsigned char nr, int value)
+void SerialCommunication::write(unsigned char nr, int value)
 {
     commandArray.push_back(nr + 64);
     commandArray.push_back(static_cast<unsigned char>(value));
     commandArray.push_back(static_cast<unsigned short>(value) / 256);
 }
 
-void Communication::requestReadChar(unsigned char nr)
+void SerialCommunication::requestReadChar(unsigned char nr)
 {
     commandArray.push_back(nr + 128);
     receiveArray.push_back(nr);
 }
 
-void Communication::requestReadInt(unsigned char nr)
+void SerialCommunication::requestReadInt(unsigned char nr)
 {
     commandArray.push_back(nr + 128 + 64);
     receiveArray.push_back(nr + 64);
 }
 
-char Communication::getLastReadChar(unsigned char nr)
+char SerialCommunication::getLastReadChar(unsigned char nr)
 {
-    if (nr < sizeof(charArray) / sizeof(charArray[0]))
-    {
-        return charArray[nr];
-    }
-    return 0;
+    return charArray.at(nr);
 }
 
-int Communication::getLastReadInt(unsigned char nr)
+int SerialCommunication::getLastReadInt(unsigned char nr)
 {
-    if (nr < sizeof(intArray) / sizeof(intArray[0]))
-    {
-        return intArray[nr];
-    }
-    return 0;
+    return intArray.at(nr);
 }
 
-bool Communication::execute()
+bool SerialCommunication::execute()
 {
     unsigned char checksum = 0;
     unsigned char messageLenght = 0;
@@ -97,7 +89,11 @@ bool Communication::execute()
     sendBuffer.push_back(messageLenght);
     sendBuffer.insert(sendBuffer.end(), commandArray.begin(), commandArray.end());
 
-    ::write(port.lowest_layer().native_handle(), &sendBuffer[0], sendBuffer.size());
+    size_t bytesSent = ::write(port.lowest_layer().native_handle(), &sendBuffer[0], sendBuffer.size());
+    if (bytesSent != sendBuffer.size())
+    {
+        throw -1;
+    }
 
     commandArray.clear();
 
@@ -137,7 +133,7 @@ bool Communication::execute()
                     return false;
                 }
                 value += static_cast<unsigned char>(c) * static_cast<unsigned short>(256);
-                intArray[*it - 64] = value;
+                intArray.at(*it - 64) = value;
             }
             else
             {
@@ -148,7 +144,7 @@ bool Communication::execute()
                     reader.read_char(c);
                     return false;
                 }
-                charArray[*it] = c;
+                charArray.at(*it) = c;
             }
         }
         else
@@ -180,7 +176,7 @@ bool Communication::execute()
     return true;
 }
 
-void Communication::blocking_reader::read_complete(const boost::system::error_code& error,
+void SerialCommunication::blocking_reader::read_complete(const boost::system::error_code& error,
                     size_t bytes_transferred)
 {        
 
@@ -191,7 +187,7 @@ void Communication::blocking_reader::read_complete(const boost::system::error_co
     timer.cancel();
 }
 
-void Communication::blocking_reader::time_out(const boost::system::error_code& error)
+void SerialCommunication::blocking_reader::time_out(const boost::system::error_code& error)
 {
 
     // Was the timeout was cancelled?
@@ -208,7 +204,7 @@ void Communication::blocking_reader::time_out(const boost::system::error_code& e
     port.cancel();
 }
 
-Communication::blocking_reader::blocking_reader(boost::asio::serial_port& port, size_t timeout) :
+SerialCommunication::blocking_reader::blocking_reader(boost::asio::serial_port& port, size_t timeout) :
                                             port(port), timeout(timeout),
                                             timer(port.get_io_service()),
                                             read_error(true)
@@ -216,7 +212,7 @@ Communication::blocking_reader::blocking_reader(boost::asio::serial_port& port, 
      
 }
 
-bool Communication::blocking_reader::read_char(char& val)
+bool SerialCommunication::blocking_reader::read_char(char& val)
 {
     
     val = c = '\0';
@@ -245,4 +241,56 @@ bool Communication::blocking_reader::read_char(char& val)
         val = c;
 
     return !read_error;
+}
+
+bool SimulateCommunication::execute()
+{
+    auto& servo = servoSims.at(nodeNr - 1);
+    servo.run();
+
+    for (auto it = commandArray.begin(); it != commandArray.end(); ++it)
+    {
+        if (*it >= 128)
+        {
+            //read request, do nothing in sim
+        }
+        else if (*it >= 64)
+        {
+            const unsigned char intNr = *it - 64;
+            ++it;
+            short value = static_cast<unsigned char>(*it);
+            ++it;
+            value += static_cast<unsigned char>(*it) * static_cast<unsigned short>(256);
+            servo.intArray.at(intNr) = value;
+        }
+        else
+        {
+            const unsigned char charNr = *it;
+            ++it;
+            servo.charArray.at(charNr) = static_cast<unsigned char>(*it);
+        }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(3));
+
+    commandArray.clear();
+
+    std::vector<unsigned char> receiveArrayCopy = receiveArray;
+    receiveArray.clear();
+
+    for (auto it = receiveArrayCopy.begin(); it != receiveArrayCopy.end(); ++it)
+    {
+        if (*it >= 64)
+        {
+            short value = servo.intArray.at(*it - 64);
+            intArray.at(*it - 64) = value;
+        }
+        else
+        {
+            char value = servo.charArray.at(*it);
+            charArray.at(*it) = value;
+        }
+    }
+
+    return true;
 }

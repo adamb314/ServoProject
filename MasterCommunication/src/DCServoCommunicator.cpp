@@ -59,10 +59,11 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     this->feedforwardU = feedforwardU;
 }
 
-void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU)
+void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)
 {
     newOpenLoopControlSignal = true;
     newPositionReference = false;
+    pwmOpenLoopMode = pwmMode;
     this->feedforwardU = feedforwardU;
 }
 
@@ -93,6 +94,11 @@ float DCServoCommunicator::getControlSignal()
 {
     activeIntReads[5] = true;
     return controlSignal;
+}
+
+float DCServoCommunicator::getFeedforwardU()
+{
+    return activeFeedforwardU[2];
 }
 
 float DCServoCommunicator::getControlError()
@@ -130,6 +136,15 @@ int DCServoCommunicator::getLoopTime()
     return loopTime;
 }
 
+DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData()
+{
+    activeIntReads[10] = true;
+    activeIntReads[11] = true;
+    activeIntReads[12] = true;
+    activeIntReads[13] = true;
+    return opticalEncoderChannelData;
+}
+
 void DCServoCommunicator::run()
 {
     bus->setNodeNr(nodeNr);
@@ -162,9 +177,16 @@ void DCServoCommunicator::run()
         else if (newOpenLoopControlSignal)
         {
             bus->write(2, feedforwardU);
+            bus->write(1, static_cast<char>(pwmOpenLoopMode));
 
             newOpenLoopControlSignal = false;
         }
+
+        activeFeedforwardU[4] = activeFeedforwardU[3];
+        activeFeedforwardU[3] = activeFeedforwardU[2];
+        activeFeedforwardU[2] = activeFeedforwardU[1];
+        activeFeedforwardU[1] = activeFeedforwardU[0];
+        activeFeedforwardU[0] = feedforwardU;
     }
     else
     {
@@ -203,5 +225,9 @@ void DCServoCommunicator::run()
         current = bus->getLastReadInt(6);
         cpuLoad = bus->getLastReadInt(7);
         loopTime = bus->getLastReadInt(8);
+        opticalEncoderChannelData.a = bus->getLastReadInt(10);
+        opticalEncoderChannelData.b = bus->getLastReadInt(11);
+        opticalEncoderChannelData.minCostIndex = bus->getLastReadInt(12);
+        opticalEncoderChannelData.minCost = bus->getLastReadInt(13);
     }
 }

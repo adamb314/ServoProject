@@ -7,6 +7,7 @@
 #include <Eigen.h>
 #include "CurrentControlLoop.h"
 #include "EncoderHandler.h"
+#include "OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
 
 #include "config/config.h"
@@ -35,7 +36,7 @@ class DCServo
 
     void enable(bool b = true);
 
-    void openLoopMode(bool  b);
+    void openLoopMode(bool enable, bool pwmMode = false);
 
     void onlyUseMainEncoder(bool b = true);
 
@@ -51,7 +52,10 @@ class DCServo
 
     uint16_t getLoopNumber();
 
-    int16_t getMainEncoderPosition();
+    float getMainEncoderPosition();
+
+    template <class T>
+    T getMainEncoderDiagnosticData();
 
  private:
     DCServo();
@@ -65,6 +69,7 @@ class DCServo
     bool controlEnabled;
     bool onlyUseMainEncoderControl;
     bool openLoopControlMode;
+    bool pwmOpenLoopMode;
 
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop
@@ -97,10 +102,21 @@ class DCServo
     float Ivel;
 
     std::unique_ptr<CurrentControlLoop> currentControl;
-    std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;
+    decltype(ConfigHolder::createMainEncoderHandler()) mainEncoderHandler;
     std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
 
     std::vector<Thread*> threads;
 };
+
+template <class T>
+T DCServo::getMainEncoderDiagnosticData()
+{
+    T out = {0};
+    return out;
+}
+
+template <>
+OpticalEncoderHandler::DiagnosticData DCServo::getMainEncoderDiagnosticData();
+
 #endif
