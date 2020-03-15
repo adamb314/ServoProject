@@ -45,7 +45,7 @@ class DCServoCommunicator
 
     int getPwmControlSignal();
 
-    float getControlError();
+    float getControlError(bool withBacklash = true);
 
     int getCpuLoad();
 

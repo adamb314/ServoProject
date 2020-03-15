@@ -101,13 +101,22 @@ float DCServoCommunicator::getFeedforwardU()
     return activeFeedforwardU[2];
 }
 
-float DCServoCommunicator::getControlError()
+float DCServoCommunicator::getControlError(bool withBacklash)
 {
     float pos;
     if (!backlashControlDisabled)
     {
-        activeIntReads[3] = true;
-        pos = backlashEncoderPos;
+        if (withBacklash)
+        {
+            activeIntReads[3] = true;
+            pos = backlashEncoderPos;
+        }
+        else
+        {
+            activeIntReads[3] = true;
+            activeIntReads[11] = true;
+            pos = backlashEncoderPos - backlashCompensation;
+        }
     }
     else
     {
