@@ -149,6 +149,12 @@ uint16_t DCServo::getLoopNumber()
     return loopNumber;
 }
 
+float DCServo::getBacklashCompensation()
+{
+    ThreadInterruptBlocker blocker;
+    return outputPosOffset;
+}
+
 float DCServo::getMainEncoderPosition()
 {
     ThreadInterruptBlocker blocker;

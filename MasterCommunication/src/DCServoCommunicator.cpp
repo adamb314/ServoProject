@@ -142,6 +142,12 @@ int DCServoCommunicator::getLoopTime()
     return loopTime;
 }
 
+float DCServoCommunicator::getBacklashCompensation()
+{
+    activeIntReads[11] = true;
+    return backlashCompensation;
+}
+
 DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData()
 {
     activeIntReads[12] = true;
@@ -226,6 +232,7 @@ void DCServoCommunicator::run()
         
         backlashEncoderPos = bus->getLastReadInt(3) * 0.25;
         encoderPos = bus->getLastReadInt(10) * 0.25;
+        backlashCompensation = bus->getLastReadInt(11) * 0.25;
         encoderVel = bus->getLastReadInt(4);
         controlSignal = bus->getLastReadInt(5);
         current = bus->getLastReadInt(6);

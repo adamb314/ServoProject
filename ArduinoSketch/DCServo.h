@@ -54,6 +54,8 @@ class DCServo
 
     uint16_t getLoopNumber();
 
+    float getBacklashCompensation();
+
     float getMainEncoderPosition();
 
     template <class T>
