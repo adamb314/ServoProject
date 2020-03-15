@@ -63,6 +63,12 @@ void CurrentControlLoop::overidePwmDuty(int16_t pwm)
     this->u = pwm;
 }
 
+int16_t CurrentControlLoop::getFilteredPwm()
+{
+    ThreadInterruptBlocker interruptBlocker;
+    return (filteredPwm >> 2);
+}
+
 void CurrentControlLoop::activateBrake()
 {
     ThreadInterruptBlocker interruptBlocker;
@@ -87,9 +93,11 @@ void CurrentControlLoop::run()
         if (brake)
         {
             pwmInstance->activateBrake();
+            filteredPwm = 0;
             return;
         }
-        pwmInstance->setOutput(u);
+        limitedU = pwmInstance->setOutput(u);
+        filteredPwm = limitedU;
         return;
     }
 
@@ -102,6 +110,8 @@ void CurrentControlLoop::run()
     u += ((controlError * 3) >> 4);
 
     limitedU = pwmInstance->setOutput(u);
+
+    filteredPwm = ((3 * filteredPwm) >> 2) + limitedU;
 
     int16_t uLimitError = u - limitedU;
 
