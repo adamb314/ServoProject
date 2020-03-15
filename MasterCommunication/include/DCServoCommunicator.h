@@ -43,6 +43,8 @@ class DCServoCommunicator
 
     float getCurrent();
 
+    int getPwmControlSignal();
+
     float getControlError();
 
     int getCpuLoad();
@@ -72,6 +74,7 @@ class DCServoCommunicator
     int encoderVel{0};
     int controlSignal{0};
     int current{0};
+    int pwmControlSignal{0};
     int cpuLoad{0};
     int loopTime{0};
     OpticalEncoderChannelData opticalEncoderChannelData;

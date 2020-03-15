@@ -77,7 +77,7 @@ float DCServoCommunicator::getPosition(bool withBacklash)
     }
     else
     {
-        activeIntReads[9] = true;
+        activeIntReads[10] = true;
         pos = encoderPos;
     }
 
@@ -111,7 +111,7 @@ float DCServoCommunicator::getControlError()
     }
     else
     {
-        activeIntReads[9] = true;
+        activeIntReads[10] = true;
         pos = encoderPos;
     }
 
@@ -124,15 +124,21 @@ float DCServoCommunicator::getCurrent()
     return current;
 }
 
-int DCServoCommunicator::getCpuLoad()
+int DCServoCommunicator::getPwmControlSignal()
 {
     activeIntReads[7] = true;
+    return pwmControlSignal;
+}
+
+int DCServoCommunicator::getCpuLoad()
+{
+    activeIntReads[8] = true;
     return cpuLoad;
 }
 
 int DCServoCommunicator::getLoopTime()
 {
-    activeIntReads[8] = true;
+    activeIntReads[9] = true;
     return loopTime;
 }
 
@@ -219,12 +225,13 @@ void DCServoCommunicator::run()
         }
         
         backlashEncoderPos = bus->getLastReadInt(3) * 0.25;
-        encoderPos = bus->getLastReadInt(9) * 0.25;
+        encoderPos = bus->getLastReadInt(10) * 0.25;
         encoderVel = bus->getLastReadInt(4);
         controlSignal = bus->getLastReadInt(5);
         current = bus->getLastReadInt(6);
-        cpuLoad = bus->getLastReadInt(7);
-        loopTime = bus->getLastReadInt(8);
+        pwmControlSignal = bus->getLastReadInt(7);
+        cpuLoad = bus->getLastReadInt(8);
+        loopTime = bus->getLastReadInt(9);
         opticalEncoderChannelData.a = bus->getLastReadInt(12);
         opticalEncoderChannelData.b = bus->getLastReadInt(13);
         opticalEncoderChannelData.minCostIndex = bus->getLastReadInt(14);

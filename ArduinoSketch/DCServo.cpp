@@ -137,6 +137,12 @@ int16_t DCServo::getCurrent()
     return current;
 }
 
+int16_t DCServo::getPwmControlSignal()
+{
+    ThreadInterruptBlocker blocker;
+    return pwmControlSIgnal;
+}
+
 uint16_t DCServo::getLoopNumber()
 {
     ThreadInterruptBlocker blocker;
@@ -220,6 +226,7 @@ void DCServo::controlLoop()
 
             setOutput(controlSignal);
             current = currentControl->getCurrent();
+            pwmControlSIgnal = currentControl->getFilteredPwm();
 
             Ivel -= L[2] * (vControlRef - x[1]);
         }
@@ -246,6 +253,7 @@ void DCServo::controlLoop()
                 setOutput(controlSignal);
             }
             current = currentControl->getCurrent();
+            pwmControlSIgnal = currentControl->getFilteredPwm();
         }
     }
     else
@@ -257,6 +265,7 @@ void DCServo::controlLoop()
         controlSignal = 0;
         currentControl->activateBrake();
         current = currentControl->getCurrent();
+        pwmControlSIgnal = currentControl->getFilteredPwm();
     }
 
 }

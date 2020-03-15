@@ -50,6 +50,8 @@ class DCServo
 
     int16_t getCurrent();
 
+    int16_t getPwmControlSignal();
+
     uint16_t getLoopNumber();
 
     float getMainEncoderPosition();
@@ -94,6 +96,7 @@ class DCServo
 #endif
 
     int16_t current;
+    int16_t pwmControlSIgnal;
     float controlSignal;
     float uLimitDiff;
 
