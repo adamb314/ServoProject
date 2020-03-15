@@ -46,10 +46,10 @@ void DCServoCommunicationHandler::onComCycleEvent()
         Communication::intArray[0][9] = dcServo->getMainEncoderPosition() * 4;
 
         auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
-        Communication::intArray[0][10] = opticalEncoderChannelData.a;
-        Communication::intArray[0][11] = opticalEncoderChannelData.b;
-        Communication::intArray[0][12] = opticalEncoderChannelData.minCostIndex;
-        Communication::intArray[0][13] = opticalEncoderChannelData.minCost;
+        Communication::intArray[0][12] = opticalEncoderChannelData.a;
+        Communication::intArray[0][13] = opticalEncoderChannelData.b;
+        Communication::intArray[0][14] = opticalEncoderChannelData.minCostIndex;
+        Communication::intArray[0][15] = opticalEncoderChannelData.minCost;
     }
 
     dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
