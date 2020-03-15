@@ -7,7 +7,8 @@ Communication<N>::Communication(std::array<unsigned char, N> nodeNrArray, unsign
     charArray{0},
     intArrayChanged{false},
     charArrayChanged{false},
-    nodeNrArray(std::move(nodeNrArray))
+    nodeNrArray(std::move(nodeNrArray)),
+    nodeNrIndex{0}
 {
   Serial1.begin(baud);
   waitForBytes = 1;
