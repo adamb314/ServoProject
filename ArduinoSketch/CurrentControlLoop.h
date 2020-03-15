@@ -16,13 +16,15 @@ public:
 
     void setReference(int16_t ref);
 
+    int16_t getLimitedRef();
+
     void overidePwmDuty(int16_t pwm);
+
+    int16_t getFilteredPwm();
 
     void activateBrake();
 
     int16_t getCurrent();
-
-    int16_t getLimitedCurrent();
 
 private:
     void run();
@@ -34,6 +36,7 @@ private:
     int16_t ref;
     int16_t y;
     int16_t filteredY;
+    int16_t filteredPwm;
     int16_t u;
     int16_t limitedU;
     bool lastULimited;

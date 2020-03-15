@@ -137,10 +137,22 @@ int16_t DCServo::getCurrent()
     return current;
 }
 
+int16_t DCServo::getPwmControlSignal()
+{
+    ThreadInterruptBlocker blocker;
+    return pwmControlSIgnal;
+}
+
 uint16_t DCServo::getLoopNumber()
 {
     ThreadInterruptBlocker blocker;
     return loopNumber;
+}
+
+float DCServo::getBacklashCompensation()
+{
+    ThreadInterruptBlocker blocker;
+    return outputPosOffset;
 }
 
 float DCServo::getMainEncoderPosition()
@@ -193,7 +205,7 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedCurrent());
+            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedRef());
 
             Ivel += L[3] * uLimitDiff;
 
@@ -220,6 +232,7 @@ void DCServo::controlLoop()
 
             setOutput(controlSignal);
             current = currentControl->getCurrent();
+            pwmControlSIgnal = currentControl->getFilteredPwm();
 
             Ivel -= L[2] * (vControlRef - x[1]);
         }
@@ -246,6 +259,7 @@ void DCServo::controlLoop()
                 setOutput(controlSignal);
             }
             current = currentControl->getCurrent();
+            pwmControlSIgnal = currentControl->getFilteredPwm();
         }
     }
     else
@@ -257,6 +271,7 @@ void DCServo::controlLoop()
         controlSignal = 0;
         currentControl->activateBrake();
         current = currentControl->getCurrent();
+        pwmControlSIgnal = currentControl->getFilteredPwm();
     }
 
 }
@@ -273,7 +288,7 @@ int16_t DCServo::setOutput(float u)
     }
     currentControl->setReference(u);
     
-    return currentControl->getLimitedCurrent();
+    return currentControl->getLimitedRef();
 }
 
 ReferenceInterpolator::ReferenceInterpolator()

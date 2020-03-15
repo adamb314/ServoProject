@@ -43,11 +43,15 @@ class DCServoCommunicator
 
     float getCurrent();
 
-    float getControlError();
+    int getPwmControlSignal();
+
+    float getControlError(bool withBacklash = true);
 
     int getCpuLoad();
 
     int getLoopTime();
+
+    float getBacklashCompensation();
 
     OpticalEncoderChannelData getOpticalEncoderChannelData();
 
@@ -69,9 +73,11 @@ class DCServoCommunicator
 
     float backlashEncoderPos{0.0};
     float encoderPos{0.0};
+    float backlashCompensation{0.0};
     int encoderVel{0};
     int controlSignal{0};
     int current{0};
+    int pwmControlSignal{0};
     int cpuLoad{0};
     int loopTime{0};
     OpticalEncoderChannelData opticalEncoderChannelData;

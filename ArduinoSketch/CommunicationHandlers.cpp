@@ -41,15 +41,17 @@ void DCServoCommunicationHandler::onComCycleEvent()
         Communication::intArray[0][4] = dcServo->getVelocity();
         Communication::intArray[0][5] = dcServo->getControlSignal();
         Communication::intArray[0][6] = dcServo->getCurrent();
-        Communication::intArray[0][7] = threadHandler->getCpuLoad();
-        Communication::intArray[0][8] = dcServo->getLoopNumber();
-        Communication::intArray[0][9] = dcServo->getMainEncoderPosition() * 4;
+        Communication::intArray[0][7] = dcServo->getPwmControlSignal();
+        Communication::intArray[0][8] = threadHandler->getCpuLoad();
+        Communication::intArray[0][9] = dcServo->getLoopNumber();
+        Communication::intArray[0][10] = dcServo->getMainEncoderPosition() * 4;
+        Communication::intArray[0][11] = dcServo->getBacklashCompensation() * 4;
 
         auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
-        Communication::intArray[0][10] = opticalEncoderChannelData.a;
-        Communication::intArray[0][11] = opticalEncoderChannelData.b;
-        Communication::intArray[0][12] = opticalEncoderChannelData.minCostIndex;
-        Communication::intArray[0][13] = opticalEncoderChannelData.minCost;
+        Communication::intArray[0][12] = opticalEncoderChannelData.a;
+        Communication::intArray[0][13] = opticalEncoderChannelData.b;
+        Communication::intArray[0][14] = opticalEncoderChannelData.minCostIndex;
+        Communication::intArray[0][15] = opticalEncoderChannelData.minCost;
     }
 
     dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
