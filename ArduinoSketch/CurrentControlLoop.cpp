@@ -44,6 +44,17 @@ void CurrentControlLoop::setReference(int16_t ref)
     this->ref = ref;
 }
 
+int16_t CurrentControlLoop::getLimitedRef()
+{
+    ThreadInterruptBlocker interruptBlocker;
+    if (lastULimited)
+    {
+        return y;
+    }
+
+    return ref;
+}
+
 void CurrentControlLoop::overidePwmDuty(int16_t pwm)
 {
     ThreadInterruptBlocker interruptBlocker;
@@ -63,17 +74,6 @@ int16_t CurrentControlLoop::getCurrent()
 {
     ThreadInterruptBlocker interruptBlocker;
     return filteredY;
-}
-
-int16_t CurrentControlLoop::getLimitedCurrent()
-{
-    ThreadInterruptBlocker interruptBlocker;
-    if (lastULimited)
-    {
-        return y;
-    }
-
-    return ref;
 }
 
 void CurrentControlLoop::run()

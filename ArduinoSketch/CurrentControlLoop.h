@@ -16,13 +16,13 @@ public:
 
     void setReference(int16_t ref);
 
+    int16_t getLimitedRef();
+
     void overidePwmDuty(int16_t pwm);
 
     void activateBrake();
 
     int16_t getCurrent();
-
-    int16_t getLimitedCurrent();
 
 private:
     void run();
