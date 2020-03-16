@@ -113,9 +113,9 @@ float DCServoCommunicator::getControlError(bool withBacklash)
         }
         else
         {
-            activeIntReads[3] = true;
+            activeIntReads[10] = true;
             activeIntReads[11] = true;
-            pos = backlashEncoderPos - backlashCompensation;
+            pos = encoderPos + backlashCompensation;
         }
     }
     else
