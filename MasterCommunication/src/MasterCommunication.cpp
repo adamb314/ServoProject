@@ -9,6 +9,12 @@ SerialCommunication::SerialCommunication(std::string devName) :
     port.set_option(boost::asio::serial_port_base::baud_rate(115200));
 }
 
+SerialCommunication::SerialCommunication() :
+        io(), port(io), reader(port, 50)
+{
+    nodeNr = 1;
+}
+
 void SerialCommunication::setNodeNr(unsigned char nr)
 {
     nodeNr = nr;

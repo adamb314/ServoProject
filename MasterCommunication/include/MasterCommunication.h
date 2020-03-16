@@ -38,6 +38,10 @@ class SerialCommunication : public Communication
 public:
     SerialCommunication(std::string devName);
 
+protected:
+    SerialCommunication();
+
+public:
     virtual void setNodeNr(unsigned char nr);
 
     virtual void write(unsigned char nr, char value);
@@ -99,8 +103,7 @@ protected:
 class SimulateCommunication : public SerialCommunication
 {
 public:
-    SimulateCommunication() :
-        SerialCommunication{""}
+    SimulateCommunication()
     {
     }
 
