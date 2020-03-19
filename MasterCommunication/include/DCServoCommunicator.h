@@ -70,6 +70,7 @@ class DCServoCommunicator
     bool pwmOpenLoopMode{false};
 
     std::array<bool, 16> activeIntReads{false};
+    std::array<int, 16> intReadBuffer{0};
 
     float backlashEncoderPos{0.0};
     float encoderPos{0.0};
