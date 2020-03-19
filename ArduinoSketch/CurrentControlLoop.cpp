@@ -8,6 +8,7 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     ref(0),
     y(0),
     filteredY(0),
+    filteredPwm(0),
     u(0),
     limitedU(0),
     lastULimited(false)
