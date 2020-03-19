@@ -246,7 +246,7 @@ void DCServoCommunicator::run()
 
         if (initState < 10)
         {
-            initState++;
+            ++initState;
 
             float pos;
             if (!backlashControlDisabled)
