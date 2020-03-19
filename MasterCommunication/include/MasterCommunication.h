@@ -91,8 +91,8 @@ protected:
     std::vector<unsigned char> sendBuffer;
 
     unsigned char nodeNr;
-    std::array<char, 8> charArray;
-    std::array<int, 16> intArray;
+    std::array<char, 8> charArray{0};
+    std::array<int, 16> intArray{0};
 
     boost::asio::io_service io;
     boost::asio::serial_port port;
