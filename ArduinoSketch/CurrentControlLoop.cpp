@@ -36,6 +36,7 @@ CurrentControlLoop::CurrentControlLoop(uint32_t period) :
 
 CurrentControlLoop::~CurrentControlLoop()
 {
+    delete currentSampler;
 }
 
 void CurrentControlLoop::setReference(int16_t ref)
