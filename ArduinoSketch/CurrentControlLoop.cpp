@@ -98,7 +98,7 @@ void CurrentControlLoop::run()
             filteredPwm = 0;
             return;
         }
-        limitedU = pwmInstance->setOutput(u);
+        limitedU = pwmInstance->setOutput(u) << 2;
         filteredPwm = limitedU;
         return;
     }
