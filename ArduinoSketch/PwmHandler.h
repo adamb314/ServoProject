@@ -14,17 +14,17 @@ class PwmHandler
     virtual void connectOutput() = 0;
 };
 
-class HBridge4WirePwm : public PwmHandler
+class HBridge2WirePwm : public PwmHandler
 {
   public:
-    static HBridge4WirePwm* getInstance();
+    static HBridge2WirePwm* getInstance();
 
-    ~HBridge4WirePwm();
+    ~HBridge2WirePwm();
 
-    HBridge4WirePwm(const HBridge4WirePwm&) = delete;
-    HBridge4WirePwm& operator=(const HBridge4WirePwm&) = delete;
-    HBridge4WirePwm(HBridge4WirePwm&&) = delete;
-    HBridge4WirePwm& operator=(HBridge4WirePwm&&) = delete;
+    HBridge2WirePwm(const HBridge2WirePwm&) = delete;
+    HBridge2WirePwm& operator=(const HBridge2WirePwm&) = delete;
+    HBridge2WirePwm(HBridge2WirePwm&&) = delete;
+    HBridge2WirePwm& operator=(HBridge2WirePwm&&) = delete;
 
     virtual int setOutput(int output);
 
@@ -35,7 +35,7 @@ class HBridge4WirePwm : public PwmHandler
     virtual void connectOutput();
 
   private:
-    HBridge4WirePwm();
+    HBridge2WirePwm();
 
     unsigned int disconnectOutputCC0Backup;
     unsigned int disconnectOutputCC1Backup;

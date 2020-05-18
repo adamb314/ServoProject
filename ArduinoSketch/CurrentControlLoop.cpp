@@ -1,7 +1,7 @@
 #include "CurrentControlLoop.h"
 
 CurrentControlLoop::CurrentControlLoop(uint32_t period) :
-    pwmInstance(HBridge4WirePwm::getInstance()),
+    pwmInstance(HBridge2WirePwm::getInstance()),
     currentSampler(new CurrentSampler(A1)),
     newPwmOverrideValue(true),
     newBrakeValue(true),
@@ -145,7 +145,7 @@ void CurrentControlLoop::run()
 CurrentControlModel::CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent) :
     pwmToStallCurrent{pwmToStallCurrent},
     backEmfCurrent{backEmfCurrent},
-    pwmInstance(HBridge4WirePwm::getInstance()),
+    pwmInstance(HBridge2WirePwm::getInstance()),
     pwmOverride(true),
     brake(true),
     ref(0),
