@@ -7,31 +7,59 @@
 #include <Eigen.h>
 #include <vector>
 
-class CurrentControlLoop
+class CurrentController
+{
+public:
+    virtual void setReference(int16_t ref) = 0;
+
+    virtual void updateVelocity(float vel) {};
+
+    virtual void overidePwmDuty(int16_t pwm) = 0;
+
+    virtual void activateBrake() = 0;
+
+    virtual void applyChanges() = 0;
+
+    virtual int16_t getLimitedRef() = 0;
+
+    virtual int16_t getFilteredPwm() = 0;
+
+    virtual int16_t getCurrent() = 0;
+};
+
+class CurrentControlLoop : public CurrentController
 {
 public:
     CurrentControlLoop(uint32_t period);
 
     ~CurrentControlLoop();
 
-    void setReference(int16_t ref);
+    void setReference(int16_t ref) override;
 
-    int16_t getLimitedRef();
+    int16_t getLimitedRef() override;
 
-    void overidePwmDuty(int16_t pwm);
+    void overidePwmDuty(int16_t pwm) override;
 
-    int16_t getFilteredPwm();
+    int16_t getFilteredPwm() override;
 
-    void activateBrake();
+    void activateBrake() override;
 
-    int16_t getCurrent();
+    int16_t getCurrent() override;
+
+    void applyChanges();
 
 private:
     void run();
 
     PwmHandler* pwmInstance;
     CurrentSampler* currentSampler;
-    bool disableLoop;
+
+    bool newPwmOverrideValue;
+    bool newBrakeValue;
+    int16_t newRefValue;
+    int16_t newUValue;
+
+    bool pwmOverride;
     bool brake;
     int16_t ref;
     int16_t y;
@@ -44,110 +72,35 @@ private:
     std::vector<CodeBlocksThread*> threads;
 };
 
-class CurrentControlModel
+class CurrentControlModel : public CurrentController
 {
 public:
-    CurrentControlModel(uint32_t period) :
-        pwmInstance(HBridge4WirePwm::getInstance()),
-        disableLoop(true),
-        brake(true),
-        ref(0),
-        y(0),
-        filteredY(0),
-        filteredPwm(0),
-        u(0),
-        limitedU(0),
-        lastULimited(false)
-    {
-    }
+    CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent);
 
-    ~CurrentControlModel()
-    {
-    }
+    ~CurrentControlModel();
 
-    void setReference(int16_t ref)
-    {
-        disableLoop = false;
-        this->ref = ref;
-    }
+    void setReference(int16_t ref) override;
 
-    int16_t getLimitedRef()
-    {
-        if (lastULimited)
-        {
-            return y;
-        }
+    void updateVelocity(float vel) override;
 
-        return ref;
-    }
+    void overidePwmDuty(int16_t pwm) override;
 
-    void overidePwmDuty(int16_t pwm)
-    {
-        disableLoop = true;
-        brake = false;
-        u = pwm;
-    }
+    void activateBrake() override;
 
-    int16_t getFilteredPwm()
-    {
-        return filteredPwm;
-    }
+    void applyChanges() override;
 
-    void activateBrake()
-    {
-        disableLoop = true;
-        brake = true;
-    }
+    int16_t getLimitedRef() override;
 
-    int16_t getCurrent()
-    {
-        return filteredY;
-    }
+    int16_t getFilteredPwm() override;
 
-    void run(float vel)
-    {
-        if (disableLoop)
-        {
-            if (brake)
-            {
-                pwmInstance->activateBrake();
-                limitedU = 0;
-            }
-            else
-            {
-                limitedU = pwmInstance->setOutput(u);
-            }
-            y = (pwmToStallCurrent + backEmfCurrent * vel) * limitedU;
-            filteredY = y;
-            filteredPwm = limitedU;
-            return;
-        }
-
-        u = ref / (pwmToStallCurrent + backEmfCurrent * vel);
-
-        limitedU = pwmInstance->setOutput(u);
-
-        y = (pwmToStallCurrent + backEmfCurrent * vel) * limitedU;
-        filteredY = y;
-        filteredPwm = limitedU;
-
-        if (u != limitedU)
-        {
-            lastULimited = true;
-        }
-        else
-        {
-            lastULimited = false;
-        }
-    }
+    int16_t getCurrent() override;
 
 private:
-
-    static constexpr float pwmToStallCurrent = 2.61598722;
-    static constexpr float backEmfCurrent = -0.70435649 * 2 * 3.1415926535897932384626433832795028841972 / 4096.0;
+    const float pwmToStallCurrent;
+    const float backEmfCurrent;
 
     PwmHandler* pwmInstance;
-    bool disableLoop;
+    bool pwmOverride;
     bool brake;
     int16_t ref;
     int16_t y;
@@ -155,6 +108,7 @@ private:
     int16_t filteredPwm;
     int16_t u;
     int16_t limitedU;
+    float vel;
     bool lastULimited;
 };
 

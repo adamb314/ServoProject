@@ -30,7 +30,7 @@ DCServo::DCServo() :
             }
         }));
 
-    currentControl = std::make_unique<CurrentControlLoop>(400);
+    currentController = ConfigHolder::createCurrentController();
 
     L = ConfigHolder::getControlParameterVector();
 
@@ -205,7 +205,7 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedRef());
+            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentController->getLimitedRef());
 
             Ivel += L[3] * uLimitDiff;
 
@@ -230,9 +230,11 @@ void DCServo::controlLoop()
 
             controlSignal = u;
 
-            setOutput(controlSignal);
-            current = currentControl->getCurrent();
-            pwmControlSIgnal = currentControl->getFilteredPwm();
+            currentController->updateVelocity(x[1]);
+            currentController->setReference(static_cast<int16_t>(controlSignal));
+            currentController->applyChanges();
+            current = currentController->getCurrent();
+            pwmControlSIgnal = currentController->getFilteredPwm();
 
             Ivel -= L[2] * (vControlRef - x[1]);
         }
@@ -251,15 +253,16 @@ void DCServo::controlLoop()
             if (pwmOpenLoopMode)
             {
                 controlSignal = 0;
-                currentControl->overidePwmDuty(feedForwardU);
+                currentController->overidePwmDuty(feedForwardU);
             }
             else
             {
                 controlSignal = feedForwardU;
-                setOutput(controlSignal);
+                currentController->setReference(static_cast<int16_t>(controlSignal));
             }
-            current = currentControl->getCurrent();
-            pwmControlSIgnal = currentControl->getFilteredPwm();
+            currentController->applyChanges();
+            current = currentController->getCurrent();
+            pwmControlSIgnal = currentController->getFilteredPwm();
         }
     }
     else
@@ -269,26 +272,12 @@ void DCServo::controlLoop()
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
-        currentControl->activateBrake();
-        current = currentControl->getCurrent();
-        pwmControlSIgnal = currentControl->getFilteredPwm();
+        currentController->activateBrake();
+        currentController->applyChanges();
+        current = currentController->getCurrent();
+        pwmControlSIgnal = currentController->getFilteredPwm();
     }
 
-}
-
-int16_t DCServo::setOutput(float u)
-{
-    if (u > 0x7fff)
-    {
-        u = 0x7fff;
-    }
-    else if (u < -0x7fff)
-    {
-        u = -0x7fff;
-    }
-    currentControl->setReference(u);
-    
-    return currentControl->getLimitedRef();
 }
 
 ReferenceInterpolator::ReferenceInterpolator()

@@ -68,8 +68,6 @@ class DCServo
 
     void identTestLoop();
 
-    int16_t setOutput(float u);
-
     bool controlEnabled;
     bool onlyUseMainEncoderControl;
     bool openLoopControlMode;
@@ -106,7 +104,7 @@ class DCServo
 
     float Ivel;
 
-    std::unique_ptr<CurrentControlLoop> currentControl;
+    std::unique_ptr<CurrentController> currentController;
     decltype(ConfigHolder::createMainEncoderHandler()) mainEncoderHandler;
     std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;

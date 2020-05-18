@@ -1,5 +1,6 @@
 #include <Eigen.h>
 #include "../EncoderHandler.h"
+#include "../CurrentControlLoop.h"
 #include "../OpticalEncoderHandler.h"
 #include "../ArduinoC++BugFixes.h"
 #include "../CommunicationHandlers.h"
@@ -13,6 +14,14 @@ public:
     static constexpr float getMainEncoderGearRation()
     {
         return 275.0 / 125904.0;
+    }
+
+    static std::unique_ptr<CurrentController> createCurrentController()
+    {
+        constexpr float pwmToStallCurrent{2.61598722};
+        constexpr float backEmfCurrent{-0.70435649 * 2 * 3.1415926535897932384626433832795028841972 / 4096.0};
+
+        return std::make_unique<CurrentControlModel>(pwmToStallCurrent, backEmfCurrent);
     }
 
     static std::unique_ptr<OpticalEncoderHandler> createMainEncoderHandler()

@@ -3,7 +3,11 @@
 CurrentControlLoop::CurrentControlLoop(uint32_t period) :
     pwmInstance(HBridge4WirePwm::getInstance()),
     currentSampler(new CurrentSampler(A1)),
-    disableLoop(true),
+    newPwmOverrideValue(true),
+    newBrakeValue(true),
+    newRefValue(0),
+    newUValue(0),
+    pwmOverride(true),
     brake(true),
     ref(0),
     y(0),
@@ -41,9 +45,9 @@ CurrentControlLoop::~CurrentControlLoop()
 
 void CurrentControlLoop::setReference(int16_t ref)
 {
-    ThreadInterruptBlocker interruptBlocker;
-    disableLoop = false;
-    this->ref = ref;
+    newPwmOverrideValue = false;
+    newBrakeValue = false;
+    newRefValue = ref;
 }
 
 int16_t CurrentControlLoop::getLimitedRef()
@@ -59,10 +63,9 @@ int16_t CurrentControlLoop::getLimitedRef()
 
 void CurrentControlLoop::overidePwmDuty(int16_t pwm)
 {
-    ThreadInterruptBlocker interruptBlocker;
-    disableLoop = true;
-    brake = false;
-    this->u = pwm;
+    newPwmOverrideValue = true;
+    newBrakeValue = false;
+    newUValue = pwm;
 }
 
 int16_t CurrentControlLoop::getFilteredPwm()
@@ -73,9 +76,8 @@ int16_t CurrentControlLoop::getFilteredPwm()
 
 void CurrentControlLoop::activateBrake()
 {
-    ThreadInterruptBlocker interruptBlocker;
-    disableLoop = true;
-    brake = true;
+    newPwmOverrideValue = true;
+    newBrakeValue = true;
 }
 
 int16_t CurrentControlLoop::getCurrent()
@@ -84,13 +86,24 @@ int16_t CurrentControlLoop::getCurrent()
     return filteredY;
 }
 
+void CurrentControlLoop::applyChanges()
+{
+    ThreadInterruptBlocker interruptBlocker;
+
+    pwmOverride = newPwmOverrideValue;
+    brake = newBrakeValue;
+    ref = newRefValue;
+    u = newUValue;
+}
+
+
 void CurrentControlLoop::run()
 {
     y = currentSampler->getValue();
 
     filteredY = currentSampler->getFilteredValue();
 
-    if (disableLoop)
+    if (pwmOverride)
     {
         if (brake)
         {
@@ -127,4 +140,105 @@ void CurrentControlLoop::run()
     }
 
     u -= uLimitError;
+}
+
+CurrentControlModel::CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent) :
+    pwmToStallCurrent{pwmToStallCurrent},
+    backEmfCurrent{backEmfCurrent},
+    pwmInstance(HBridge4WirePwm::getInstance()),
+    pwmOverride(true),
+    brake(true),
+    ref(0),
+    y(0),
+    filteredY(0),
+    filteredPwm(0),
+    u(0),
+    limitedU(0),
+    lastULimited(false)
+{
+}
+
+CurrentControlModel::~CurrentControlModel()
+{
+}
+
+void CurrentControlModel::setReference(int16_t ref)
+{
+    pwmOverride = false;
+    this->ref = ref;
+}
+
+void CurrentControlModel::updateVelocity(float vel)
+{
+    this->vel = vel;
+}
+
+void CurrentControlModel::overidePwmDuty(int16_t pwm)
+{
+    pwmOverride = true;
+    brake = false;
+    u = pwm;
+}
+
+void CurrentControlModel::activateBrake()
+{
+    pwmOverride = true;
+    brake = true;
+}
+
+void CurrentControlModel::applyChanges()
+{
+    if (pwmOverride)
+    {
+        if (brake)
+        {
+            pwmInstance->activateBrake();
+            limitedU = 0;
+        }
+        else
+        {
+            limitedU = pwmInstance->setOutput(u);
+        }
+        y = (pwmToStallCurrent + backEmfCurrent * vel) * limitedU;
+        filteredY = y;
+        filteredPwm = limitedU;
+        return;
+    }
+
+    u = ref / (pwmToStallCurrent + backEmfCurrent * vel);
+
+    limitedU = pwmInstance->setOutput(u);
+
+    y = (pwmToStallCurrent + backEmfCurrent * vel) * limitedU;
+    filteredY = y;
+    filteredPwm = limitedU;
+
+    if (u != limitedU)
+    {
+        lastULimited = true;
+    }
+    else
+    {
+        lastULimited = false;
+    }
+}
+
+int16_t CurrentControlModel::getLimitedRef()
+{
+    if (lastULimited)
+    {
+        return y;
+    }
+
+    return ref;
+}
+
+int16_t CurrentControlModel::getFilteredPwm()
+{
+    return filteredPwm;
+}
+
+int16_t CurrentControlModel::getCurrent()
+{
+    return filteredY;
 }
