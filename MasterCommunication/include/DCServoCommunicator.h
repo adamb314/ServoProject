@@ -11,10 +11,10 @@ class DCServoCommunicator
     class OpticalEncoderChannelData
     {
     public:
-        unsigned int a{0};
-        unsigned int b{0};
-        unsigned int minCostIndex{0};
-        unsigned int minCost{0};
+        unsigned short int a{0};
+        unsigned short int b{0};
+        unsigned short int minCostIndex{0};
+        unsigned short int minCost{0};
     };
 
     DCServoCommunicator(unsigned char nodeNr, Communication* bus);
@@ -43,13 +43,13 @@ class DCServoCommunicator
 
     float getCurrent();
 
-    int getPwmControlSignal();
+    short int getPwmControlSignal();
 
     float getControlError(bool withBacklash = true);
 
-    int getCpuLoad();
+    short int getCpuLoad();
 
-    int getLoopTime();
+    short int getLoopTime();
 
     float getBacklashCompensation();
 
@@ -70,24 +70,24 @@ class DCServoCommunicator
     bool pwmOpenLoopMode{false};
 
     std::array<bool, 16> activeIntReads{false};
-    std::array<int, 16> intReadBuffer{0};
+    std::array<short int, 16> intReadBuffer{0};
 
     float backlashEncoderPos{0.0};
     float encoderPos{0.0};
     float backlashCompensation{0.0};
-    int encoderVel{0};
-    int controlSignal{0};
-    int current{0};
-    int pwmControlSignal{0};
-    int cpuLoad{0};
-    int loopTime{0};
+    short int encoderVel{0};
+    short int controlSignal{0};
+    short int current{0};
+    short int pwmControlSignal{0};
+    short int cpuLoad{0};
+    short int loopTime{0};
     OpticalEncoderChannelData opticalEncoderChannelData;
 
-    int refPos{0};
-    std::array<int, 5> activeRefPos{0};
-    int refVel{0};
-    int feedforwardU{0};
-    std::array<int, 5> activeFeedforwardU{0};
+    long int refPos{0};
+    std::array<long int, 5> activeRefPos{0};
+    short int refVel{0};
+    short int feedforwardU{0};
+    std::array<short int, 5> activeFeedforwardU{0};
 
     double offset{0.0};
     double scale{1.0};

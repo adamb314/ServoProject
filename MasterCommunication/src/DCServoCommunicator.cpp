@@ -133,19 +133,19 @@ float DCServoCommunicator::getCurrent()
     return current;
 }
 
-int DCServoCommunicator::getPwmControlSignal()
+short int DCServoCommunicator::getPwmControlSignal()
 {
     activeIntReads[7] = true;
     return pwmControlSignal;
 }
 
-int DCServoCommunicator::getCpuLoad()
+short int DCServoCommunicator::getCpuLoad()
 {
     activeIntReads[8] = true;
     return cpuLoad;
 }
 
-int DCServoCommunicator::getLoopTime()
+short int DCServoCommunicator::getLoopTime()
 {
     activeIntReads[9] = true;
     return loopTime;
@@ -182,7 +182,7 @@ void DCServoCommunicator::run()
     {
         if (newPositionReference)
         {
-            bus->write(0, refPos);
+            bus->write(0, static_cast<short int>(refPos));
             bus->write(1, refVel);
             bus->write(2, feedforwardU);
 

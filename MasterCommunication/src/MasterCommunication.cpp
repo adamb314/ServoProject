@@ -26,7 +26,7 @@ void SerialCommunication::write(unsigned char nr, char value)
     commandArray.push_back(value);
 }
 
-void SerialCommunication::write(unsigned char nr, int value)
+void SerialCommunication::write(unsigned char nr, short int value)
 {
     commandArray.push_back(nr + 64);
     commandArray.push_back(static_cast<unsigned char>(value));
@@ -50,7 +50,7 @@ char SerialCommunication::getLastReadChar(unsigned char nr)
     return charArray.at(nr);
 }
 
-int SerialCommunication::getLastReadInt(unsigned char nr)
+short int SerialCommunication::getLastReadInt(unsigned char nr)
 {
     return intArray.at(nr);
 }

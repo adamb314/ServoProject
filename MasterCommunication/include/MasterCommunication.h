@@ -20,7 +20,7 @@ public:
 
     virtual void write(unsigned char nr, char value) = 0;
 
-    virtual void write(unsigned char nr, int value) = 0;
+    virtual void write(unsigned char nr, short int value) = 0;
 
     virtual void requestReadChar(unsigned char nr) = 0;
 
@@ -28,7 +28,7 @@ public:
 
     virtual char getLastReadChar(unsigned char nr) = 0;
 
-    virtual int getLastReadInt(unsigned char nr) = 0;
+    virtual short int getLastReadInt(unsigned char nr) = 0;
 
     virtual bool execute() = 0;
 };
@@ -46,7 +46,7 @@ public:
 
     virtual void write(unsigned char nr, char value);
 
-    virtual void write(unsigned char nr, int value);
+    virtual void write(unsigned char nr, short int value);
 
     virtual void requestReadChar(unsigned char nr);
 
@@ -54,7 +54,7 @@ public:
 
     virtual char getLastReadChar(unsigned char nr);
 
-    virtual int getLastReadInt(unsigned char nr);
+    virtual short int getLastReadInt(unsigned char nr);
 
     virtual bool execute();
 
@@ -92,7 +92,7 @@ protected:
 
     unsigned char nodeNr;
     std::array<char, 8> charArray{0};
-    std::array<int, 16> intArray{0};
+    std::array<short int, 16> intArray{0};
 
     boost::asio::io_service io;
     boost::asio::serial_port port;
@@ -121,7 +121,7 @@ public:
         }
 
         std::array<char, 8> charArray{0};
-        std::array<int, 16> intArray{0};
+        std::array<short int, 16> intArray{0};
     };
 
     std::array<ServoSim, 6> servoSims{};
