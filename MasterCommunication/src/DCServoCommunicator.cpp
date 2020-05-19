@@ -155,7 +155,7 @@ short int DCServoCommunicator::getLoopTime()
 float DCServoCommunicator::getBacklashCompensation()
 {
     activeIntReads[11] = true;
-    return backlashCompensation;
+    return scale * backlashCompensation;
 }
 
 DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData()
