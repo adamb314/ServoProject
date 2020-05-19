@@ -5,6 +5,38 @@
 #ifndef DC_SERVO_COMMUNICATION_H
 #define DC_SERVO_COMMUNICATION_H
 
+#include <type_traits>
+
+template <typename T, typename U>
+class ContinuousValueUpCaster
+{
+  public:
+    typedef typename std::decay<T>::type ValueType;
+    typedef typename std::decay<U>::type InputType;
+
+    const ValueType& get()
+    {
+        return value;
+    }
+
+    void set(const ValueType& v)
+    {
+        value = v;
+    }
+
+    void update(const InputType& input)
+    {
+        typedef typename std::make_signed<InputType>::type SignedInputType;
+
+        SignedInputType diff = input - value;
+
+        value += diff;
+    }
+
+  protected:
+    ValueType value{0};
+};
+
 class DCServoCommunicator
 {
   public:
@@ -21,7 +53,7 @@ class DCServoCommunicator
 
     DCServoCommunicator(const DCServoCommunicator&) = delete;
 
-    void setOffsetAndScaling(double scale, double offset);
+    void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
     void disableBacklashControl(bool b = true);
 
@@ -72,6 +104,10 @@ class DCServoCommunicator
     std::array<bool, 16> activeIntReads{false};
     std::array<short int, 16> intReadBuffer{0};
 
+    ContinuousValueUpCaster<long int, short int> intReadBufferIndex3Upscaling;
+    ContinuousValueUpCaster<long int, short int> intReadBufferIndex10Upscaling;
+    ContinuousValueUpCaster<long int, short int> intReadBufferIndex11Upscaling;
+
     float backlashEncoderPos{0.0};
     float encoderPos{0.0};
     float backlashCompensation{0.0};
@@ -91,6 +127,8 @@ class DCServoCommunicator
 
     double offset{0.0};
     double scale{1.0};
+
+    static constexpr int positionUpscaling = 32;
 };
 
 #endif

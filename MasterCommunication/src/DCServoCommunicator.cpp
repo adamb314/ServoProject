@@ -15,7 +15,7 @@ DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bu
     setOffsetAndScaling(1.0, 0);
 }
 
-void DCServoCommunicator::setOffsetAndScaling(double scale, double offset)
+void DCServoCommunicator::setOffsetAndScaling(double scale, double offset, double startPosition)
 {
 	this->scale = scale;
 	this->offset = offset;
@@ -23,14 +23,15 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset)
     if (isInitComplete())
     {
         float pos = getPosition() / scale;
+        startPosition /= scale;
 
-        if (pos > 2048)
+        if (pos - startPosition > (2048 / 2))
         {
-            this->offset -= 4096 * scale;
+            this->offset -= (4096 / 2) * scale;
         }
-        else if (pos < -2048)
+        else if (pos - startPosition < -(2048 / 2))
         {
-            this->offset += 4096 * scale;
+            this->offset += (4096 / 2) * scale;
         }
     }
 }
@@ -54,7 +55,7 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
 {
     newPositionReference = true;
     newOpenLoopControlSignal = false;
-    refPos = (pos - offset) / scale * 4;
+    refPos = (pos - offset) / scale * positionUpscaling;
     refVel = vel / scale;
     this->feedforwardU = feedforwardU;
 }
@@ -124,7 +125,7 @@ float DCServoCommunicator::getControlError(bool withBacklash)
         pos = encoderPos;
     }
 
-    return scale * (activeRefPos[2] * 0.25 - pos);
+    return scale * (activeRefPos[2] * (1.0 / positionUpscaling) - pos);
 }
 
 float DCServoCommunicator::getCurrent()
@@ -229,10 +230,24 @@ void DCServoCommunicator::run()
                 intReadBuffer[i] = bus->getLastReadInt(i);
             }
         }
+
+        if (isInitComplete())
+        {
+            intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
+            intReadBufferIndex10Upscaling.update(intReadBuffer[10]);
+            intReadBufferIndex11Upscaling.update(intReadBuffer[11]);
+        }
+        else
+        {
+            intReadBufferIndex3Upscaling.set(intReadBuffer[3]);
+            intReadBufferIndex10Upscaling.set(intReadBuffer[10]);
+            intReadBufferIndex11Upscaling.set(intReadBuffer[11]);
+        }
         
-        backlashEncoderPos = intReadBuffer[3] * 0.25;
-        encoderPos = intReadBuffer[10] * 0.25;
-        backlashCompensation = intReadBuffer[11] * 0.25;
+        backlashEncoderPos = intReadBufferIndex3Upscaling.get() * (1.0 / positionUpscaling);
+        encoderPos = intReadBufferIndex10Upscaling.get() * (1.0 / positionUpscaling);
+        backlashCompensation = intReadBufferIndex11Upscaling.get() * (1.0 / positionUpscaling);
+
         encoderVel = intReadBuffer[4];
         controlSignal = intReadBuffer[5];
         current = intReadBuffer[6];
@@ -258,7 +273,7 @@ void DCServoCommunicator::run()
                 pos = encoderPos;
             }
 
-            activeRefPos[0] = pos * 4;
+            activeRefPos[0] = pos * positionUpscaling;
             activeRefPos[1] = activeRefPos[0];
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];

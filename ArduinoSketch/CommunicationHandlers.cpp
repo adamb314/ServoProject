@@ -9,11 +9,13 @@ DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr, u
 {
     dcServo = DCServo::getInstance();
     threadHandler = ThreadHandler::getInstance();
-    Communication::intArray[0][0] = dcServo->getPosition() * 4;
+    Communication::intArray[0][0] = dcServo->getPosition() * positionUpscaling;
     Communication::intArray[0][1] = 0;
     Communication::intArray[0][2] = 0;
     Communication::charArray[0][1] = 0;
     Communication::charArray[0][2] = 0;
+
+    intArrayIndex0Upscaler.set(Communication::intArray[0][0]);
 }
 
 DCServoCommunicationHandler::~DCServoCommunicationHandler()
@@ -37,15 +39,15 @@ void DCServoCommunicationHandler::onComCycleEvent()
     {
         ThreadInterruptBlocker blocker;
 
-        Communication::intArray[0][3] = dcServo->getPosition() * 4;
+        Communication::intArray[0][3] = dcServo->getPosition() * positionUpscaling;
         Communication::intArray[0][4] = dcServo->getVelocity();
         Communication::intArray[0][5] = dcServo->getControlSignal();
         Communication::intArray[0][6] = dcServo->getCurrent();
         Communication::intArray[0][7] = dcServo->getPwmControlSignal();
         Communication::intArray[0][8] = threadHandler->getCpuLoad();
         Communication::intArray[0][9] = dcServo->getLoopNumber();
-        Communication::intArray[0][10] = dcServo->getMainEncoderPosition() * 4;
-        Communication::intArray[0][11] = dcServo->getBacklashCompensation() * 4;
+        Communication::intArray[0][10] = dcServo->getMainEncoderPosition() * positionUpscaling;
+        Communication::intArray[0][11] = dcServo->getBacklashCompensation() * positionUpscaling;
 
         auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
         Communication::intArray[0][12] = opticalEncoderChannelData.a;
@@ -56,7 +58,8 @@ void DCServoCommunicationHandler::onComCycleEvent()
 
     dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
 
-    dcServo->setReference(Communication::intArray[0][0] * 0.25, Communication::intArray[0][1], Communication::intArray[0][2]);
+    intArrayIndex0Upscaler.update(Communication::intArray[0][0]);
+    dcServo->setReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), Communication::intArray[0][1], Communication::intArray[0][2]);
 
     if (Communication::intArrayChanged[0][0])
     {
