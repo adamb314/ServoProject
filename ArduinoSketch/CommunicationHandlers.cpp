@@ -28,6 +28,37 @@ void DCServoCommunicationHandler::onReadyToSendEvent()
 
 void DCServoCommunicationHandler::onReceiveCompleteEvent()
 {
+
+    dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
+
+    if (Communication::intArrayChanged[0][0])
+    {
+        intArrayIndex0Upscaler.update(Communication::intArray[0][0]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), Communication::intArray[0][1], Communication::intArray[0][2]);
+
+        Communication::intArrayChanged[0][0] = false;
+        dcServo->openLoopMode(false);
+        dcServo->enable(true);
+
+        statusLight.showEnabled();
+    }
+    else if (Communication::intArrayChanged[0][2])
+    {
+        intArrayIndex0Upscaler.update(Communication::intArray[0][0]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), Communication::intArray[0][1], Communication::intArray[0][2]);
+
+        Communication::intArrayChanged[0][2] = false;
+        dcServo->openLoopMode(true, Communication::charArray[0][1] == 1);
+        dcServo->enable(true);
+
+        statusLight.showOpenLoop();
+    }
+    else
+    {
+        dcServo->enable(false);
+
+        statusLight.showDisabled();
+    }
 }
 
 void DCServoCommunicationHandler::onErrorEvent()
@@ -54,34 +85,11 @@ void DCServoCommunicationHandler::onComCycleEvent()
         Communication::intArray[0][13] = opticalEncoderChannelData.b;
         Communication::intArray[0][14] = opticalEncoderChannelData.minCostIndex;
         Communication::intArray[0][15] = opticalEncoderChannelData.minCost;
-    }
 
-    dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
-
-    intArrayIndex0Upscaler.update(Communication::intArray[0][0]);
-    dcServo->setReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), Communication::intArray[0][1], Communication::intArray[0][2]);
-
-    if (Communication::intArrayChanged[0][0])
-    {
-        Communication::intArrayChanged[0][0] = false;
-        dcServo->openLoopMode(false);
-        dcServo->enable(true);
-
-        statusLight.showEnabled();
-    }
-    else if (Communication::intArrayChanged[0][2])
-    {
-        Communication::intArrayChanged[0][2] = false;
-        dcServo->openLoopMode(true, Communication::charArray[0][1] == 1);
-        dcServo->enable(true);
-
-        statusLight.showOpenLoop();
-    }
-    else
-    {
-        dcServo->enable(false);
-
-        statusLight.showDisabled();
+        if (dcServo->isEnabled())
+        {
+            dcServo->triggerReferenceTiming();
+        }
     }
 
     statusLight.showCommunicationActive();
