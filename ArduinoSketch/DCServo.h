@@ -34,6 +34,8 @@ class DCServo
  public:
     static DCServo* getInstance();
 
+    bool isEnabled();
+
     void enable(bool b = true);
 
     void openLoopMode(bool enable, bool pwmMode = false);

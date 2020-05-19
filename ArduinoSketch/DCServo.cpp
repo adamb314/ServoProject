@@ -84,6 +84,12 @@ DCServo::DCServo() :
         }));
 }
 
+bool DCServo::isEnabled()
+{
+    ThreadInterruptBlocker blocker;
+    return controlEnabled;
+}
+
 void DCServo::enable(bool b)
 {
     ThreadInterruptBlocker blocker;
