@@ -57,35 +57,35 @@ class DCServoCommunicator
 
     void disableBacklashControl(bool b = true);
 
-    bool isInitComplete();
+    bool isInitComplete() const;
 
-    bool isCommunicationOk();
+    bool isCommunicationOk() const;
 
     void setReference(const float& pos, const float& vel, const float& feedforwardU);
 
     void setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode);
 
-    float getPosition(bool withBacklash = true);
+    float getPosition(bool withBacklash = true) const;
 
-    float getVelocity();
+    float getVelocity() const;
 
-    float getControlSignal();
+    float getControlSignal() const;
 
-    float getFeedforwardU();
+    float getFeedforwardU() const;
 
-    float getCurrent();
+    float getCurrent() const;
 
-    short int getPwmControlSignal();
+    short int getPwmControlSignal() const;
 
-    float getControlError(bool withBacklash = true);
+    float getControlError(bool withBacklash = true) const;
 
-    short int getCpuLoad();
+    short int getCpuLoad() const;
 
-    short int getLoopTime();
+    short int getLoopTime() const;
 
-    float getBacklashCompensation();
+    float getBacklashCompensation() const;
 
-    OpticalEncoderChannelData getOpticalEncoderChannelData();
+    OpticalEncoderChannelData getOpticalEncoderChannelData() const;
 
     void run();
 
@@ -101,7 +101,7 @@ class DCServoCommunicator
     bool newOpenLoopControlSignal{false};
     bool pwmOpenLoopMode{false};
 
-    std::array<bool, 16> activeIntReads{false};
+    mutable std::array<bool, 16> activeIntReads{false};
     std::array<short int, 16> intReadBuffer{0};
 
     ContinuousValueUpCaster<long int, short int> intReadBufferIndex3Upscaling;

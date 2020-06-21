@@ -41,12 +41,12 @@ void DCServoCommunicator::disableBacklashControl(bool b)
     backlashControlDisabled = b;
 }
 
-bool DCServoCommunicator::isInitComplete()
+bool DCServoCommunicator::isInitComplete() const
 {
     return initState == 10;
 }
 
-bool DCServoCommunicator::isCommunicationOk()
+bool DCServoCommunicator::isCommunicationOk() const
 {
     return communicationIsOk;
 }
@@ -68,7 +68,7 @@ void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bo
     this->feedforwardU = feedforwardU;
 }
 
-float DCServoCommunicator::getPosition(bool withBacklash)
+float DCServoCommunicator::getPosition(bool withBacklash) const
 {
     float pos;
     if (withBacklash && !backlashControlDisabled)
@@ -85,24 +85,24 @@ float DCServoCommunicator::getPosition(bool withBacklash)
     return scale * pos + offset;
 }
 
-float DCServoCommunicator::getVelocity()
+float DCServoCommunicator::getVelocity() const
 {
     activeIntReads[4] = true;
     return scale * encoderVel;
 }
 
-float DCServoCommunicator::getControlSignal()
+float DCServoCommunicator::getControlSignal() const
 {
     activeIntReads[5] = true;
     return controlSignal;
 }
 
-float DCServoCommunicator::getFeedforwardU()
+float DCServoCommunicator::getFeedforwardU() const
 {
     return activeFeedforwardU[2];
 }
 
-float DCServoCommunicator::getControlError(bool withBacklash)
+float DCServoCommunicator::getControlError(bool withBacklash) const
 {
     float pos;
     if (!backlashControlDisabled)
@@ -128,37 +128,37 @@ float DCServoCommunicator::getControlError(bool withBacklash)
     return scale * (activeRefPos[2] * (1.0 / positionUpscaling) - pos);
 }
 
-float DCServoCommunicator::getCurrent()
+float DCServoCommunicator::getCurrent() const
 {
     activeIntReads[6] = true;
     return current;
 }
 
-short int DCServoCommunicator::getPwmControlSignal()
+short int DCServoCommunicator::getPwmControlSignal() const
 {
     activeIntReads[7] = true;
     return pwmControlSignal;
 }
 
-short int DCServoCommunicator::getCpuLoad()
+short int DCServoCommunicator::getCpuLoad() const
 {
     activeIntReads[8] = true;
     return cpuLoad;
 }
 
-short int DCServoCommunicator::getLoopTime()
+short int DCServoCommunicator::getLoopTime() const
 {
     activeIntReads[9] = true;
     return loopTime;
 }
 
-float DCServoCommunicator::getBacklashCompensation()
+float DCServoCommunicator::getBacklashCompensation() const
 {
     activeIntReads[11] = true;
     return scale * backlashCompensation;
 }
 
-DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData()
+DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData() const
 {
     activeIntReads[12] = true;
     activeIntReads[13] = true;
