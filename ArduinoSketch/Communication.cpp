@@ -1,14 +1,8 @@
-#ifdef COMMUNICATION_CPP
+#include "Communication.h"
 
-template <size_t N>
-Communication<N>::Communication(std::array<unsigned char, N> nodeNrArray, unsigned long baud) :
-        serial(SerialComOptimizer(&Serial1)),
-        intArray{0},
-        charArray{0},
-        intArrayChanged{false},
-        charArrayChanged{false},
-        nodeNrArray(std::move(nodeNrArray)),
-        nodeNrIndex{0}
+Communication::Communication(Stream* serial,unsigned long baud) :
+        serial(SerialComOptimizer(serial)),
+        activeNodeIndex{0}
 {
     Serial1.begin(baud);
     waitForBytes = 1;
@@ -24,9 +18,44 @@ Communication<N>::Communication(std::array<unsigned char, N> nodeNrArray, unsign
 
     lastMessageNodeNr = 0;
 }
-    
-template <size_t N>
-void Communication<N>::run()
+
+void Communication::addCommunicationNode(std::unique_ptr<CommunicationNode> node)
+{
+    nodes.push_back(std::move(node));
+}
+
+void Communication::onReadyToSendEvent()
+{
+    nodes[activeNodeIndex]->onReadyToSendEvent();
+}
+
+void Communication::onReceiveCompleteEvent()
+{
+    nodes[activeNodeIndex]->onReceiveCompleteEvent();
+}
+
+void Communication::onErrorEvent()
+{
+    nodes[activeNodeIndex]->onErrorEvent();
+}
+
+void Communication::onComCycleEvent()
+{
+    for (size_t i = 0; i != nodes.size(); ++i)
+    {
+        nodes[i]->onComCycleEvent();
+    }
+}
+
+void Communication::onComIdleEvent()
+{
+    for (size_t i = 0; i != nodes.size(); ++i)
+    {
+        nodes[i]->onComIdleEvent();
+    }
+}
+
+void Communication::run()
 {
     bool receiveCompleate = false;
     serial.collectReadData();
@@ -50,23 +79,23 @@ void Communication<N>::run()
                     }
                     lastMessageNodeNr = messageNodeNr;
 
-                    for (size_t i = 0; i != nodeNrArray.size(); ++i)
+                    for (size_t i = 0; i != nodes.size(); ++i)
                     {
-                        if (messageNodeNr == nodeNrArray[i])
+                        if (messageNodeNr == nodes[i]->nodeNr)
                         {
-                            nodeNrIndex = i;
+                            activeNodeIndex = i;
                             break;
                         }
                     }
 
-                    if (nodeNrArray[nodeNrIndex] == messageNodeNr)
+                    if (nodes[activeNodeIndex]->nodeNr == messageNodeNr)
                     {
                         onReadyToSendEvent();
 
-                        intArrayBuffer = intArray[nodeNrIndex];
-                        charArrayBuffer = charArray[nodeNrIndex];
-                        intArrayChangedBuffer = intArrayChanged[nodeNrIndex];
-                        charArrayChangedBuffer = charArrayChanged[nodeNrIndex];
+                        intArrayBuffer = nodes[activeNodeIndex]->intArray;
+                        charArrayBuffer = nodes[activeNodeIndex]->charArray;
+                        intArrayChangedBuffer = nodes[activeNodeIndex]->intArrayChanged;
+                        charArrayChangedBuffer = nodes[activeNodeIndex]->charArrayChanged;
 
                         waitForBytes = 1;
                         communicationState = 2;
@@ -87,7 +116,7 @@ void Communication<N>::run()
 
             case 2:
                 checksum = serial.read();
-                checksum += nodeNrArray[nodeNrIndex];
+                checksum += nodes[activeNodeIndex]->nodeNr;
 
                 waitForBytes = 1;
                 communicationState = 4;
@@ -308,9 +337,9 @@ void Communication<N>::run()
                 {
                     int value = 0;
                     if (sendCommand >= 64 &&
-                            sendCommand < 64 + intArray[nodeNrIndex].size())
+                            sendCommand < 64 + nodes[activeNodeIndex]->intArray.size())
                     {
-                        value = intArray[nodeNrIndex][sendCommand - 64];
+                        value = nodes[activeNodeIndex]->intArray[sendCommand - 64];
                     }
                     serial.write(sendCommand);
                     serial.write(static_cast<unsigned char>(value));
@@ -319,9 +348,9 @@ void Communication<N>::run()
                 else
                 {
                     char value = 0;
-                    if (sendCommand < charArray[nodeNrIndex].size())
+                    if (sendCommand < nodes[activeNodeIndex]->charArray.size())
                     {
-                        value = charArray[nodeNrIndex][sendCommand];
+                        value = nodes[activeNodeIndex]->charArray[sendCommand];
                     }
                     serial.write(sendCommand);
                     serial.write(static_cast<unsigned char>(value));
@@ -335,13 +364,11 @@ void Communication<N>::run()
 
     if (receiveCompleate && checksum == 0)
     {
-        intArray[nodeNrIndex] = intArrayBuffer;
-        charArray[nodeNrIndex] = charArrayBuffer;
-        intArrayChanged[nodeNrIndex] = intArrayChangedBuffer;
-        charArrayChanged[nodeNrIndex] = charArrayChangedBuffer;
+        nodes[activeNodeIndex]->intArray = intArrayBuffer;
+        nodes[activeNodeIndex]->charArray = charArrayBuffer;
+        nodes[activeNodeIndex]->intArrayChanged = intArrayChangedBuffer;
+        nodes[activeNodeIndex]->charArrayChanged = charArrayChangedBuffer;
 
         onReceiveCompleteEvent();
     }
 }
-
-#endif

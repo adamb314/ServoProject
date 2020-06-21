@@ -39,22 +39,22 @@ class ContinuousValueUpCaster
     ValueType value{0};
 };
 
-class DCServoCommunicationHandler : public Communication<1>
+class DCServoCommunicationHandler : public CommunicationNode
 {
 public:
-    DCServoCommunicationHandler(unsigned char nodeNr, unsigned long baud);
+    DCServoCommunicationHandler(unsigned char nodeNr);
 
     ~DCServoCommunicationHandler();
 
-    virtual void onReadyToSendEvent();
+    virtual void onReadyToSendEvent() override;
 
-    virtual void onReceiveCompleteEvent();
+    virtual void onReceiveCompleteEvent() override;
 
-    virtual void onErrorEvent();
+    virtual void onErrorEvent() override;
 
-    virtual void onComCycleEvent();
+    virtual void onComCycleEvent() override;
 
-    void onComIdleEvent() override;
+    virtual void onComIdleEvent() override;
 
 protected:
     StatusLightHandler statusLight;
@@ -64,73 +64,63 @@ protected:
     static constexpr int positionUpscaling = 32;
 };
 
-template <size_t N>
-class ServoCommunicationHandler : public Communication<N>
+class ServoCommunicationHandler : public CommunicationNode
 {
 public:
-    ServoCommunicationHandler(std::array<unsigned char, N> servoPinArray,
-            std::array<unsigned char, N> nodeNrArray,
-            unsigned long baud) :
-        Communication<N>(nodeNrArray, baud)
+    ServoCommunicationHandler(unsigned char nodeNr, unsigned char servoPin) :
+        CommunicationNode(nodeNr),
+        servoPin(servoPin)
     {
-        for (size_t i = 0; i != servoPinArray.size(); ++i)
-        {
-            servoArray[i].attach(servoPinArray[i], 0, 2000);
-        }
     }
 
     ~ServoCommunicationHandler()
     {
     }
 
-    virtual void onReadyToSendEvent()
+    virtual void onReadyToSendEvent() override
     {
     }
 
-    virtual void onReceiveCompleteEvent()
+    virtual void onReceiveCompleteEvent() override
     {
     }
 
-    virtual void onErrorEvent()
+    virtual void onErrorEvent() override
     {
     }
 
-    virtual void onComCycleEvent()
+    virtual void onComCycleEvent() override
     {
 
-        for (size_t i = 0; i != servoArray.size(); ++i)
+        if (CommunicationNode::intArrayChanged[0])
         {
-            if (Communication<N>::intArrayChanged[i][0])
-            {
-                Communication<N>::intArrayChanged[i][0] = false;
+            CommunicationNode::intArrayChanged[0] = false;
 
-                servoArray[i].writeMicroseconds(Communication<N>::intArray[i][0]);
-            }
-            else
+            if (!servo.attached())
             {
-                servoArray[i].writeMicroseconds(0);
+                servo.attach(servoPin, 400, 2600);
             }
+
+            int pos = static_cast<int>(CommunicationNode::intArray[0]) / 32;
+
+            servo.writeMicroseconds(pos + 1500);
+
+            CommunicationNode::intArray[3] = CommunicationNode::intArray[0];
         }
-
-        statusLight.showDisabled();
-
-        statusLight.showCommunicationActive();
+        else
+        {
+            servo.detach();
+        }
     }
 
-    void onComIdleEvent() override
+    virtual void onComIdleEvent() override
     {
-        for (size_t i = 0; i != servoArray.size(); ++i)
-        {
-            servoArray[i].writeMicroseconds(0);
-        }
-
-        statusLight.showDisabled();
-        statusLight.showCommunicationInactive();
+        servo.detach();
     }
 
 private:
-    std::array<Servo, N> servoArray;
-    StatusLightHandler statusLight;
+    unsigned char servoPin;
+    Servo servo;
 };
 
 #endif

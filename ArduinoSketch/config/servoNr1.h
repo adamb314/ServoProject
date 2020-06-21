@@ -37,14 +37,12 @@ public:
         return std::make_unique<EncoderHandler>(A5);
     }
 
-    static constexpr unsigned char getCommunicationId()
+    static std::unique_ptr<Communication> getCommunicationHandler()
     {
-        return 1;
-    }
+        auto com = std::make_unique<Communication>(&Serial1, 115200);
+        com->addCommunicationNode(std::make_unique<DCServoCommunicationHandler>(1));
 
-    static std::unique_ptr<CommunicationInterface> getCommunicationHandler()
-    {
-        return std::make_unique<DCServoCommunicationHandler>(getCommunicationId(), 115200);
+        return com;
     }
 
     static Eigen::Matrix<float, 5, 1> getControlParameterVector()

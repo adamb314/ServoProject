@@ -11,7 +11,7 @@ THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(InterruptTimer::getInstance());
 
 ThreadHandler* threadHandler = ThreadHandler::getInstance();
 
-std::unique_ptr<CommunicationInterface> communication;
+std::unique_ptr<Communication> communication;
 
 void setup()
 {

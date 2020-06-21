@@ -4,18 +4,18 @@
 static DCServo* dcServo = nullptr;
 static ThreadHandler* threadHandler = nullptr;
 
-DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr, unsigned long baud) :
-    Communication({{nodeNr}}, baud)
+DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr) :
+    CommunicationNode(nodeNr)
 {
     dcServo = DCServo::getInstance();
     threadHandler = ThreadHandler::getInstance();
-    Communication::intArray[0][0] = dcServo->getPosition() * positionUpscaling;
-    Communication::intArray[0][1] = 0;
-    Communication::intArray[0][2] = 0;
-    Communication::charArray[0][1] = 0;
-    Communication::charArray[0][2] = 0;
+    CommunicationNode::intArray[0] = dcServo->getPosition() * positionUpscaling;
+    CommunicationNode::intArray[1] = 0;
+    CommunicationNode::intArray[2] = 0;
+    CommunicationNode::charArray[1] = 0;
+    CommunicationNode::charArray[2] = 0;
 
-    intArrayIndex0Upscaler.set(Communication::intArray[0][0]);
+    intArrayIndex0Upscaler.set(CommunicationNode::intArray[0]);
 }
 
 DCServoCommunicationHandler::~DCServoCommunicationHandler()
@@ -29,26 +29,26 @@ void DCServoCommunicationHandler::onReadyToSendEvent()
 void DCServoCommunicationHandler::onReceiveCompleteEvent()
 {
 
-    dcServo->onlyUseMainEncoder(Communication::charArray[0][2] == 1);
+    dcServo->onlyUseMainEncoder(CommunicationNode::charArray[2] == 1);
 
-    if (Communication::intArrayChanged[0][0])
+    if (CommunicationNode::intArrayChanged[0])
     {
-        intArrayIndex0Upscaler.update(Communication::intArray[0][0]);
-        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), Communication::intArray[0][1], Communication::intArray[0][2]);
+        intArrayIndex0Upscaler.update(CommunicationNode::intArray[0]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), CommunicationNode::intArray[1], CommunicationNode::intArray[2]);
 
-        Communication::intArrayChanged[0][0] = false;
+        CommunicationNode::intArrayChanged[0] = false;
         dcServo->openLoopMode(false);
         dcServo->enable(true);
 
         statusLight.showEnabled();
     }
-    else if (Communication::intArrayChanged[0][2])
+    else if (CommunicationNode::intArrayChanged[2])
     {
-        intArrayIndex0Upscaler.update(Communication::intArray[0][0]);
-        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), Communication::intArray[0][1], Communication::intArray[0][2]);
+        intArrayIndex0Upscaler.update(CommunicationNode::intArray[0]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), CommunicationNode::intArray[1], CommunicationNode::intArray[2]);
 
-        Communication::intArrayChanged[0][2] = false;
-        dcServo->openLoopMode(true, Communication::charArray[0][1] == 1);
+        CommunicationNode::intArrayChanged[2] = false;
+        dcServo->openLoopMode(true, CommunicationNode::charArray[1] == 1);
         dcServo->enable(true);
 
         statusLight.showOpenLoop();
@@ -70,21 +70,21 @@ void DCServoCommunicationHandler::onComCycleEvent()
     {
         ThreadInterruptBlocker blocker;
 
-        Communication::intArray[0][3] = dcServo->getPosition() * positionUpscaling;
-        Communication::intArray[0][4] = dcServo->getVelocity();
-        Communication::intArray[0][5] = dcServo->getControlSignal();
-        Communication::intArray[0][6] = dcServo->getCurrent();
-        Communication::intArray[0][7] = dcServo->getPwmControlSignal();
-        Communication::intArray[0][8] = threadHandler->getCpuLoad();
-        Communication::intArray[0][9] = dcServo->getLoopNumber();
-        Communication::intArray[0][10] = dcServo->getMainEncoderPosition() * positionUpscaling;
-        Communication::intArray[0][11] = dcServo->getBacklashCompensation() * positionUpscaling;
+        CommunicationNode::intArray[3] = dcServo->getPosition() * positionUpscaling;
+        CommunicationNode::intArray[4] = dcServo->getVelocity();
+        CommunicationNode::intArray[5] = dcServo->getControlSignal();
+        CommunicationNode::intArray[6] = dcServo->getCurrent();
+        CommunicationNode::intArray[7] = dcServo->getPwmControlSignal();
+        CommunicationNode::intArray[8] = threadHandler->getCpuLoad();
+        CommunicationNode::intArray[9] = dcServo->getLoopNumber();
+        CommunicationNode::intArray[10] = dcServo->getMainEncoderPosition() * positionUpscaling;
+        CommunicationNode::intArray[11] = dcServo->getBacklashCompensation() * positionUpscaling;
 
         auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
-        Communication::intArray[0][12] = opticalEncoderChannelData.a;
-        Communication::intArray[0][13] = opticalEncoderChannelData.b;
-        Communication::intArray[0][14] = opticalEncoderChannelData.minCostIndex;
-        Communication::intArray[0][15] = opticalEncoderChannelData.minCost;
+        CommunicationNode::intArray[12] = opticalEncoderChannelData.a;
+        CommunicationNode::intArray[13] = opticalEncoderChannelData.b;
+        CommunicationNode::intArray[14] = opticalEncoderChannelData.minCostIndex;
+        CommunicationNode::intArray[15] = opticalEncoderChannelData.minCost;
 
         if (dcServo->isEnabled())
         {
@@ -97,8 +97,8 @@ void DCServoCommunicationHandler::onComCycleEvent()
 
 void DCServoCommunicationHandler::onComIdleEvent()
 {
-    Communication::intArrayChanged[0][0] = false;
-    Communication::intArrayChanged[0][2] = false;
+    CommunicationNode::intArrayChanged[0] = false;
+    CommunicationNode::intArrayChanged[2] = false;
     dcServo->enable(false);
 
     statusLight.showDisabled();
