@@ -115,7 +115,7 @@ public:
         void run()
         {
             intArray.at(3) = intArray.at(0);
-            intArray.at(9) = intArray.at(0);
+            intArray.at(10) = intArray.at(0);
             intArray.at(4) = intArray.at(1);
             intArray.at(5) = intArray.at(2);
         }
