@@ -212,7 +212,7 @@ void SerialCommunication::blocking_reader::time_out(const boost::system::error_c
 
 SerialCommunication::blocking_reader::blocking_reader(boost::asio::serial_port& port, size_t timeout) :
                                             port(port), timeout(timeout),
-                                            timer(port.get_io_service()),
+                                            timer(port.get_executor()),
                                             read_error(true)
 {
      
@@ -225,7 +225,10 @@ bool SerialCommunication::blocking_reader::read_char(char& val)
 
     // After a timeout & cancel it seems we need
     // to do a reset for subsequent reads to work.
-    port.get_io_service().reset();
+    
+    boost::asio::execution_context& e_context = port.get_executor().context();
+    boost::asio::io_context& context_instance = static_cast<boost::asio::io_context&>(e_context);
+    context_instance.reset();
 
     // Asynchronously read 1 character.
     boost::asio::async_read(port, boost::asio::buffer(&c, 1), 
@@ -241,7 +244,7 @@ bool SerialCommunication::blocking_reader::read_char(char& val)
 
     // This will block until a character is read
     // or until the it is cancelled.
-    port.get_io_service().run();
+    context_instance.run();
 
     if (!read_error)
         val = c;
