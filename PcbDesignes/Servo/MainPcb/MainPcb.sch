@@ -1,5 +1,4 @@
 EESchema Schematic File Version 4
-LIBS:MainPcb-cache
 EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
@@ -15,7 +14,7 @@ Comment3 ""
 Comment4 ""
 $EndDescr
 $Comp
-L MainPcb-rescue:Itsybitsy-New_Library U1
+L New_Library:Itsybitsy-New_Library U1
 U 1 1 5D6691BB
 P 1300 2150
 F 0 "U1" H 1700 2315 50  0000 C CNN
@@ -26,7 +25,7 @@ F 3 "" H 2050 2200 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L MainPcb-rescue:TB6612FNG-New_Library U2
+L New_Library:TB6612FNG-New_Library U2
 U 1 1 5D66A310
 P 8300 2150
 F 0 "U2" H 8725 2315 50  0000 C CNN
@@ -37,7 +36,7 @@ F 3 "" H 8900 2200 50  0001 C CNN
 	-1   0    0    -1  
 $EndComp
 $Comp
-L MainPcb-rescue:CurrentSensor-New_Library U3
+L New_Library:CurrentSensor-New_Library U3
 U 1 1 5D66AD20
 P 8150 3400
 F 0 "U3" H 8425 3565 50  0000 C CNN
