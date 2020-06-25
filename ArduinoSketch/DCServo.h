@@ -20,13 +20,31 @@ class ReferenceInterpolator
  public:
     ReferenceInterpolator();
 
-    void set(float position, float velocity, float feedForward);
+    void loadNew(float position, float velocity, float feedForward);
 
-    void get(float& position, float& velocity, float& feedForward);
+    void updateTiming();
 
+    void resetTiming();
+
+    void getNext(float& position, float& velocity, float& feedForward);
+
+    void setGetTimeInterval(const uint16_t& interval);
+
+    void setLoadTimeInterval(const uint16_t& interval);
+
+    int16_t midPointTimeOffset{0};
  private:
-    float pos[2], vel[2], feed[2];
-    uint16_t time[2];
+    float pos[3]{0};
+    float vel[3]{0};
+    float feed[3]{0};
+
+    uint16_t lastUpdateTimingTimestamp{0};
+    uint16_t lastGetTimestamp{0};
+
+    bool timingInvalid{true};
+    uint16_t loadTimeInterval{12000};
+    float invertedLoadInterval{1.0 / 12000};
+    uint16_t getTimeInterval{1200};
 };
 
 class DCServo
@@ -34,13 +52,17 @@ class DCServo
  public:
     static DCServo* getInstance();
 
+    bool isEnabled();
+
     void enable(bool b = true);
 
     void openLoopMode(bool enable, bool pwmMode = false);
 
     void onlyUseMainEncoder(bool b = true);
 
-    void setReference(float pos, int16_t vel, int16_t feedForwardU = 0);
+    void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
+
+    void triggerReferenceTiming();
 
     float getPosition();
 
@@ -67,8 +89,6 @@ class DCServo
     void controlLoop();
 
     void identTestLoop();
-
-    int16_t setOutput(float u);
 
     bool controlEnabled;
     bool onlyUseMainEncoderControl;
@@ -106,7 +126,7 @@ class DCServo
 
     float Ivel;
 
-    std::unique_ptr<CurrentControlLoop> currentControl;
+    std::unique_ptr<CurrentController> currentController;
     decltype(ConfigHolder::createMainEncoderHandler()) mainEncoderHandler;
     std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;

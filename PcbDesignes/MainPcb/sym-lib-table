@@ -1,5 +1,0 @@
-(sym_lib_table
-  (lib (name New_Library)(type Legacy)(uri /home/adam/Dropbox/EgnaProjekt/ServoV3/PCB2/New_Library.lib)(options "")(descr ""))
-  (lib (name PCB2-rescue)(type Legacy)(uri ${KIPRJMOD}/PCB2-rescue.lib)(options "")(descr ""))
-  (lib (name MainPcb-rescue)(type Legacy)(uri ${KIPRJMOD}/MainPcb-rescue.lib)(options "")(descr ""))
-)

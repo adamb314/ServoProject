@@ -20,7 +20,7 @@ public:
 
     virtual void write(unsigned char nr, char value) = 0;
 
-    virtual void write(unsigned char nr, int value) = 0;
+    virtual void write(unsigned char nr, short int value) = 0;
 
     virtual void requestReadChar(unsigned char nr) = 0;
 
@@ -28,7 +28,7 @@ public:
 
     virtual char getLastReadChar(unsigned char nr) = 0;
 
-    virtual int getLastReadInt(unsigned char nr) = 0;
+    virtual short int getLastReadInt(unsigned char nr) = 0;
 
     virtual bool execute() = 0;
 };
@@ -38,11 +38,15 @@ class SerialCommunication : public Communication
 public:
     SerialCommunication(std::string devName);
 
+protected:
+    SerialCommunication();
+
+public:
     virtual void setNodeNr(unsigned char nr);
 
     virtual void write(unsigned char nr, char value);
 
-    virtual void write(unsigned char nr, int value);
+    virtual void write(unsigned char nr, short int value);
 
     virtual void requestReadChar(unsigned char nr);
 
@@ -50,7 +54,7 @@ public:
 
     virtual char getLastReadChar(unsigned char nr);
 
-    virtual int getLastReadInt(unsigned char nr);
+    virtual short int getLastReadInt(unsigned char nr);
 
     virtual bool execute();
 
@@ -87,8 +91,8 @@ protected:
     std::vector<unsigned char> sendBuffer;
 
     unsigned char nodeNr;
-    std::array<char, 8> charArray;
-    std::array<int, 16> intArray;
+    std::array<char, 8> charArray{0};
+    std::array<short int, 16> intArray{0};
 
     boost::asio::io_service io;
     boost::asio::serial_port port;
@@ -99,8 +103,7 @@ protected:
 class SimulateCommunication : public SerialCommunication
 {
 public:
-    SimulateCommunication() :
-        SerialCommunication{""}
+    SimulateCommunication()
     {
     }
 
@@ -112,13 +115,13 @@ public:
         void run()
         {
             intArray.at(3) = intArray.at(0);
-            intArray.at(9) = intArray.at(0);
+            intArray.at(10) = intArray.at(0);
             intArray.at(4) = intArray.at(1);
             intArray.at(5) = intArray.at(2);
         }
 
         std::array<char, 8> charArray{0};
-        std::array<int, 16> intArray{0};
+        std::array<short int, 16> intArray{0};
     };
 
     std::array<ServoSim, 6> servoSims{};

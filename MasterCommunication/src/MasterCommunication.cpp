@@ -9,6 +9,12 @@ SerialCommunication::SerialCommunication(std::string devName) :
     port.set_option(boost::asio::serial_port_base::baud_rate(115200));
 }
 
+SerialCommunication::SerialCommunication() :
+        io(), port(io), reader(port, 50)
+{
+    nodeNr = 1;
+}
+
 void SerialCommunication::setNodeNr(unsigned char nr)
 {
     nodeNr = nr;
@@ -20,7 +26,7 @@ void SerialCommunication::write(unsigned char nr, char value)
     commandArray.push_back(value);
 }
 
-void SerialCommunication::write(unsigned char nr, int value)
+void SerialCommunication::write(unsigned char nr, short int value)
 {
     commandArray.push_back(nr + 64);
     commandArray.push_back(static_cast<unsigned char>(value));
@@ -44,7 +50,7 @@ char SerialCommunication::getLastReadChar(unsigned char nr)
     return charArray.at(nr);
 }
 
-int SerialCommunication::getLastReadInt(unsigned char nr)
+short int SerialCommunication::getLastReadInt(unsigned char nr)
 {
     return intArray.at(nr);
 }
@@ -206,7 +212,7 @@ void SerialCommunication::blocking_reader::time_out(const boost::system::error_c
 
 SerialCommunication::blocking_reader::blocking_reader(boost::asio::serial_port& port, size_t timeout) :
                                             port(port), timeout(timeout),
-                                            timer(port.get_io_service()),
+                                            timer(port.get_executor()),
                                             read_error(true)
 {
      
@@ -219,7 +225,10 @@ bool SerialCommunication::blocking_reader::read_char(char& val)
 
     // After a timeout & cancel it seems we need
     // to do a reset for subsequent reads to work.
-    port.get_io_service().reset();
+    
+    boost::asio::execution_context& e_context = port.get_executor().context();
+    boost::asio::io_context& context_instance = static_cast<boost::asio::io_context&>(e_context);
+    context_instance.reset();
 
     // Asynchronously read 1 character.
     boost::asio::async_read(port, boost::asio::buffer(&c, 1), 
@@ -235,7 +244,7 @@ bool SerialCommunication::blocking_reader::read_char(char& val)
 
     // This will block until a character is read
     // or until the it is cancelled.
-    port.get_io_service().run();
+    context_instance.run();
 
     if (!read_error)
         val = c;
@@ -271,7 +280,7 @@ bool SimulateCommunication::execute()
         }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(3));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
     commandArray.clear();
 

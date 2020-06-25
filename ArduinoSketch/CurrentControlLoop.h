@@ -7,31 +7,59 @@
 #include <Eigen.h>
 #include <vector>
 
-class CurrentControlLoop
+class CurrentController
+{
+public:
+    virtual void setReference(int16_t ref) = 0;
+
+    virtual void updateVelocity(float vel) {};
+
+    virtual void overidePwmDuty(int16_t pwm) = 0;
+
+    virtual void activateBrake() = 0;
+
+    virtual void applyChanges() = 0;
+
+    virtual int16_t getLimitedRef() = 0;
+
+    virtual int16_t getFilteredPwm() = 0;
+
+    virtual int16_t getCurrent() = 0;
+};
+
+class CurrentControlLoop : public CurrentController
 {
 public:
     CurrentControlLoop(uint32_t period);
 
     ~CurrentControlLoop();
 
-    void setReference(int16_t ref);
+    void setReference(int16_t ref) override;
 
-    int16_t getLimitedRef();
+    int16_t getLimitedRef() override;
 
-    void overidePwmDuty(int16_t pwm);
+    void overidePwmDuty(int16_t pwm) override;
 
-    int16_t getFilteredPwm();
+    int16_t getFilteredPwm() override;
 
-    void activateBrake();
+    void activateBrake() override;
 
-    int16_t getCurrent();
+    int16_t getCurrent() override;
+
+    void applyChanges();
 
 private:
     void run();
 
     PwmHandler* pwmInstance;
     CurrentSampler* currentSampler;
-    bool disableLoop;
+
+    bool newPwmOverrideValue;
+    bool newBrakeValue;
+    int16_t newRefValue;
+    int16_t newUValue;
+
+    bool pwmOverride;
     bool brake;
     int16_t ref;
     int16_t y;
@@ -42,6 +70,46 @@ private:
     bool lastULimited;
     FunctionalWrapper<bool>* adcSampDoneCheck;
     std::vector<CodeBlocksThread*> threads;
+};
+
+class CurrentControlModel : public CurrentController
+{
+public:
+    CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent);
+
+    ~CurrentControlModel();
+
+    void setReference(int16_t ref) override;
+
+    void updateVelocity(float vel) override;
+
+    void overidePwmDuty(int16_t pwm) override;
+
+    void activateBrake() override;
+
+    void applyChanges() override;
+
+    int16_t getLimitedRef() override;
+
+    int16_t getFilteredPwm() override;
+
+    int16_t getCurrent() override;
+
+private:
+    const float pwmToStallCurrent;
+    const float backEmfCurrent;
+
+    PwmHandler* pwmInstance;
+    bool pwmOverride;
+    bool brake;
+    int16_t ref;
+    int16_t y;
+    int16_t filteredY;
+    int16_t filteredPwm;
+    int16_t u;
+    int16_t limitedU;
+    float vel;
+    bool lastULimited;
 };
 
 #endif

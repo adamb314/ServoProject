@@ -1,8 +1,8 @@
 #include "DCServoCommunicator.h"
 
-DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus) :
-        activeIntReads{false}
+DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus)
 {
+    activeIntReads.fill(true);
     this->nodeNr = nodeNr;
     this->bus = bus;
 
@@ -15,7 +15,7 @@ DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bu
     setOffsetAndScaling(1.0, 0);
 }
 
-void DCServoCommunicator::setOffsetAndScaling(double scale, double offset)
+void DCServoCommunicator::setOffsetAndScaling(double scale, double offset, double startPosition)
 {
 	this->scale = scale;
 	this->offset = offset;
@@ -23,14 +23,15 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset)
     if (isInitComplete())
     {
         float pos = getPosition() / scale;
+        startPosition /= scale;
 
-        if (pos > 2048)
+        if (pos - startPosition > (2048 / 2))
         {
-            this->offset -= 4096 * scale;
+            this->offset -= (4096 / 2) * scale;
         }
-        else if (pos < -2048)
+        else if (pos - startPosition < -(2048 / 2))
         {
-            this->offset += 4096 * scale;
+            this->offset += (4096 / 2) * scale;
         }
     }
 }
@@ -40,12 +41,12 @@ void DCServoCommunicator::disableBacklashControl(bool b)
     backlashControlDisabled = b;
 }
 
-bool DCServoCommunicator::isInitComplete()
+bool DCServoCommunicator::isInitComplete() const
 {
     return initState == 10;
 }
 
-bool DCServoCommunicator::isCommunicationOk()
+bool DCServoCommunicator::isCommunicationOk() const
 {
     return communicationIsOk;
 }
@@ -54,7 +55,7 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
 {
     newPositionReference = true;
     newOpenLoopControlSignal = false;
-    refPos = (pos - offset) / scale * 4;
+    refPos = (pos - offset) / scale * positionUpscaling;
     refVel = vel / scale;
     this->feedforwardU = feedforwardU;
 }
@@ -67,7 +68,7 @@ void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bo
     this->feedforwardU = feedforwardU;
 }
 
-float DCServoCommunicator::getPosition(bool withBacklash)
+float DCServoCommunicator::getPosition(bool withBacklash) const
 {
     float pos;
     if (withBacklash && !backlashControlDisabled)
@@ -84,24 +85,24 @@ float DCServoCommunicator::getPosition(bool withBacklash)
     return scale * pos + offset;
 }
 
-float DCServoCommunicator::getVelocity()
+float DCServoCommunicator::getVelocity() const
 {
     activeIntReads[4] = true;
     return scale * encoderVel;
 }
 
-float DCServoCommunicator::getControlSignal()
+float DCServoCommunicator::getControlSignal() const
 {
     activeIntReads[5] = true;
     return controlSignal;
 }
 
-float DCServoCommunicator::getFeedforwardU()
+float DCServoCommunicator::getFeedforwardU() const
 {
     return activeFeedforwardU[2];
 }
 
-float DCServoCommunicator::getControlError(bool withBacklash)
+float DCServoCommunicator::getControlError(bool withBacklash) const
 {
     float pos;
     if (!backlashControlDisabled)
@@ -113,9 +114,9 @@ float DCServoCommunicator::getControlError(bool withBacklash)
         }
         else
         {
-            activeIntReads[3] = true;
+            activeIntReads[10] = true;
             activeIntReads[11] = true;
-            pos = backlashEncoderPos - backlashCompensation;
+            pos = encoderPos + backlashCompensation;
         }
     }
     else
@@ -124,40 +125,40 @@ float DCServoCommunicator::getControlError(bool withBacklash)
         pos = encoderPos;
     }
 
-    return scale * (activeRefPos[2] * 0.25 - pos);
+    return scale * (activeRefPos[2] * (1.0 / positionUpscaling) - pos);
 }
 
-float DCServoCommunicator::getCurrent()
+float DCServoCommunicator::getCurrent() const
 {
     activeIntReads[6] = true;
     return current;
 }
 
-int DCServoCommunicator::getPwmControlSignal()
+short int DCServoCommunicator::getPwmControlSignal() const
 {
     activeIntReads[7] = true;
     return pwmControlSignal;
 }
 
-int DCServoCommunicator::getCpuLoad()
+short int DCServoCommunicator::getCpuLoad() const
 {
     activeIntReads[8] = true;
     return cpuLoad;
 }
 
-int DCServoCommunicator::getLoopTime()
+short int DCServoCommunicator::getLoopTime() const
 {
     activeIntReads[9] = true;
     return loopTime;
 }
 
-float DCServoCommunicator::getBacklashCompensation()
+float DCServoCommunicator::getBacklashCompensation() const
 {
     activeIntReads[11] = true;
-    return backlashCompensation;
+    return scale * backlashCompensation;
 }
 
-DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData()
+DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEncoderChannelData() const
 {
     activeIntReads[12] = true;
     activeIntReads[13] = true;
@@ -172,9 +173,8 @@ void DCServoCommunicator::run()
 
     for (size_t i = 0; i < activeIntReads.size(); i++)
     {
-        if (activeIntReads[i] || !isInitComplete())
+        if (activeIntReads[i])
         {
-            activeIntReads[i] = false;
             bus->requestReadInt(i);
         }
     }
@@ -183,7 +183,7 @@ void DCServoCommunicator::run()
     {
         if (newPositionReference)
         {
-            bus->write(0, refPos);
+            bus->write(0, static_cast<short int>(refPos));
             bus->write(1, refVel);
             bus->write(2, feedforwardU);
 
@@ -218,9 +218,50 @@ void DCServoCommunicator::run()
 
     if (communicationIsOk)
     {
+        for (size_t i = 0; i < activeIntReads.size(); i++)
+        {
+            if (activeIntReads[i])
+            {
+
+                if (isInitComplete())
+                {
+                    activeIntReads[i] = false;
+                }
+                intReadBuffer[i] = bus->getLastReadInt(i);
+            }
+        }
+
+        if (isInitComplete())
+        {
+            intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
+            intReadBufferIndex10Upscaling.update(intReadBuffer[10]);
+            intReadBufferIndex11Upscaling.update(intReadBuffer[11]);
+        }
+        else
+        {
+            intReadBufferIndex3Upscaling.set(intReadBuffer[3]);
+            intReadBufferIndex10Upscaling.set(intReadBuffer[10]);
+            intReadBufferIndex11Upscaling.set(intReadBuffer[11]);
+        }
+        
+        backlashEncoderPos = intReadBufferIndex3Upscaling.get() * (1.0 / positionUpscaling);
+        encoderPos = intReadBufferIndex10Upscaling.get() * (1.0 / positionUpscaling);
+        backlashCompensation = intReadBufferIndex11Upscaling.get() * (1.0 / positionUpscaling);
+
+        encoderVel = intReadBuffer[4];
+        controlSignal = intReadBuffer[5];
+        current = intReadBuffer[6];
+        pwmControlSignal = intReadBuffer[7];
+        cpuLoad = intReadBuffer[8];
+        loopTime = intReadBuffer[9];
+        opticalEncoderChannelData.a = intReadBuffer[12];
+        opticalEncoderChannelData.b = intReadBuffer[13];
+        opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
+        opticalEncoderChannelData.minCost = intReadBuffer[15];
+
         if (initState < 10)
         {
-            initState++;
+            ++initState;
 
             float pos;
             if (!backlashControlDisabled)
@@ -232,25 +273,11 @@ void DCServoCommunicator::run()
                 pos = encoderPos;
             }
 
-            activeRefPos[0] = pos * 4;
+            activeRefPos[0] = pos * positionUpscaling;
             activeRefPos[1] = activeRefPos[0];
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];
             activeRefPos[4] = activeRefPos[3];
         }
-        
-        backlashEncoderPos = bus->getLastReadInt(3) * 0.25;
-        encoderPos = bus->getLastReadInt(10) * 0.25;
-        backlashCompensation = bus->getLastReadInt(11) * 0.25;
-        encoderVel = bus->getLastReadInt(4);
-        controlSignal = bus->getLastReadInt(5);
-        current = bus->getLastReadInt(6);
-        pwmControlSignal = bus->getLastReadInt(7);
-        cpuLoad = bus->getLastReadInt(8);
-        loopTime = bus->getLastReadInt(9);
-        opticalEncoderChannelData.a = bus->getLastReadInt(12);
-        opticalEncoderChannelData.b = bus->getLastReadInt(13);
-        opticalEncoderChannelData.minCostIndex = bus->getLastReadInt(14);
-        opticalEncoderChannelData.minCost = bus->getLastReadInt(15);
     }
 }

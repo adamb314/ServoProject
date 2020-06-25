@@ -1,46 +1,56 @@
 #include <Arduino.h>
 #undef max
 #undef min
+#include "ArduinoC++BugFixes.h"
 #include <array>
+#include <vector>
 #include "SerialComOptimizer.h"
 
 #ifndef COMMUNICATION_H
 #define COMMUNICATION_H
 
-class CommunicationInterface
+class CommunicationNode
 {
 public:
-    virtual void onReadyToSendEvent() = 0;
-    virtual void onReceiveCompleteEvent() = 0;
-    virtual void onErrorEvent() = 0;
-    virtual void onComCycleEvent() = 0;
-    virtual void onComIdleEvent() = 0;
+    CommunicationNode(unsigned char nodeNr) :
+        nodeNr(nodeNr)
+    {
+    }
 
-    virtual void run() = 0;
-};
-
-template <size_t N = 1>
-class Communication : public CommunicationInterface
-{
-public:
-    Communication(std::array<unsigned char, N> nodeNrArray, unsigned long baud = 9600);
-
-    virtual void onReadyToSendEvent() = 0;
-    virtual void onReceiveCompleteEvent() = 0;
-    virtual void onErrorEvent() = 0;
-    virtual void onComCycleEvent() = 0;
-    virtual void onComIdleEvent() = 0;
-
-    virtual void run();
+    virtual void onReadyToSendEvent(){};
+    virtual void onReceiveCompleteEvent(){};
+    virtual void onErrorEvent(){};
+    virtual void onComCycleEvent(){};
+    virtual void onComIdleEvent(){};
 
 protected:
-    std::array<std::array<int, 16>, N> intArray;
-    std::array<std::array<char, 8>, N> charArray;
+    std::array<int, 16> intArray{{0}};
+    std::array<char, 8> charArray{{0}};
 
-    std::array<std::array<bool, 16>, N> intArrayChanged;
-    std::array<std::array<bool, 8>, N> charArrayChanged;
+    std::array<bool, 16> intArrayChanged{{false}};
+    std::array<bool, 8> charArrayChanged{{false}};
 
 private:
+    unsigned char nodeNr;
+    friend class Communication;
+};
+
+class Communication
+{
+public:
+    Communication(Stream* serial, unsigned long baud = 115200);
+
+    void addCommunicationNode(std::unique_ptr<CommunicationNode> node);
+
+    void run();
+
+private:
+    void onReadyToSendEvent();
+    void onReceiveCompleteEvent();
+    void onErrorEvent();
+    void onComCycleEvent();
+    void onComIdleEvent();
+
     SerialComOptimizer serial;
     std::array<int, 16> intArrayBuffer;
     std::array<char, 8> charArrayBuffer;
@@ -63,12 +73,10 @@ private:
 
     unsigned char lastMessageNodeNr;
 
-    std::array<unsigned char, N> nodeNrArray;
-    size_t nodeNrIndex;
-};
+    std::vector<std::unique_ptr<CommunicationNode> > nodes;
+    size_t activeNodeIndex;
 
-#define COMMUNICATION_CPP
-#include "Communication.cpp"
-#undef COMMUNICATION_CPP
+    friend class CommunicationNode;
+};
 
 #endif

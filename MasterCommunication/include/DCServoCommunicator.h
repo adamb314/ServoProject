@@ -5,55 +5,87 @@
 #ifndef DC_SERVO_COMMUNICATION_H
 #define DC_SERVO_COMMUNICATION_H
 
+#include <type_traits>
+
+template <typename T, typename U>
+class ContinuousValueUpCaster
+{
+  public:
+    typedef typename std::decay<T>::type ValueType;
+    typedef typename std::decay<U>::type InputType;
+
+    const ValueType& get()
+    {
+        return value;
+    }
+
+    void set(const ValueType& v)
+    {
+        value = v;
+    }
+
+    void update(const InputType& input)
+    {
+        typedef typename std::make_signed<InputType>::type SignedInputType;
+
+        SignedInputType diff = input - value;
+
+        value += diff;
+    }
+
+  protected:
+    ValueType value{0};
+};
+
 class DCServoCommunicator
 {
   public:
     class OpticalEncoderChannelData
     {
     public:
-        unsigned int a{0};
-        unsigned int b{0};
-        unsigned int minCostIndex{0};
-        unsigned int minCost{0};
+        unsigned short int a{0};
+        unsigned short int b{0};
+        unsigned short int minCostIndex{0};
+        unsigned short int minCost{0};
     };
 
     DCServoCommunicator(unsigned char nodeNr, Communication* bus);
 
     DCServoCommunicator(const DCServoCommunicator&) = delete;
 
-    void setOffsetAndScaling(double scale, double offset);
+    void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
     void disableBacklashControl(bool b = true);
 
-    bool isInitComplete();
+    bool isInitComplete() const;
 
-    bool isCommunicationOk();
+    bool isCommunicationOk() const;
 
     void setReference(const float& pos, const float& vel, const float& feedforwardU);
 
     void setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode);
 
-    float getPosition(bool withBacklash = true);
+    float getPosition(bool withBacklash = true) const;
 
-    float getVelocity();
+    float getVelocity() const;
 
-    float getControlSignal();
+    float getControlSignal() const;
 
-    float getFeedforwardU();
+    float getFeedforwardU() const;
 
-    float getCurrent();
+    float getCurrent() const;
 
-    int getPwmControlSignal();
+    short int getPwmControlSignal() const;
 
-    float getControlError(bool withBacklash = true);
+    float getControlError(bool withBacklash = true) const;
 
-    int getCpuLoad();
+    short int getCpuLoad() const;
 
-    int getLoopTime();
+    short int getLoopTime() const;
 
-    float getBacklashCompensation();
+    float getBacklashCompensation() const;
 
-    OpticalEncoderChannelData getOpticalEncoderChannelData();
+    OpticalEncoderChannelData getOpticalEncoderChannelData() const;
 
     void run();
 
@@ -69,27 +101,34 @@ class DCServoCommunicator
     bool newOpenLoopControlSignal{false};
     bool pwmOpenLoopMode{false};
 
-    std::array<bool, 16> activeIntReads{false};
+    mutable std::array<bool, 16> activeIntReads{false};
+    std::array<short int, 16> intReadBuffer{0};
+
+    ContinuousValueUpCaster<long int, short int> intReadBufferIndex3Upscaling;
+    ContinuousValueUpCaster<long int, short int> intReadBufferIndex10Upscaling;
+    ContinuousValueUpCaster<long int, short int> intReadBufferIndex11Upscaling;
 
     float backlashEncoderPos{0.0};
     float encoderPos{0.0};
     float backlashCompensation{0.0};
-    int encoderVel{0};
-    int controlSignal{0};
-    int current{0};
-    int pwmControlSignal{0};
-    int cpuLoad{0};
-    int loopTime{0};
+    short int encoderVel{0};
+    short int controlSignal{0};
+    short int current{0};
+    short int pwmControlSignal{0};
+    short int cpuLoad{0};
+    short int loopTime{0};
     OpticalEncoderChannelData opticalEncoderChannelData;
 
-    int refPos{0};
-    std::array<int, 5> activeRefPos{0};
-    int refVel{0};
-    int feedforwardU{0};
-    std::array<int, 5> activeFeedforwardU{0};
+    long int refPos{0};
+    std::array<long int, 5> activeRefPos{0};
+    short int refVel{0};
+    short int feedforwardU{0};
+    std::array<short int, 5> activeFeedforwardU{0};
 
     double offset{0.0};
     double scale{1.0};
+
+    static constexpr int positionUpscaling = 32;
 };
 
 #endif

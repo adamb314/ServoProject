@@ -30,7 +30,10 @@ DCServo::DCServo() :
             }
         }));
 
-    currentControl = std::make_unique<CurrentControlLoop>(400);
+    refInterpolator.setGetTimeInterval(1200);
+    refInterpolator.setLoadTimeInterval(12000);
+
+    currentController = ConfigHolder::createCurrentController();
 
     L = ConfigHolder::getControlParameterVector();
 
@@ -74,7 +77,7 @@ DCServo::DCServo() :
 
     kalmanFilter->reset(x);
 
-    setReference(x[0], 0, 0);
+    loadNewReference(x[0], 0, 0);
 
     threads.push_back(createThread(1, 1200, 0,
         [&]()
@@ -84,10 +87,21 @@ DCServo::DCServo() :
         }));
 }
 
+bool DCServo::isEnabled()
+{
+    ThreadInterruptBlocker blocker;
+    return controlEnabled;
+}
+
 void DCServo::enable(bool b)
 {
     ThreadInterruptBlocker blocker;
     controlEnabled = b;
+
+    if (!b)
+    {
+        refInterpolator.resetTiming();
+    }
 }
 
 void DCServo::openLoopMode(bool enable, bool pwmMode)
@@ -103,10 +117,16 @@ void DCServo::onlyUseMainEncoder(bool b)
     onlyUseMainEncoderControl = b;
 }
 
-void DCServo::setReference(float pos, int16_t vel, int16_t feedForwardU)
+void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
-    refInterpolator.set(pos, vel, feedForwardU);
+    refInterpolator.loadNew(pos, vel, feedForwardU);
+}
+
+void DCServo::triggerReferenceTiming()
+{
+    ThreadInterruptBlocker blocker;
+    refInterpolator.updateTiming();
 }
 
 float DCServo::getPosition()
@@ -152,7 +172,7 @@ uint16_t DCServo::getLoopNumber()
 float DCServo::getBacklashCompensation()
 {
     ThreadInterruptBlocker blocker;
-    return outputPosOffset;
+    return outputPosOffset - initialOutputPosOffset;
 }
 
 float DCServo::getMainEncoderPosition()
@@ -205,7 +225,7 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentControl->getLimitedRef());
+            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentController->getLimitedRef());
 
             Ivel += L[3] * uLimitDiff;
 
@@ -213,7 +233,7 @@ void DCServo::controlLoop()
             float velRef;
             float feedForwardU;
 
-            refInterpolator.get(posRef, velRef, feedForwardU);
+            refInterpolator.getNext(posRef, velRef, feedForwardU);
 
             if (!onlyUseMainEncoderControl)
             {
@@ -230,9 +250,11 @@ void DCServo::controlLoop()
 
             controlSignal = u;
 
-            setOutput(controlSignal);
-            current = currentControl->getCurrent();
-            pwmControlSIgnal = currentControl->getFilteredPwm();
+            currentController->updateVelocity(x[1]);
+            currentController->setReference(static_cast<int16_t>(controlSignal));
+            currentController->applyChanges();
+            current = currentController->getCurrent();
+            pwmControlSIgnal = currentController->getFilteredPwm();
 
             Ivel -= L[2] * (vControlRef - x[1]);
         }
@@ -246,108 +268,160 @@ void DCServo::controlLoop()
             float velRef;
             float feedForwardU;
 
-            refInterpolator.get(posRef, velRef, feedForwardU);
+            refInterpolator.getNext(posRef, velRef, feedForwardU);
 
             if (pwmOpenLoopMode)
             {
                 controlSignal = 0;
-                currentControl->overidePwmDuty(feedForwardU);
+                currentController->overidePwmDuty(feedForwardU);
             }
             else
             {
                 controlSignal = feedForwardU;
-                setOutput(controlSignal);
+                currentController->setReference(static_cast<int16_t>(controlSignal));
             }
-            current = currentControl->getCurrent();
-            pwmControlSIgnal = currentControl->getFilteredPwm();
+            currentController->applyChanges();
+            current = currentController->getCurrent();
+            pwmControlSIgnal = currentController->getFilteredPwm();
         }
     }
     else
     {
-        setReference(x[0], 0, 0);
+        loadNewReference(x[0], 0, 0);
         Ivel = 0;
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
-        currentControl->activateBrake();
-        current = currentControl->getCurrent();
-        pwmControlSIgnal = currentControl->getFilteredPwm();
+        currentController->activateBrake();
+        currentController->applyChanges();
+        current = currentController->getCurrent();
+        pwmControlSIgnal = currentController->getFilteredPwm();
     }
 
-}
-
-int16_t DCServo::setOutput(float u)
-{
-    if (u > 0x7fff)
-    {
-        u = 0x7fff;
-    }
-    else if (u < -0x7fff)
-    {
-        u = -0x7fff;
-    }
-    currentControl->setReference(u);
-    
-    return currentControl->getLimitedRef();
 }
 
 ReferenceInterpolator::ReferenceInterpolator()
 {
-    set(0, 0, 0);
-    set(0, 0, 0);
 }
 
-void ReferenceInterpolator::set(float position, float velocity, float feedForward)
+void ReferenceInterpolator::loadNew(float position, float velocity, float feedForward)
 {
-    time[0] = time[1];
-    time[1] = millis();
+    if (timingInvalid)
+    {
+        midPointTimeOffset = 0;
 
-    pos[0] = pos[1];
-    vel[0] = vel[1];
-    feed[0] = feed[1];
+        pos[2] = position;
+        vel[2] = velocity;
+        feed[2] = feedForward;
 
-    pos[1] = position;
-    vel[1] = velocity;
-    feed[1] = feedForward;
+        pos[1] = pos[2];
+        vel[1] = vel[2];
+        feed[1] = feed[2];
+
+        pos[0] = pos[1];
+        vel[0] = vel[1];
+        feed[0] = feed[1];
+    }
+    else
+    {
+        if (midPointTimeOffset > -loadTimeInterval)
+        {
+            midPointTimeOffset -= loadTimeInterval;
+        }
+
+        pos[0] = pos[1];
+        vel[0] = vel[1];
+        feed[0] = feed[1];
+
+        pos[1] = pos[2];
+        vel[1] = vel[2];
+        feed[1] = feed[2];
+
+        pos[2] = position;
+        vel[2] = velocity;
+        feed[2] = feedForward;
+    }
 }
 
-void ReferenceInterpolator::get(float& position, float& velocity, float& feedForward)
+void ReferenceInterpolator::updateTiming()
 {
-    uint16_t current = millis();
-
-    uint16_t diff0 = current - time[0];
-    uint16_t diff1 = time[1] - time[0];
-
-    if (diff1 == 0)
+    uint16_t timestamp = micros();
+    if (timingInvalid)
     {
-        position = pos[1];
-        velocity = vel[1];
-        feedForward = feed[1];
+        midPointTimeOffset = getTimeInterval;
 
-        return;
+        timingInvalid = false;
+    }
+    else
+    {
+        uint16_t updatePeriod = timestamp - lastUpdateTimingTimestamp;
+        uint16_t timeSinceLastGet = timestamp - lastGetTimestamp;
+
+        int16_t timingError = getTimeInterval - (midPointTimeOffset + timeSinceLastGet);
+        int16_t periodError = updatePeriod - loadTimeInterval;
+
+        midPointTimeOffset += timingError / 8;
+        loadTimeInterval += periodError / 16;
+
+        invertedLoadInterval = 1.0 / loadTimeInterval;
     }
 
-    if (diff1 > 100 || diff0 > 100)
-    {
-        position = pos[1];
-        velocity = vel[1];
-        feedForward = feed[1];
+    lastUpdateTimingTimestamp = timestamp;
+}
 
-        return;
+void ReferenceInterpolator::resetTiming()
+{
+    timingInvalid = true;
+}
+
+void ReferenceInterpolator::getNext(float& position, float& velocity, float& feedForward)
+{
+    lastGetTimestamp = micros();
+
+    if (midPointTimeOffset < 2 * loadTimeInterval)
+    {
+        midPointTimeOffset += getTimeInterval;
     }
 
-    float t = diff0 / diff1;
+    float t = midPointTimeOffset * invertedLoadInterval;
 
-    if (t < 0)
+    if (t < -1.0)
     {
-        t = 0;
+        t = -1.0;
     }
-    else if (t > 1)
+    else if (t > 1.2)
     {
-        t = 1;
+        t = 1.2;
     }
 
-    position = pos[0] + t * (pos[1] - pos[0]);
-    velocity = vel[0] + t * (vel[1] - vel[0]);
-    feedForward = feed[0] + t * (feed[1] - feed[0]);
+    if (t < 0.0)
+    {
+        t += 1.0;
+        position = pos[0] + t * (pos[1] - pos[0]);
+        velocity = vel[0] + t * (vel[1] - vel[0]);
+        feedForward = feed[0] + t * (feed[1] - feed[0]);
+    }
+    else
+    {
+        position = pos[1] + t * (pos[2] - pos[1]);
+        velocity = vel[1] + t * (vel[2] - vel[1]);
+        feedForward = feed[1] + t * (feed[2] - feed[1]);
+    }
+}
+
+void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
+{
+    timingInvalid = true;
+
+    midPointTimeOffset = 0;
+    getTimeInterval = interval;
+}
+
+void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
+{
+    timingInvalid = true;
+    midPointTimeOffset = 0;
+
+    loadTimeInterval = interval;
+    invertedLoadInterval = 1.0 / loadTimeInterval;
 }
