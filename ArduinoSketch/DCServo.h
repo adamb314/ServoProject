@@ -4,7 +4,7 @@
 #include "ArduinoC++BugFixes.h"
 #include "ThreadHandler.h"
 
-#include <Eigen.h>
+#include <Eigen30.h>
 #include "CurrentControlLoop.h"
 #include "EncoderHandler.h"
 #include "OpticalEncoderHandler.h"

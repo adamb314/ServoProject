@@ -1,4 +1,4 @@
-#include <Eigen.h>
+#include <Eigen30.h>
 
 #include "config/config.h"
 

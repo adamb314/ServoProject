@@ -4,7 +4,7 @@
 #include "ThreadHandler.h"
 #include "CurrentSampler.h"
 #include "PwmHandler.h"
-#include <Eigen.h>
+#include <Eigen30.h>
 #include <vector>
 
 class CurrentController
