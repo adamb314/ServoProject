@@ -35,8 +35,6 @@ DCServo::DCServo() :
 
     currentController = ConfigHolder::createCurrentController();
 
-    L = ConfigHolder::getControlParameterVector();
-
     mainEncoderHandler->init();
     if (outputEncoderHandler)
     {
@@ -96,6 +94,11 @@ bool DCServo::isEnabled()
 void DCServo::enable(bool b)
 {
     ThreadInterruptBlocker blocker;
+    if (!isEnabled() && b)
+    {
+        L = ConfigHolder::ControlParameters::getLVector(controlSpeed, backlashControlSpeed);
+    }
+
     controlEnabled = b;
 
     if (!b)
@@ -115,6 +118,16 @@ void DCServo::onlyUseMainEncoder(bool b)
 {
     ThreadInterruptBlocker blocker;
     onlyUseMainEncoderControl = b;
+}
+
+void DCServo::setControlSpeed(uint8_t controlSpeed)
+{
+    this->controlSpeed = controlSpeed;
+}
+
+void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed)
+{
+    this->backlashControlSpeed = backlashControlSpeed;
 }
 
 void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)

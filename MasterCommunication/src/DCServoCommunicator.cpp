@@ -36,6 +36,12 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset, doubl
     }
 }
 
+void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed, unsigned char backlashCompensationSpeed)
+{
+    this->controlSpeed = controlSpeed;
+    this->backlashCompensationSpeed = backlashCompensationSpeed;
+}
+
 void DCServoCommunicator::disableBacklashControl(bool b)
 {
     backlashControlDisabled = b;
@@ -212,6 +218,9 @@ void DCServoCommunicator::run()
     else
     {
         bus->write(2, static_cast<char>(backlashControlDisabled));
+
+        bus->write(3, static_cast<char>(controlSpeed));
+        bus->write(4, static_cast<char>(backlashCompensationSpeed));
     }
 
     communicationIsOk = bus->execute();

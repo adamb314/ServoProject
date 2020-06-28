@@ -55,6 +55,8 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
+    void setControlSpeed(unsigned char controlSpeed, unsigned char backlashCompensationSpeed);
+
     void disableBacklashControl(bool b = true);
 
     bool isInitComplete() const;
@@ -100,6 +102,9 @@ class DCServoCommunicator
     bool newPositionReference{false};
     bool newOpenLoopControlSignal{false};
     bool pwmOpenLoopMode{false};
+
+    unsigned char controlSpeed{50};
+    unsigned char backlashCompensationSpeed{10};
 
     mutable std::array<bool, 16> activeIntReads{false};
     std::array<short int, 16> intReadBuffer{0};

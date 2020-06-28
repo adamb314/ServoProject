@@ -60,6 +60,10 @@ class DCServo
 
     void onlyUseMainEncoder(bool b = true);
 
+    void setControlSpeed(uint8_t controlSpeed);
+
+    void setBacklashControlSpeed(uint8_t backlashControlSpeed);
+
     void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 
     void triggerReferenceTiming();
@@ -94,6 +98,9 @@ class DCServo
     bool onlyUseMainEncoderControl;
     bool openLoopControlMode;
     bool pwmOpenLoopMode;
+
+    uint8_t controlSpeed{50};
+    uint8_t backlashControlSpeed{10};
 
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop

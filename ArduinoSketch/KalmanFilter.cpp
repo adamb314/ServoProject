@@ -8,13 +8,13 @@ KalmanFilter::KalmanFilter()
 
     Eigen::Matrix3f AInv;
 
-    A = ConfigHolder::KalmanFilter::getAMatrix();
+    A = ConfigHolder::ControlParameters::getAMatrix();
 
-    AInv = ConfigHolder::KalmanFilter::getAInvMatrix();
+    AInv = ConfigHolder::ControlParameters::getAInvMatrix();
 
-    B = ConfigHolder::KalmanFilter::getBVector();
+    B = ConfigHolder::ControlParameters::getBVector();
 
-    K = ConfigHolder::KalmanFilter::getKVector();
+    K = ConfigHolder::ControlParameters::getKVector();
 
     K = AInv * K;
 }

@@ -14,6 +14,8 @@ DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr) :
     CommunicationNode::intArray[2] = 0;
     CommunicationNode::charArray[1] = 0;
     CommunicationNode::charArray[2] = 0;
+    CommunicationNode::charArray[3] = 0;
+    CommunicationNode::charArray[4] = 0;
 
     intArrayIndex0Upscaler.set(CommunicationNode::intArray[0]);
 }
@@ -28,8 +30,17 @@ void DCServoCommunicationHandler::onReadyToSendEvent()
 
 void DCServoCommunicationHandler::onReceiveCompleteEvent()
 {
-
     dcServo->onlyUseMainEncoder(CommunicationNode::charArray[2] == 1);
+
+    if (CommunicationNode::charArrayChanged[3])
+    {
+        dcServo->setControlSpeed(CommunicationNode::charArray[3]);
+    }
+
+    if (CommunicationNode::charArrayChanged[4])
+    {
+        dcServo->setBacklashControlSpeed(CommunicationNode::charArray[4]);
+    }
 
     if (CommunicationNode::intArrayChanged[0])
     {
