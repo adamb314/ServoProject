@@ -67,6 +67,10 @@ public:
             dcServoArray{{{1, communication}, {2, communication},
                 {3, communication}, {4, communication}, {5, communication}, {6, communication}}}
     {
+        dcServoArray[0].setControlSpeed(50, 4);
+        dcServoArray[1].setControlSpeed(50, 4);
+        dcServoArray[2].setControlSpeed(50, 4);
+
         while (std::any_of(std::begin(dcServoArray), std::end(dcServoArray), [](auto& d)
                 {
                     return !d.isInitComplete();
