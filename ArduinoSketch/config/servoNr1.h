@@ -20,6 +20,22 @@ public:
     }
 };
 
+// replace with generated output from systemIdent.py
+// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+// config setps
+// 1) disconnect motor from gearbox
+// 2) compile and transfer to servo nr x
+// 3) open MasterCommunication folder in terminal
+// 4) run 'make'
+// 5) run './executable --servoNr x --recOpticalEncoder --output=opticalEncoderData.txt'
+// 6) run './systemIdent.py --opticalEncoderDataFile=opticalEncoderData.txt'
+// 7) copy past new generated ConfigHolder class, from terminal, over old class
+// 8) compile and transfer to servo nr x with new ConfigHolder class
+// 9) run './executable --servoNr x --recSystemIdentData --output=systemIdentData.txt'
+// 10) run './systemIdent.py --opticalEncoderDataFile=opticalEncoderData.txt --systemIdentDataFile=systemIdentData.txt'
+// 11) copy past new generated ConfigHolder class, from terminal, over old class
+// 12) connect motor to gearbox again
+// 13) compile and transfer to servo nr x with new ConfigHolder class
 class ConfigHolder : public SetupConfigHolder
 {
 public:

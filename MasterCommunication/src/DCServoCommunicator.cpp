@@ -173,6 +173,16 @@ DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEn
     return opticalEncoderChannelData;
 }
 
+double DCServoCommunicator::getScaling()
+{
+    return scale;
+}
+
+double DCServoCommunicator::getOffset()
+{
+    return offset;
+}
+
 void DCServoCommunicator::run()
 {
     bus->setNodeNr(nodeNr);

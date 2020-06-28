@@ -89,6 +89,10 @@ class DCServoCommunicator
 
     OpticalEncoderChannelData getOpticalEncoderChannelData() const;
 
+    double getScaling();
+
+    double getOffset();
+
     void run();
 
   private:

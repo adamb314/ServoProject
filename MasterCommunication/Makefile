@@ -11,7 +11,7 @@ CXX = g++
 Includes = -Iinclude
 CFLAGS   = -c -O0 -std=c98 -g -Wall $(Includes) 
 CXXFLAGS = -c -O0 -std=c++17 -g -Wall $(Includes) 
-LIBS     = -L. -lrt -lpthread -lboost_system
+LIBS     = -L. -lrt -lpthread -lboost_system -lboost_program_options
 LDFLAGS  = -g
 
 ######################

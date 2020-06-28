@@ -177,10 +177,10 @@ private:
     std::function<void(double, Robot*)> readResultHandlerFunction{[](double cycleTime, Robot* robot){}};
 };
 
-void playPath(Robot& robot, 
-        PathAndMoveBuilder& pathBuilder
+void playPath(Robot& robot,
+        PathAndMoveBuilder& pathBuilder,
         const double playbackSpeed = 1.0,
-        const std::array<bool, 6> activeMove = {true, true, true, true, true, true})
+        const std::array<bool, 6> activeMove = {true, true, true, true, true, true}, std::ostream& outStream = std::cout)
 {
     if (playbackSpeed > 1.0)
     {
@@ -250,7 +250,7 @@ void playPath(Robot& robot,
 
     double t = 0;
     EigenVectord6 lastTempC;
-    auto readResultHandlerFunction = [&t, &lastTempC, &doneRunning, &reachedEndOfTrajectory, &pwm](double dt, Robot* robot)
+    auto readResultHandlerFunction = [&t, &lastTempC, &doneRunning, &reachedEndOfTrajectory, &pwm, &outStream](double dt, Robot* robot)
         {
             auto& servos = robot->dcServoArray;
 
@@ -271,6 +271,10 @@ void playPath(Robot& robot,
             std::transform(std::cbegin(servos), std::cend(servos), std::begin(erroJ),
                     [](const auto& c){return c.getControlError();});
 
+            EigenVectord6 controlSignal;
+            std::transform(std::cbegin(servos), std::cend(servos), std::begin(controlSignal),
+                    [](const auto& c){return c.getControlSignal();});
+
             JointSpaceCoordinate tempJ{posJ};
             CartesianCoordinate tempC{tempJ};
 
@@ -285,13 +289,13 @@ void playPath(Robot& robot,
             const EigenVectord6& viewVel = tempCVel;
 
             std::string printVecName;
-            auto printVecFunc = [&printVecName](int i, const auto& v)
+            auto printVecFunc = [&printVecName, &outStream](int i, const auto& v)
                     {
-                        std::cout << " " << printVecName << i << ":" << v;
+                        outStream << " " << printVecName << i << ":" << v;
                         return ++i;
                     };
 
-            std::cout << "t:" << t;
+            outStream << "t:" << t;
             printVecName = "p";
             std::accumulate(std::cbegin(viewPos), std::cend(viewPos), 0, printVecFunc);
             printVecName = "pj";
@@ -303,8 +307,8 @@ void playPath(Robot& robot,
             printVecName = "e";
             std::accumulate(std::cbegin(erroJ), std::cend(erroJ), 0, printVecFunc);
             printVecName = "u";
-            std::accumulate(std::cbegin(pwm), std::cend(pwm), 0, printVecFunc);
-            std::cout << "\n";
+            std::accumulate(std::cbegin(controlSignal), std::cend(controlSignal), 0, printVecFunc);
+            outStream << "\n";
 
             t += dt;
 
@@ -323,7 +327,7 @@ void playPath(Robot& robot,
     }
 }
 
-void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time)
+void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time, std::ostream& outStream = std::cout)
 {
     bool doneRunning = false;
 
@@ -338,12 +342,12 @@ void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time)
         };
 
     double t = 0;
-    auto readResultHandlerFunction = [&t, &doneRunning, &i, time](double dt, Robot* robot)
+    auto readResultHandlerFunction = [&t, &doneRunning, &i, time, &outStream](double dt, Robot* robot)
         {
             t += dt;
             auto& servos = robot->dcServoArray;
             auto opticalEncoderData = servos[i].getOpticalEncoderChannelData();
-            std::cout << opticalEncoderData.a << ", " 
+            outStream << opticalEncoderData.a << ", " 
                       << opticalEncoderData.b << ", "
                       << opticalEncoderData.minCostIndex << ", "
                       << opticalEncoderData.minCost << "\n";
@@ -363,7 +367,7 @@ void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time)
     }
 }
 
-void recordeMomentOfInertia(Robot& robot, size_t i, float amp, float freq)
+void recordeMomentOfInertia(Robot& robot, size_t i, float amp, float freq, std::ostream& outStream = std::cout)
 {
     std::for_each(std::begin(robot.dcServoArray), std::end(robot.dcServoArray), [](auto& d)
         {
@@ -409,7 +413,7 @@ void recordeMomentOfInertia(Robot& robot, size_t i, float amp, float freq)
         {
             auto& servo = robotPointer->dcServoArray[i];
 
-            std::cout << "t: " << t << ", "
+            outStream << "t: " << t << ", "
                         << "p: " << servo.getPosition() << ", "
                         << "v: " << servo.getVelocity() << ", "
                         << "u: " << servo.getControlSignal() << ", "
@@ -430,7 +434,7 @@ void recordeMomentOfInertia(Robot& robot, size_t i, float amp, float freq)
     }
 }
 
-void recordeCurrentAndPwmBehaviour(Robot& robot, size_t i, double pwm)
+void recordeSystemIdentData(Robot& robot, size_t i, double pwmAmp, std::ostream& outStream = std::cout)
 {
     std::for_each(std::begin(robot.dcServoArray), std::end(robot.dcServoArray), [](auto& d)
         {
@@ -439,22 +443,22 @@ void recordeCurrentAndPwmBehaviour(Robot& robot, size_t i, double pwm)
 
     bool doneRunning = false;
 
-    auto pwmTestVec = std::vector<double>{pwm/4.0, 0, -pwm/4.0, 0,
-                                        2.0 * pwm/4.0, 0, -2.0 * pwm/4.0, 0,
-                                        3.0 * pwm/4.0, 0, -3.0 * pwm/4.0, 0,
-                                        4.0 * pwm/4.0, 0, -4.0 * pwm/4.0, 0};
+    auto pwmTestVec = std::vector<double>{pwmAmp/4.0, 0, -pwmAmp/4.0, 0,
+                                        2.0 * pwmAmp/4.0, 0, -2.0 * pwmAmp/4.0, 0,
+                                        3.0 * pwmAmp/4.0, 0, -3.0 * pwmAmp/4.0, 0,
+                                        4.0 * pwmAmp/4.0, 0, -4.0 * pwmAmp/4.0, 0};
 
     double t = 0;
+    double pwm = 0;
     auto sendCommandHandlerFunction = [&](double dt, Robot* robotPointer)
         {
             auto& servo = robotPointer->dcServoArray[i];
 
-            double p = 0;
             if (t < pwmTestVec.size())
             {
-                p = pwmTestVec.at(static_cast<size_t>(t));
+                pwm = pwmTestVec.at(static_cast<size_t>(t));
             }
-            servo.setOpenLoopControlSignal(p, true);
+            servo.setOpenLoopControlSignal(pwm, true);
         };
 
     double runTime = pwmTestVec.size();
@@ -463,10 +467,10 @@ void recordeCurrentAndPwmBehaviour(Robot& robot, size_t i, double pwm)
             t += dt;
             auto& servo = robotPointer->dcServoArray[i];
 
-            std::cout << "t: " << t << ", "
-                        << "p: " << servo.getPosition() << ", "
-                        << "v: " << servo.getVelocity() << ", "
-                        << "c: " << servo.getCurrent() << "\n";
+            outStream << "t: " << t << ", "
+                        << "p: " << servo.getPosition(false) / servo.getScaling() << ", "
+                        << "c: " << servo.getCurrent() << ", "
+                        << "pwm: " << pwm << "\n";
 
             if (t >= runTime)
             {
@@ -605,36 +609,120 @@ PathAndMoveBuilder createPath()
     return pathBuilder;
 }
 
-int main()
-{
-    //SerialCommunication communication{"/dev/ttyACM0"};
-    SimulateCommunication communication;
+#include <fstream>
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
 
-    Robot robot(&communication);
-    
-    if (false)
+int main(int argc, char* argv[])
+{
+    // Declare the supported options.
+    po::options_description options("Allowed options");
+    options.add_options()
+        ("servoNr", po::value<int>(), "servo nr")
+        ("recOpticalEncoder", "recorde optical encoder data of given servo")
+        ("recSystemIdentData", "recorde system ident data of given servo")
+        ("recMomentOfInertia", "recorde moment of inertia data of given servo")
+        ("playPath", "play the path defined in createPath()")
+        ("output", po::value<std::string>(), "data output file")
+        ("simulate", "simulate servos");
+
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, options), vm);
+    po::notify(vm);
+
+    int numberOfArgs = std::accumulate(std::cbegin(vm), std::cend(vm), 0,
+            [](int i, const auto& v){return ++i;});
+    if (numberOfArgs == 0)
     {
-        recordeOpticalEncoderData(robot, 2, 13.0, 100);
+        std::cout << options;
+        return 0;
     }
-    else if (false)
+
+    int servoNr = -1;
+    if (vm.count("servoNr"))
     {
-        recordeMomentOfInertia(robot, 2, 0.05, 4);
+        servoNr = vm["servoNr"].as<int>();
     }
-    else if (false)
+
+    std::unique_ptr<std::ofstream> outFileStream{nullptr};
+    std::ostream* outStream = &std::cout;
+    if (vm.count("output"))
     {
-        recordeCurrentAndPwmBehaviour(robot, 2, 200);
+        std::string fileName = vm["output"].as<std::string>();
+        outFileStream = std::make_unique<std::ofstream>(fileName);
+        outStream = outFileStream.get();
     }
-    else if (true)
+
+    std::unique_ptr<Communication> communication{nullptr};
+    if (vm.count("simulate"))
+    {
+        communication = std::make_unique<SimulateCommunication>();
+    }
+    else
+    {
+        try
+        {
+            communication = std::make_unique<SerialCommunication>("/dev/ttyACM0");
+        }
+        catch (std::exception& e)
+        {
+            std::cout << "could not connect to robot serial port\n"; 
+            std::cout << e.what();
+
+            return 0;
+        }
+    }
+
+    Robot robot(communication.get());
+
+    if (vm.count("recOpticalEncoder"))
+    {
+        if (servoNr != -1)
+        {
+            recordeOpticalEncoderData(robot, std::max(servoNr - 1, 0), 20.0, 100, *outStream);
+        }
+        else
+        {
+            std::cout << "no servo selected\n";
+        }
+    }
+    else if (vm.count("recSystemIdentData"))
+    {
+        if (servoNr != -1)
+        {
+            recordeSystemIdentData(robot, std::max(servoNr - 1, 0), 200, *outStream);
+        }
+        else
+        {
+            std::cout << "no servo selected\n";
+        }
+    }
+    else if (vm.count("recMomentOfInertia"))
+    {
+        if (servoNr != -1)
+        {
+            recordeMomentOfInertia(robot, std::max(servoNr - 1, 0), 0.05, 4, *outStream);
+        }
+        else
+        {
+            std::cout << "no servo selected\n";
+        }
+    }
+    else if (vm.count("playPath"))
     {
         try
         {
             PathAndMoveBuilder pathBuilder{createPath()};
-            playPath(robot, pathBuilder, 1.0, {true, true, true, true, true, true});
+            playPath(robot, pathBuilder, 1.0, {false, false, true, false, false, false}, *outStream);
         }
         catch (std::exception& e)
         {
             std::cout << e.what(); 
         }
+    }
+    else
+    {
+        std::cout << options;
     }
 
     robot.shutdown();
