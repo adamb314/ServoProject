@@ -1,9 +1,0 @@
-This project requires the folowing libraries
-
-Adafruit_DotStar		: Can be found in the Arduino Library List
-LinkedList				: Can be found in the Arduino Library List
-
-EigenArduino			: Can be found at https://github.com/vancegroup/EigenArduino.git
-
-AdcHandler				: Can be found at https://bitbucket.org/adamb3_14/adchandler
-ThreadHandler			: Can be found at https://bitbucket.org/adamb3_14/threadhandler
