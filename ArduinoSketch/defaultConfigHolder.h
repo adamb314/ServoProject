@@ -1,9 +1,9 @@
 #include <Eigen30.h>
-#include "../EncoderHandler.h"
-#include "../CurrentControlLoop.h"
-#include "../OpticalEncoderHandler.h"
-#include "../ArduinoC++BugFixes.h"
-#include "../CommunicationHandlers.h"
+#include "EncoderHandler.h"
+#include "CurrentControlLoop.h"
+#include "OpticalEncoderHandler.h"
+#include "ArduinoC++BugFixes.h"
+#include "CommunicationHandlers.h"
 
 #ifndef DEFAULT_CONFIG_HOLDER_H
 #define DEFAULT_CONFIG_HOLDER_H

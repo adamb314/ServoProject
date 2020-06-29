@@ -1,4 +1,4 @@
-#include "defaultConfigHolder.h"
+#include "../defaultConfigHolder.h"
 
 #ifndef CONFIG_HOLDER_H
 #define CONFIG_HOLDER_H
@@ -8,6 +8,7 @@ class SetupConfigHolder : public DefaultConfigHolder
 public:
     static constexpr float getMainEncoderGearRation()
     {
+        // replace with gear ratio from motor to output
         return 275.0 / 125904.0;
     }
 
