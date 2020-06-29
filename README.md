@@ -1,6 +1,6 @@
 # ServoProject
 
-<img src="readmeResources/robot.jpg" alt="Robot" width="50%"/>
+![Robot](readmeResources/robot.jpg)
 
 #### Getting the most out of your hobby servo
 
@@ -9,13 +9,13 @@ Theory
 
 The control system of a regular hobby servo looks something like this:
 
-<img src="readmeResources/ControlLoop1.png" alt="loop1" width="90%"/>
+![loop1](readmeResources/ControlLoop1.png)
 
 This control scheme is good at holding and moving fast between position, but not so good at following a smooth predefined motion. Which is what you want when you build a robot.
 
 Industrial servo controllers uses a cascade based control scheme insted, which looks something more like this:
 
-<img src="readmeResources/ControlLoop2.png" alt="loop2" width="100%"/>
+![loop2](readmeResources/ControlLoop2.png)
 
 This is the control scheme used in this project.
 
@@ -146,24 +146,24 @@ Hardware
 
 ### Servo gearbox with 3D prited parts
 
-<img src="readmeResources/parts2.png" alt="parts2" width="50%"/>
+![parts2](readmeResources/parts2.png)
 
 ### PCB Assemblies
 
-<img src="readmeResources/parts1.png" alt="parts1" width="50%"/>
+![parts1](readmeResources/parts1.png)
 
 #### How to mount PCBs to servo
 
-<img src="readmeResources/parts3.jpg" alt="parts3" width="300"/>
+![parts3](readmeResources/parts3.jpg)
 
 
-<img src="readmeResources/parts4.jpg" alt="parts4" width="300"/>
+![parts4](readmeResources/parts4.jpg)
 
 
-<img src="readmeResources/parts5.jpg" alt="parts5" width="300"/>
+![parts5](readmeResources/parts5.jpg)
 
 
-<img src="readmeResources/parts6.jpg" alt="parts6" width="300"/>
+![parts6](readmeResources/parts6.jpg)
 
 
 ### Build MainPcb and AS5048aEncoderBoard
@@ -173,46 +173,46 @@ This video is for an older version but the building instructions are the same.
 
 ### Build the Optical Encoder
 
-<img src="readmeResources/OptEncBuild/step1.jpg" alt="step1" width="300"/>
+![step1](readmeResources/OptEncBuild/step1.jpg)
 
 1) Take the motor
 
-<img src="readmeResources/OptEncBuild/step2.jpg" alt="step2" width="300"/>
+![step2](readmeResources/OptEncBuild/step2.jpg)
 
 2) And use a plier to bend out the four indents in the metal housing
 
-<img src="readmeResources/OptEncBuild/step3.jpg" alt="step3" width="300"/>
+![step3](readmeResources/OptEncBuild/step3.jpg)
 
 3) Bend up the motor lid
 
-<img src="readmeResources/OptEncBuild/step4.jpg" alt="step4" width="300"/>
+![step4](readmeResources/OptEncBuild/step4.jpg)
 
 4) Remove the two steel brushes from the lid carefully by cutting the lid into pieces
 
-<img src="readmeResources/OptEncBuild/step5_1.jpg" alt="step5_1" width="300"/>
+![step5_1](readmeResources/OptEncBuild/step5_1.jpg)
 
 5) Take the 3D prited motor lid
 
-<img src="readmeResources/OptEncBuild/step5_2.jpg" alt="step5_2" width="300"/>
+![step5_2](readmeResources/OptEncBuild/step5_2.jpg)
 
 6) Insert the two steel brushes and two ITR8307 into the new lid. Solder the ITR8307 according to 
 ```
 PcbDesignes/Servo/OpticalEncoder/OpticalEncoder.sch
 ```
 
-<img src="readmeResources/OptEncBuild/step6_1.jpg" alt="step6_1" width="300"/>
+![step6_1](readmeResources/OptEncBuild/step6_1.jpg)
 
 7) Take the motor with the lid removed
 
-<img src="readmeResources/OptEncBuild/step6_2.jpg" alt="step6_2" width="300"/>
+![step6_2](readmeResources/OptEncBuild/step6_2.jpg)
 
 8) Paint the rotor with black nail polish and glue in a white paper disc on top as shown in the image. The disc has to be glude of center for the encoder to work
 
-<img src="readmeResources/OptEncBuild/step7.jpg" alt="step7" width="300"/>
+![step7](readmeResources/OptEncBuild/step7.jpg)
 
 9) Carefully put the new lid on the motor without bending the steel brushes
 
-<img src="readmeResources/OptEncBuild/step8.jpg" alt="step8" width="300"/>
+![step8](readmeResources/OptEncBuild/step8.jpg)
 
 10) Solder the four leads from the encoder on top of ItsyBitsy board as shown
 
