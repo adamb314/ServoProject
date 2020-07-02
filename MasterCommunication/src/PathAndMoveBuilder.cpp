@@ -548,7 +548,7 @@ void CartesianSpaceLinearPath::Iterator::init()
 
     const EigenVectord6 v = (b - a);
     const EigenVectord6 angleScalingVec = EigenVectord6{1.0, 1.0, 1.0,
-                s5TranslationLength, s5TranslationLength, s5TranslationLength};
+                s5TranslationLength * 5.0, s5TranslationLength * 5.0, s5TranslationLength * 5.0};
     const double vNormAS = (angleScalingVec.asDiagonal() * v).norm(); 
 
     stepSize = 0.0004 / vNormAS;
