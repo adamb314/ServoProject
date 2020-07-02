@@ -495,16 +495,18 @@ PathAndMoveBuilder createPath()
 {
     PathAndMoveBuilder pathBuilder;
 
-    VelocityLimiter jointVelocityLimiter(3.0);
-    VelocityLimiter cartesianVelocityLimiter(0.1, EigenVectord6{1, 1, 1, 0, 0, 0});
-    cartesianVelocityLimiter.add(0.4, EigenVectord6{0,0,0,1,1,1});
+    VelocityLimiter jointVelocityLimiter(0.1, EigenVectord6{1, 1, 1, 1, 1, 1}, 3.0 / 0.5);
+    VelocityLimiter cartesianVelocityLimiter(0.025, EigenVectord6{1, 1, 1, 0, 0, 0}, 0.2 / 0.02);
+    cartesianVelocityLimiter.add(0.1, EigenVectord6{1, 1, 1, 0, 0, 0});
+    cartesianVelocityLimiter.add(0.01, EigenVectord6{0, 0, 0, 1, 1, 1}, 1.0 / 0.1);
+    cartesianVelocityLimiter.add(0.4, EigenVectord6{0, 0, 0, 1, 1, 1});
     std::shared_ptr<JointSpaceDeviationLimiter> noDeviationLimiterJoint = 
             std::make_shared<JointSpaceDeviationLimiter>(std::numeric_limits<double>::max());
     std::shared_ptr<JointSpaceDeviationLimiter> deviationLimiterJoint =
             std::make_shared<JointSpaceDeviationLimiter>(0.0001);
     std::shared_ptr<CartesianSpaceDeviationLimiter> deviationLimiterCartesian =
             std::make_shared<CartesianSpaceDeviationLimiter>(0.0001);
-    deviationLimiterCartesian->add(0.01, EigenVectord6{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
+    deviationLimiterCartesian->add(0.0001, EigenVectord6{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
 
     EigenVectord6 xV{0.1, 0.0, 0.0, 0, 0, 0};
     EigenVectord6 yV{0.0, 0.1, 0.0, 0, 0, 0};
@@ -602,10 +604,10 @@ PathAndMoveBuilder createPath()
             jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
 
     pathBuilder.append(JointSpaceLinearPath::create({0.5, pi / 2 + 0, pi / 2 + 0, 0, 1.4, 0},
-            jointVelocityLimiter, jointVelocityLimiter, deviationLimiterJoint));
+            jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
 
     pathBuilder.append(JointSpaceLinearPath::create({-0.5, 0.9, 0.9, 0, 0, 1.4},
-            jointVelocityLimiter, jointVelocityLimiter, deviationLimiterJoint));
+            jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
 
     pathBuilder.append(JointSpaceLinearPath::create({0, pi / 2 + 0, pi / 2 + 0, 0, 0, 0},
             jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
@@ -717,7 +719,7 @@ int main(int argc, char* argv[])
         try
         {
             PathAndMoveBuilder pathBuilder{createPath()};
-            playPath(robot, pathBuilder, 1.0, {false, false, true, false, false, false}, *outStream);
+            playPath(robot, pathBuilder, 1.0, {true, true, true, true, true, true}, *outStream);
         }
         catch (std::exception& e)
         {
