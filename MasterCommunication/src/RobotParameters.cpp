@@ -279,8 +279,8 @@ namespace RobotParameters
     const double DynamicRobotDynamics::pwmLimit = 1023;
     const double DynamicRobotDynamics::currentToTorqueScale = 0.00056;
     const double DynamicRobotDynamics::gearBoxMomentOfInertia = 0.015064771031078847;
-    const double DynamicRobotDynamics::pwmToStallCurrent = 2.61598722;
-    const double DynamicRobotDynamics::backEmfCurrent = -0.70435649;
+    const double DynamicRobotDynamics::pwmToStallCurrent = 1.945991041784367;
+    const double DynamicRobotDynamics::backEmfCurrent = -0.00030467666381376284 * 4096 / 2.0 / M_PI;
 
     DynamicRobotDynamics::DynamicRobotDynamics(double dtTime)
     {
