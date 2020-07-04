@@ -4,7 +4,6 @@
 
 using namespace RobotParameters;
 
-VelocityLimiter::VelocityLimiter(const double& velocity, const EigenVectord6& selector)
 VelocityLimiter::VelocityLimiter(const double& velocity, const EigenVectord6& selector, const double& distFromBendAcc)
 {
     add(velocity, selector, distFromBendAcc);
