@@ -162,7 +162,7 @@ Connection ~ 5150 2850
 Wire Wire Line
 	5150 2850 5150 2650
 Text GLabel 6200 2700 2    50   Output ~ 0
-A4
+A2
 Text GLabel 6200 2850 2    50   Output ~ 0
-A5
+A3
 $EndSCHEMATC
