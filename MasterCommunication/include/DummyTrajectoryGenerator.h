@@ -141,6 +141,7 @@ TrajectoryItem<N, NumTyp> operator/(const TrajectoryItem<N, NumTyp>& a, float t)
     return out;
 }
 
+// This is just a simple implementation to get started
 class DummyTrajectoryGenerator
 {
 private:
@@ -302,8 +303,11 @@ private:
 
         for (double t = dt; t < (timesteps + 0.5) * dt; t += dt)
         {
+            Eigen::Matrix<double, 6, 1> posN = pos0 + p(t) * dirVec;
+            const Eigen::Matrix<double, 6, 1>& posNm1 = trajectoryItems.back().p;
             v1 = v(t);
-            auto item = TrajectoryItem<6, double>{pos0 + p(t) * dirVec, v1 * dirVec,
+            auto item = TrajectoryItem<6, double>{posN,
+                    (posN - posNm1) / dt,
                     //recalculated later on so just putting zeros for u
                     Eigen::Matrix<double, 6, 1>::Zero()};
             trajectoryItems.push_back(item);
