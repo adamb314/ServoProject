@@ -625,6 +625,7 @@ int main(int argc, char* argv[])
     po::options_description options("Allowed options");
     options.add_options()
         ("servoNr", po::value<int>(), "servo nr")
+        ("pwmAmp", po::value<int>(), "pwm amplitude for recOpticalEncoder and recSystemIdentData")
         ("recOpticalEncoder", "recorde optical encoder data of given servo")
         ("recSystemIdentData", "recorde system ident data of given servo")
         ("recMomentOfInertia", "recorde moment of inertia data of given servo")
@@ -648,6 +649,12 @@ int main(int argc, char* argv[])
     if (vm.count("servoNr"))
     {
         servoNr = vm["servoNr"].as<int>();
+    }
+
+    int pwmAmp = -1;
+    if (vm.count("pwmAmp"))
+    {
+        pwmAmp = vm["pwmAmp"].as<int>();
     }
 
     std::unique_ptr<std::ofstream> outFileStream{nullptr};
@@ -685,7 +692,12 @@ int main(int argc, char* argv[])
     {
         if (servoNr != -1)
         {
-            recordeOpticalEncoderData(robot, std::max(servoNr - 1, 0), 20.0, 100, *outStream);
+            if (pwmAmp == -1)
+            {
+                pwmAmp = 20;
+                std::cout << "no pwmAmp given, using default value " << pwmAmp << "\n";
+            }
+            recordeOpticalEncoderData(robot, std::max(servoNr - 1, 0), pwmAmp, 100, *outStream);
         }
         else
         {
@@ -696,7 +708,12 @@ int main(int argc, char* argv[])
     {
         if (servoNr != -1)
         {
-            recordeSystemIdentData(robot, std::max(servoNr - 1, 0), 200, *outStream);
+            if (pwmAmp == -1)
+            {
+                pwmAmp = 200;
+                std::cout << "no pwmAmp given, using default value " << pwmAmp << "\n";
+            }
+            recordeSystemIdentData(robot, std::max(servoNr - 1, 0), pwmAmp, *outStream);
         }
         else
         {
