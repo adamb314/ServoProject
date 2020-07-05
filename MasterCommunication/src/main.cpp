@@ -195,7 +195,7 @@ void playPath(Robot& robot,
 
     RobotParameters::DynamicRobotDynamics dynamics{dt};
 
-    DummyTrajectoryGenerator trajGen{&dynamics, 0};
+    DummyTrajectoryGenerator trajGen{&dynamics, 0.012 * 2};
 
     auto startPos = robot.getPosition();
     trajGen.setStart(startPos, 0.1);
