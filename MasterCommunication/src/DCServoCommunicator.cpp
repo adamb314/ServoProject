@@ -19,20 +19,26 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset, doubl
 {
 	this->scale = scale;
 	this->offset = offset;
+    this->startPosition = startPosition;
 
     if (isInitComplete())
     {
-        float pos = getPosition() / scale;
-        startPosition /= scale;
+        updateOffset();
+    }
+}
 
-        if (pos - startPosition > (2048 / 2))
-        {
-            this->offset -= (4096 / 2) * scale;
-        }
-        else if (pos - startPosition < -(2048 / 2))
-        {
-            this->offset += (4096 / 2) * scale;
-        }
+void DCServoCommunicator::updateOffset()
+{
+    float pos = getPosition() / scale;
+    startPosition /= scale;
+
+    if (pos - startPosition > (2048 / 2))
+    {
+        offset -= (4096 / 2) * scale;
+    }
+    else if (pos - startPosition < -(2048 / 2))
+    {
+        offset += (4096 / 2) * scale;
     }
 }
 
@@ -289,7 +295,7 @@ void DCServoCommunicator::run()
         opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
         opticalEncoderChannelData.minCost = intReadBuffer[15];
 
-        if (initState < 10)
+        if (!isInitComplete())
         {
             ++initState;
 
@@ -308,6 +314,11 @@ void DCServoCommunicator::run()
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];
             activeRefPos[4] = activeRefPos[3];
+
+            if (isInitComplete())
+            {
+                updateOffset();
+            }
         }
     }
 }

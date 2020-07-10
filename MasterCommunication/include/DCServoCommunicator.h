@@ -99,6 +99,8 @@ class DCServoCommunicator
     void run();
 
   private:
+    void updateOffset();
+
     Communication* bus{nullptr};
     unsigned char nodeNr{0};
 
@@ -140,6 +142,7 @@ class DCServoCommunicator
     std::array<short int, 5> activeFeedforwardU{0};
 
     double offset{0.0};
+    double startPosition{0.0};
     double scale{1.0};
 
     static constexpr int positionUpscaling = 32;

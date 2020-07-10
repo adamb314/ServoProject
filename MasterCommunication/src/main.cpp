@@ -67,6 +67,13 @@ public:
             dcServoArray{{{1, communication}, {2, communication},
                 {3, communication}, {4, communication}, {5, communication}, {6, communication}}}
     {
+        dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 302.75 / 4096.0 * 2 * pi, 0);
+        dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, (733.75 - 2048) / 4096.0 * 2 * pi, pi / 2);
+        dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, (656.25) / 4096.0 * 2 * pi, pi / 2);
+        dcServoArray[3].setOffsetAndScaling(1.0 * pi / 2000, -(4.0 / 25.0), 0);
+        dcServoArray[4].setOffsetAndScaling(-1.00 * pi / 2000, (2.0 / 25.0), 0);
+        dcServoArray[5].setOffsetAndScaling(1.00 * pi / 2000, -(1.0 / 25.0), 0);
+
         dcServoArray[0].setControlSpeed(50);
         dcServoArray[0].setBacklashControlSpeed(15, 0.6, 0.012);
         dcServoArray[1].setControlSpeed(50);
@@ -84,13 +91,6 @@ public:
                     d.run();
                 });
         }
-
-        dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 302.75 / 4096.0 * 2 * pi, 0);
-        dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, (733.75 - 2048) / 4096.0 * 2 * pi, pi / 2);
-        dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, (656.25) / 4096.0 * 2 * pi, pi / 2);
-        dcServoArray[3].setOffsetAndScaling(1.0 * pi / 2000, -(4.0 / 25.0), 0);
-        dcServoArray[4].setOffsetAndScaling(-1.00 * pi / 2000, (2.0 / 25.0), 0);
-        dcServoArray[5].setOffsetAndScaling(1.00 * pi / 2000, -(1.0 / 25.0), 0);
 
         std::transform(std::begin(dcServoArray), std::end(dcServoArray), std::begin(currentPosition), [](auto& d)
             {
