@@ -55,7 +55,10 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
-    void setControlSpeed(unsigned char controlSpeed, unsigned char backlashCompensationSpeed);
+    void setControlSpeed(unsigned char controlSpeed);
+
+    void setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
+            double backlashCompensationCutOffSpeed, double backlashSize);
 
     void disableBacklashControl(bool b = true);
 
@@ -109,6 +112,8 @@ class DCServoCommunicator
 
     unsigned char controlSpeed{50};
     unsigned char backlashCompensationSpeed{10};
+    unsigned char backlashCompensationSpeedVelDecrease{0};
+    unsigned char backlashSize{0};
 
     mutable std::array<bool, 16> activeIntReads{false};
     std::array<short int, 16> intReadBuffer{0};

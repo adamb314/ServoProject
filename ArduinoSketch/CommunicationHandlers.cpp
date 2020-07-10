@@ -37,9 +37,13 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
         dcServo->setControlSpeed(CommunicationNode::charArray[3]);
     }
 
-    if (CommunicationNode::charArrayChanged[4])
+    if (CommunicationNode::charArrayChanged[4] ||
+        CommunicationNode::charArrayChanged[5] ||
+        CommunicationNode::charArrayChanged[6])
     {
-        dcServo->setBacklashControlSpeed(CommunicationNode::charArray[4]);
+        dcServo->setBacklashControlSpeed(CommunicationNode::charArray[4],
+                CommunicationNode::charArray[5],
+                CommunicationNode::charArray[6]);
     }
 
     if (CommunicationNode::intArrayChanged[0])

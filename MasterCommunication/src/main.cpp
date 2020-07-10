@@ -67,9 +67,12 @@ public:
             dcServoArray{{{1, communication}, {2, communication},
                 {3, communication}, {4, communication}, {5, communication}, {6, communication}}}
     {
-        dcServoArray[0].setControlSpeed(50, 4);
-        dcServoArray[1].setControlSpeed(50, 4);
-        dcServoArray[2].setControlSpeed(50, 4);
+        dcServoArray[0].setControlSpeed(50);
+        dcServoArray[0].setBacklashControlSpeed(15, 0.6, 0.012);
+        dcServoArray[1].setControlSpeed(50);
+        dcServoArray[1].setBacklashControlSpeed(15, 0.1, 0.006);
+        dcServoArray[2].setControlSpeed(50);
+        dcServoArray[2].setBacklashControlSpeed(4, 3.0, 0.005);
 
         while (std::any_of(std::begin(dcServoArray), std::end(dcServoArray), [](auto& d)
                 {

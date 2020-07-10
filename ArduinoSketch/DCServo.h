@@ -62,7 +62,7 @@ class DCServo
 
     void setControlSpeed(uint8_t controlSpeed);
 
-    void setBacklashControlSpeed(uint8_t backlashControlSpeed);
+    void setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize);
 
     void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 
@@ -101,17 +101,24 @@ class DCServo
 
     uint8_t controlSpeed{50};
     uint8_t backlashControlSpeed{10};
+    uint8_t backlashControlSpeedVelGain{0};
+    uint8_t backlashSize{0};
 
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop
     //L[2]: Integral action gain of velocity control loop
     //L[3]: Integral anti windup gain of velocity control loop
     //L[4]: Backlash compensation integral action gain
-    Eigen::Matrix<float, 5, 1> L;
+    //L[5]: Backlash compensation velocity dependent gain
+    //L[6]: Backlash size
+    Eigen::Matrix<float, 7, 1> L;
 
     uint16_t loopNumber;
     float rawMainPos;
     float rawOutputPos;
+    int forceDir{0};
+    bool lastForceDirNotZero{false};
+    float currentBacklashStepSize{0.0};
     float outputPosOffset;
     float initialOutputPosOffset;
 

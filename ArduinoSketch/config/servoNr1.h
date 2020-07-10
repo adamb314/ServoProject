@@ -103,13 +103,13 @@ public:
         }
 
         //state feedback vecktor
-        static Eigen::Matrix<float, 5, 1> getLVector(uint8_t controllerSpeed, uint8_t backlashControllerSpeed)
+        static Eigen::Matrix<float, 4, 1> getLVector(uint8_t controllerSpeed)
         {
             float dt = getAMatrix()(0, 1);
             float a = getAMatrix()(1, 1);
             float b = getBVector()(1);
 
-            return calculateLVector(controllerSpeed, backlashControllerSpeed, dt, a, b);
+            return calculateLVector(controllerSpeed, dt, a, b);
         }
     };
 };

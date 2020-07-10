@@ -96,7 +96,7 @@ void DCServo::enable(bool b)
     ThreadInterruptBlocker blocker;
     if (!isEnabled() && b)
     {
-        L = ConfigHolder::ControlParameters::getLVector(controlSpeed, backlashControlSpeed);
+        L << ConfigHolder::ControlParameters::getLVector(controlSpeed), backlashControlSpeed, backlashControlSpeedVelGain, backlashSize;
     }
 
     controlEnabled = b;
@@ -125,9 +125,11 @@ void DCServo::setControlSpeed(uint8_t controlSpeed)
     this->controlSpeed = controlSpeed;
 }
 
-void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed)
+void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize)
 {
     this->backlashControlSpeed = backlashControlSpeed;
+    this->backlashControlSpeedVelGain = backlashControlSpeedVelGain;
+    this->backlashSize = backlashSize;
 }
 
 void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
@@ -250,7 +252,37 @@ void DCServo::controlLoop()
 
             if (!onlyUseMainEncoderControl)
             {
-                outputPosOffset -= L[4] * 0.0012 * (posRef - rawOutputPos);
+                int newForceDir = 0;
+                if (feedForwardU > 1.0)
+                {
+                    newForceDir = 1;
+                }
+                else if (feedForwardU < -1.0)
+                {
+                    newForceDir = -1;
+                }
+
+                if (newForceDir != 0)
+                {
+                    if (newForceDir != forceDir && forceDir != 0)
+                    {
+                        outputPosOffset -= newForceDir * currentBacklashStepSize;
+                    }
+                    forceDir = newForceDir;
+                    lastForceDirNotZero = true;
+                }
+                else if (lastForceDirNotZero)
+                {
+                    lastForceDirNotZero = false;
+                    currentBacklashStepSize = L[6];
+                }
+                
+                double gain = L[4] * (0.1 + 0.9 * std::max(0.0,
+                        1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
+                double backlashCompensationDiff = gain * 0.0012 * (posRef - rawOutputPos);
+                outputPosOffset -= backlashCompensationDiff;
+                currentBacklashStepSize = std::max(0.0,
+                        currentBacklashStepSize - std::abs(backlashCompensationDiff));
             }
 
             posRef -= outputPosOffset;

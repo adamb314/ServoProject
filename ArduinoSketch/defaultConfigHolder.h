@@ -71,29 +71,28 @@ public:
             return B;
         }
 
-        static Eigen::Matrix<float, 5, 1> calculateLVector(uint8_t controllerSpeed, uint8_t backlashControllerSpeed,
+        static Eigen::Matrix<float, 4, 1> calculateLVector(uint8_t controllerSpeed,
                 float dt, float a, float b)
         {
             float posControlPole = exp(-dt * controllerSpeed);
             float velControlPole[] = {exp(-1.0 * dt * 4 * controllerSpeed), exp(-0.9 * dt * 4 * controllerSpeed)};
     
-            Eigen::Matrix<float, 5, 1> L;
+            Eigen::Matrix<float, 4, 1> L;
             L[0] = (1.0 - posControlPole) / dt;
             L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
             L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
             L[3] = 10 * L[2];
-            L[4] = backlashControllerSpeed;
 
             return L;
         }
 
-        static Eigen::Matrix<float, 5, 1> getLVector(uint8_t controllerSpeed, uint8_t backlashControllerSpeed)
+        static Eigen::Matrix<float, 4, 1> getLVector(uint8_t controllerSpeed)
         {
             float dt = getAMatrix()(0, 1);
             float a = getAMatrix()(1, 1);
             float b = getBVector()(1);
 
-            return calculateLVector(controllerSpeed, backlashControllerSpeed, dt, a, b);
+            return calculateLVector(controllerSpeed, dt, a, b);
         }
     };
 };
