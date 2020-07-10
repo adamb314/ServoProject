@@ -235,6 +235,24 @@ void playPath(Robot& robot,
                 outJ.v *= playbackSpeed;
                 outJp1.v *= playbackSpeed;
                 dynamics.recalculateFreedForward(outJ, outJp1);
+
+                auto frictionCompFun = [](double vel, double fricU)
+                        {
+                            if (vel > 0.001)
+                            {
+                                return fricU;
+                            }
+                            else if (vel < -0.001)
+                            {
+                                return -fricU;
+                            }
+                            return 0.0;
+                        };
+
+                outJ.u[0] += frictionCompFun(outJ.v[0], 60);
+                outJ.u[1] += frictionCompFun(outJ.v[1], 40);
+                outJ.u[2] += frictionCompFun(outJ.v[2], 40);
+
                 pwm = dynamics.recalcPwm(outJ.u, outJ.v);
                 return outJ;
             }, dt);
