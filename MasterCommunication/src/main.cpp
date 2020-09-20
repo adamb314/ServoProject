@@ -63,9 +63,15 @@ class Robot
 public:
     static const size_t dof = 6;
 
-    Robot(Communication* communication) :
-            dcServoArray{{{1, communication}, {2, communication},
-                {3, communication}, {4, communication}, {5, communication}, {6, communication}}}
+    std::unique_ptr<SimulateCommunication> communicationSim{std::make_unique<SimulateCommunication>()};
+
+    Robot(Communication* communication, const std::array<bool, 6> simulate = {false}) :
+            dcServoArray{{{1, simulate[0] ? communicationSim.get() : communication},
+                            {2, simulate[1] ? communicationSim.get() : communication},
+                            {3, simulate[2] ? communicationSim.get() : communication},
+                            {4, simulate[3] ? communicationSim.get() : communication},
+                            {5, simulate[4] ? communicationSim.get() : communication},
+                            {6, simulate[5] ? communicationSim.get() : communication}}}
     {
         dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 302.75 / 4096.0 * 2 * pi, 0);
         dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, (733.75 - 2048) / 4096.0 * 2 * pi, pi / 2);
