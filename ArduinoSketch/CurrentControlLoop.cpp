@@ -188,6 +188,8 @@ void CurrentControlModel::activateBrake()
 
 void CurrentControlModel::applyChanges()
 {
+    float backEmfKoeff = backEmfCurrent * vel;
+
     if (pwmOverride)
     {
         if (brake)
@@ -199,17 +201,25 @@ void CurrentControlModel::applyChanges()
         {
             limitedU = pwmInstance->setOutput(u);
         }
-        y = (pwmToStallCurrent + backEmfCurrent * vel) * limitedU;
+        y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
         filteredY = y;
         filteredPwm = limitedU;
         return;
     }
 
-    u = ref / (pwmToStallCurrent + backEmfCurrent * vel);
+    //ref = (pwmToStallCurrent * u + backEmfKoeff * abs(u);
+    if (ref >= 0)
+    {
+        u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent + backEmfKoeff);
+    }
+    else
+    {
+        u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent - backEmfKoeff);
+    }
 
     limitedU = pwmInstance->setOutput(u);
 
-    y = (pwmToStallCurrent + backEmfCurrent * vel) * limitedU;
+    y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
     filteredY = y;
     filteredPwm = limitedU;
 

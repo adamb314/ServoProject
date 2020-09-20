@@ -6,6 +6,7 @@
 #include "PwmHandler.h"
 #include <Eigen30.h>
 #include <vector>
+#include <algorithm>
 
 class CurrentController
 {
