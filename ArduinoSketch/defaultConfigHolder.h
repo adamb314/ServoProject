@@ -86,6 +86,11 @@ public:
             return L;
         }
 
+        static float getFrictionComp()
+        {
+            return 0.0;
+        }
+
         static Eigen::Matrix<float, 4, 1> getLVector(uint8_t controllerSpeed)
         {
             float dt = getAMatrix()(0, 1);

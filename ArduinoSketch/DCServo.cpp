@@ -293,6 +293,15 @@ void DCServo::controlLoop()
 
             float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
 
+            if (velRef > 0)
+            {
+                u += ConfigHolder::ControlParameters::getFrictionComp();
+            }
+            else if (velRef < 0)
+            {
+                u -= ConfigHolder::ControlParameters::getFrictionComp();
+            }
+
             controlSignal = u;
 
             currentController->updateVelocity(x[1]);
