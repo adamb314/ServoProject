@@ -465,7 +465,8 @@ void recordeMomentOfInertia(Robot& robot, size_t i, float amp, float freq, std::
     }
 }
 
-void recordeSystemIdentData(Robot& robot, size_t i, double pwmAmp, std::ostream& outStream = std::cout)
+void recordeSystemIdentData(Robot& robot, size_t i, double pwmAmp, double frictionPwm,
+        std::ostream& outStream = std::cout)
 {
     std::for_each(std::begin(robot.dcServoArray), std::end(robot.dcServoArray), [](auto& d)
         {
@@ -474,10 +475,14 @@ void recordeSystemIdentData(Robot& robot, size_t i, double pwmAmp, std::ostream&
 
     bool doneRunning = false;
 
-    auto pwmTestVec = std::vector<double>{pwmAmp/4.0, 0, -pwmAmp/4.0, 0,
-                                        2.0 * pwmAmp/4.0, 0, -2.0 * pwmAmp/4.0, 0,
-                                        3.0 * pwmAmp/4.0, 0, -3.0 * pwmAmp/4.0, 0,
-                                        4.0 * pwmAmp/4.0, 0, -4.0 * pwmAmp/4.0, 0};
+    auto pwmTestVec = std::vector<double>{1.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
+                                         -1.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm,
+                                          2.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
+                                         -2.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm,
+                                          3.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
+                                         -3.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm,
+                                          4.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
+                                         -4.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm};
 
     double t = 0;
     double pwm = 0;
@@ -653,6 +658,7 @@ int main(int argc, char* argv[])
     options.add_options()
         ("servoNr", po::value<int>(), "servo nr")
         ("pwmAmp", po::value<int>(), "pwm amplitude for recOpticalEncoder and recSystemIdentData")
+        ("fricPwmAmp", po::value<int>(), "pwm amplitude to overcome friction")
         ("recOpticalEncoder", "recorde optical encoder data of given servo")
         ("recSystemIdentData", "recorde system ident data of given servo")
         ("recMomentOfInertia", "recorde moment of inertia data of given servo")
@@ -682,6 +688,12 @@ int main(int argc, char* argv[])
     if (vm.count("pwmAmp"))
     {
         pwmAmp = vm["pwmAmp"].as<int>();
+    }
+
+    int fricPwmAmp = 0;
+    if (vm.count("fricPwmAmp"))
+    {
+        fricPwmAmp = vm["fricPwmAmp"].as<int>();
     }
 
     std::unique_ptr<std::ofstream> outFileStream{nullptr};
@@ -740,7 +752,7 @@ int main(int argc, char* argv[])
                 pwmAmp = 200;
                 std::cout << "no pwmAmp given, using default value " << pwmAmp << "\n";
             }
-            recordeSystemIdentData(robot, std::max(servoNr - 1, 0), pwmAmp, *outStream);
+            recordeSystemIdentData(robot, std::max(servoNr - 1, 0), pwmAmp, fricPwmAmp, *outStream);
         }
         else
         {

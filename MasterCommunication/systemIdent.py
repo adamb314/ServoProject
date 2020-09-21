@@ -67,16 +67,24 @@ class OpticalEncoderDataVectorGenerator:
     def __init__(self, file):
         data = loadtxtfile(file, (0, 1))
 
-        noiseDepresMemLenght = 4
+        plt.plot(data[:,0])
+        plt.plot(data[:,1])
+        plt.show()
+
+        noiseDepresMemLenght = 6
         startIndex = 0
-        constVelIndex = 2000
+        constVelIndex = 3000
         endIndex = 6000
 
+        a0 = data[0, 0]
+        b0 = data[0, 1]
+        a1 = data[3, 0]
+        b1 = data[3, 1]
         aVec = []
         bVec = []
-        for d in data[startIndex:startIndex+noiseDepresMemLenght]:
-            aVec.append(d[0])
-            bVec.append(d[1])
+        for t in np.arange(0.0, 1.0, 1.0 / noiseDepresMemLenght):
+            aVec.append(a0 + (a1 - a0) * t)
+            bVec.append(b0 + (b1 - b0) * t)
 
         data = data[constVelIndex:endIndex]
         modData = data
@@ -89,7 +97,7 @@ class OpticalEncoderDataVectorGenerator:
             for (a, b) in zip(aVec[-noiseDepresMemLenght:], bVec[-noiseDepresMemLenght:]):
                 cov += (ca - a)**2 + (cb - b)**2
 
-            cov += (ca - aVec[-noiseDepresMemLenght+1] - (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 + (cb - bVec[-noiseDepresMemLenght+1] - (bVec[-1] - bVec[-noiseDepresMemLenght]))**2
+            cov += ((ca - aVec[-noiseDepresMemLenght+1] - (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 + (cb - bVec[-noiseDepresMemLenght+1] - (bVec[-1] - bVec[-noiseDepresMemLenght]))**2)**1.0
             return cov
 
         while len(modData) > 0:
@@ -141,6 +149,11 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(self.bVecShrunk, 'g.-')
         plt.show()
 
+def sign(v):
+    if v >= 0:
+        return 1.0
+    return -1.0
+
 class SystemIdentificationObject:
     def __init__(self, file):
         data = loadtxtfile(file, (1, 3, 5, 7))
@@ -151,55 +164,43 @@ class SystemIdentificationObject:
         for i, d in enumerate(zip(data[2:,1], data[0:-2,1])):
             tempVelData[i + 1] = (d[0] - d[1]) / self.dt
 
+        def minDiff(vec, v):
+            min = vec[0]
+            for d in vec:
+                if abs(v - min) > abs(v - d):
+                    min = d
+            return min
+
+        lastVel = None
         for i, d in enumerate(tempVelData[1:-1]):
-            data[i, 1] = d
-        
+            if lastVel == None:
+                lastVel = d
+            if abs(d - lastVel) < 300000:
+                data[i, 1] = d
+                lastVel = d
+            else:
+                data[i, 1] = lastVel
+                lastVel = minDiff(tempVelData[i - 5:i], lastVel)
+
         data = data[1:-1]
 
-        pwmData = []
-        velData = []
-        currentData = []
+        plt.plot(data[:, 1])
+        plt.plot(data[:, 2])
+        plt.plot(data[:, 3])
+        plt.show()
 
-        skipAfterZero = 0
-        for d in data:
-            pwm = d[3]
-            if abs(pwm) <= 0.0:
-                skipAfterZero = 0
-            elif skipAfterZero < 10:
-                skipAfterZero += 1
-            else:
-                pwmData.append(pwm)
-                velData.append(d[1])
-                currentData.append(d[2])
+        velData = data[:, 1]
+        pwmData = data[:, 3]
 
-        pwmZeroVelData = []
-
-        skipAfterNoneZero = 0
-        for d in data:
-            pwm = d[3]
-            if not abs(pwm) <= 0.0:
-                skipAfterNoneZero = 0
-            elif skipAfterNoneZero < 10:
-                skipAfterNoneZero += 1
-            else:
-                pwmZeroVelData.append(d[1])
-
-        currentData = np.array(currentData)
-        currentData.shape = (len(currentData),1)
         velData = np.array(velData)
         velData.shape = (len(velData),1)
         pwmData = np.array(pwmData)
         pwmData.shape = (len(pwmData),1)
-        pwmZeroVelData = np.array(pwmZeroVelData)
-        pwmZeroVelData.shape = (len(pwmZeroVelData),1)
 
         velData -= np.mean(velData)
-        currentData -= np.mean(currentData)
 
-        self.currentData = currentData
         self.velData = velData
         self.pwmData = pwmData
-        self.pwmZeroVelData = pwmZeroVelData
 
         self.identifyServoSystemModel()
         self.identifyCurrentSystemModel()
@@ -217,55 +218,72 @@ class SystemIdentificationObject:
         plt.plot(t, self.pwmData)
         plt.figure(2)
         plt.plot(t, self.velData)
-        plt.figure(3)
-        plt.plot(t, self.currentData)
-        plt.figure(4)
-        t = np.arange(len(self.pwmZeroVelData)) * self.dt
-        plt.plot(t, self.pwmZeroVelData)
         plt.show()
 
     def identifyCurrentSystemModel(self):
-        X = np.hstack((self.pwmData, abs(self.pwmData) * self.velData))
-
-        cov = np.matmul(X.T, X)
-        covY = np.matmul(X.T, self.currentData)
-        beta = np.linalg.solve(cov, covY)
-        self.currentModelParams = np.array([beta[0][0], beta[1][0]])
+        self.currentModelParams = np.array([1.0, self.servoModelParameters[2,0]])
         return self.currentModelParams
 
     def plotCurrentSystemModel(self):
+        print("currentModelParams = " + str(self.currentModelParams))
         simCurrent = self.currentModelParams[0] * self.pwmData + self.currentModelParams[1] * abs(self.pwmData) * self.velData
 
-        t = np.arange(len(self.currentData)) * self.dt
-        plt.plot(t, self.currentData)
+        t = np.arange(len(self.pwmData)) * self.dt
         plt.plot(t, simCurrent, 'k')
         plt.show()
 
     def identifyServoSystemModel(self):
-        cov = np.matrix([[0.0, 0.0],[0.0, 0.0]])
-        covY = np.matrix([[0.0],[0.0]])
-        for d in zip(self.velData[1:], self.velData[0:-1], self.currentData[0:-1]):
-            if abs(d[0] - d[1]) < 500:
-                #[a1 , a2]      [a1 , b1]    [a1 * a1 + a2 * a2, a1 * b1 + a2 * b2]
-                #[       ]   *  [       ]  = [                                    ]
-                #[b1 , b2]      [a2 , b2]    [a1 * b1 + a2 * b2, b1 * b1 + b2 * b2]
-                cov += np.matrix([[d[1][0] * d[1][0], d[1][0] * d[2][0]], [d[2][0] * d[1][0], d[2][0] * d[2][0]]])
-                #[a1 , a2]      [c1]    [a1 * c1 + a2 * c2]
-                #[       ]   *  [  ]  = [                 ]
-                #[b1 , b2]      [c2]    [b1 * c1 + b2 * c2]
-                covY += np.matrix([[d[1][0] * d[0][0]],[d[2][0] * d[0][0]]])
+        covDef = False
+        cov = None#np.matrix([[0.0, 0.0, 0.0, 0.0],
+            #[0.0, 0.0, 0.0, 0.0],
+            #[0.0, 0.0, 0.0, 0.0],
+            #[0.0, 0.0, 0.0, 0.0]])
+        covYDef = False
+        covY = None#np.matrix([[0.0],[0.0],[0.0],[0.0]])
 
+        velData = np.abs(self.velData)
+        pwmData = np.abs(self.pwmData)
+
+        for d in zip(velData[1+5:-5], velData[0+5:-1-5], pwmData[0+5:-1-5], pwmData[0:-1-5-5], pwmData[0+5+5:-1]):
+            if d[4][0] == d[3][0]:
+                phi = np.matrix([[d[1][0]], [d[2][0]], [d[1][0] * d[2][0]], [1.0]])
+                y = d[0][0]
+
+                temp = phi * np.transpose(phi)
+                if covDef == False:
+                    covDef = True
+                    cov = temp
+                else:
+                    cov += temp
+                if covYDef == False:
+                    covYDef = True
+                    covY = y * phi
+                else:
+                    covY += y * phi
+
+        print("cov = " + str(cov))
+        print("covY = " + str(covY))
         self.servoModelParameters = np.linalg.solve(cov, covY)
+        self.servoModelParameters[2,0] = self.servoModelParameters[2,0] / self.servoModelParameters[1,0]
+        self.servoModelParameters[3,0] = -self.servoModelParameters[3,0] / self.servoModelParameters[1,0]
+        print("servoModelParameters = " + str(self.servoModelParameters))
         return self.servoModelParameters
 
     def plotServoSystemModel(self):
         simVel = 0 * self.velData
         lastSimVel = None
-        for i, d in enumerate(zip(self.velData[1:], self.velData[0:-1], self.currentData[0:-1])):
+        for i, d in enumerate(zip(self.velData[1:], self.velData[0:-1], self.pwmData[0:-1])):
             if lastSimVel == None:
                 lastSimVel = d[1][0]
-            if abs(d[0] - d[1]) < 500:
-                simVel[i] = self.servoModelParameters[0] * lastSimVel + self.servoModelParameters[1] * d[2][0]
+            if True:
+                pwm = d[2][0]
+                friction = 0
+                if pwm > 0:
+                    friction = -self.servoModelParameters[3,0]
+                elif pwm < 0:
+                    friction = self.servoModelParameters[3,0]
+                simVel[i] = (self.servoModelParameters[0] * lastSimVel +
+                    self.servoModelParameters[1] * (pwm + self.servoModelParameters[2] * lastSimVel * abs(pwm) + friction))
             else:
                 simVel[i] = d[0][0]
 
@@ -276,21 +294,6 @@ class SystemIdentificationObject:
         plt.plot(t, self.velData)
         plt.plot(t, simVel, 'k')
 
-        simPwmZeroVel = 0 * self.pwmZeroVelData
-        lastSimVel = None
-        for i, d in enumerate(zip(self.pwmZeroVelData[1:], self.pwmZeroVelData[0:-1])):
-            if lastSimVel == None:
-                lastSimVel = d[1][0]
-            if abs(d[0] - d[1]) < 500:
-                simPwmZeroVel[i] = self.servoModelParameters[0] * lastSimVel + self.servoModelParameters[1] * 0
-            else:
-                simPwmZeroVel[i] = d[0][0]
-            lastSimVel = simPwmZeroVel[i]
-
-        plt.figure(2)
-        t = np.arange(len(simPwmZeroVel)) * self.dt
-        plt.plot(t, self.pwmZeroVelData)
-        plt.plot(t, simPwmZeroVel, 'k')
         plt.show()
 
 class KalmanFilter(object):
@@ -498,6 +501,12 @@ def main():
         out += "            B << " + printAsEigenInit(servoModel.kalmanFilter.B, "                ")
         out += "\n"
         out += "            return B;\n"
+        out += "        }\n"
+        out += "\n"
+        out += "        //system model friction comp value\n"
+        out += "        static float getFrictionComp()\n"
+        out += "        {\n"
+        out += "            return " + str(systemIdentifier.servoModelParameters[3,0]) + ";\n"
         out += "        }\n"
         out += "\n"
         out += "        //state feedback vecktor\n"
