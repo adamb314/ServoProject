@@ -1,7 +1,8 @@
 #include "EncoderHandler.h"
 
-EncoderHandler::EncoderHandler(int chipSelectPin) :
-    chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0) 
+EncoderHandler::EncoderHandler(int chipSelectPin, float unitsPerRev) :
+    chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0),
+    scaling(unitsPerRev * (1.0 / 4096.0))
 {
 }
 
@@ -48,7 +49,7 @@ void EncoderHandler::triggerSample()
 
 float EncoderHandler::getValue()
 {
-    return (value + wrapAroundCorretion);
+    return (value + wrapAroundCorretion) * scaling;
 }
 
 uint16_t EncoderHandler::getStatus()

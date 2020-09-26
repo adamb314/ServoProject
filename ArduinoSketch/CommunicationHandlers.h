@@ -2,6 +2,7 @@
 #include "ThreadHandler.h"
 #include "StatusLightHandler.h"
 #include "Communication.h"
+#include "DCServo.h"
 #include <Servo.h>
 
 #ifndef COMMUNICATION_HANDLERS_H
@@ -42,7 +43,7 @@ class ContinuousValueUpCaster
 class DCServoCommunicationHandler : public CommunicationNode
 {
 public:
-    DCServoCommunicationHandler(unsigned char nodeNr);
+    DCServoCommunicationHandler(unsigned char nodeNr, std::unique_ptr<DCServo> dcServo);
 
     ~DCServoCommunicationHandler();
 
@@ -57,6 +58,8 @@ public:
     virtual void onComIdleEvent() override;
 
 protected:
+    std::unique_ptr<DCServo> dcServo;
+
     StatusLightHandler statusLight;
 
     ContinuousValueUpCaster<long int, short int> intArrayIndex0Upscaler;

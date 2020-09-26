@@ -25,7 +25,7 @@ public:
     {
         std::array<uint16_t, 512> aVec = {};
         std::array<uint16_t, 512> bVec = {};
-        return std::make_unique<OpticalEncoderHandler>(aVec, bVec);
+        return std::make_unique<OpticalEncoderHandler>(aVec, bVec, A2, A3, 4096.0);
     }
 
     class DefaultControlParameters
@@ -71,35 +71,26 @@ public:
             return B;
         }
 
-        static Eigen::Matrix<float, 4, 1> calculateLVector(uint8_t controllerSpeed,
-                float dt, float a, float b)
-        {
-            float posControlPole = exp(-dt * controllerSpeed);
-            float velControlPole[] = {exp(-1.0 * dt * 4 * controllerSpeed), exp(-0.9 * dt * 4 * controllerSpeed)};
-    
-            Eigen::Matrix<float, 4, 1> L;
-            L[0] = (1.0 - posControlPole) / dt;
-            L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
-            L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
-            L[3] = 10 * L[2];
-
-            return L;
-        }
-
         static float getFrictionComp()
         {
             return 0.0;
         }
-
-        static Eigen::Matrix<float, 4, 1> getLVector(uint8_t controllerSpeed)
-        {
-            float dt = getAMatrix()(0, 1);
-            float a = getAMatrix()(1, 1);
-            float b = getBVector()(1);
-
-            return calculateLVector(controllerSpeed, dt, a, b);
-        }
     };
 };
+
+template<typename T>
+std::unique_ptr<DCServo> createDCServo()
+{
+    auto currentController = T::createCurrentController();
+    auto mainEncoder = T::createMainEncoderHandler();
+    auto outputEncoder = T::createOutputEncoderHandler();
+    auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>();
+
+    return std::make_unique<DCServo>(
+            std::move(currentController),
+            std::move(mainEncoder),
+            std::move(outputEncoder),
+            std::move(kalmanFilter));
+}
 
 #endif

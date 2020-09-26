@@ -1,13 +1,10 @@
 #include "CommunicationHandlers.h"
-#include "DCServo.h"
 
-static DCServo* dcServo = nullptr;
 static ThreadHandler* threadHandler = nullptr;
 
-DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr) :
-    CommunicationNode(nodeNr)
+DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr, std::unique_ptr<DCServo> dcServo) :
+    CommunicationNode(nodeNr), dcServo(std::move(dcServo))
 {
-    dcServo = DCServo::getInstance();
     threadHandler = ThreadHandler::getInstance();
     CommunicationNode::intArray[0] = dcServo->getPosition() * positionUpscaling;
     CommunicationNode::intArray[1] = 0;
@@ -95,11 +92,11 @@ void DCServoCommunicationHandler::onComCycleEvent()
         CommunicationNode::intArray[10] = dcServo->getMainEncoderPosition() * positionUpscaling;
         CommunicationNode::intArray[11] = dcServo->getBacklashCompensation() * positionUpscaling;
 
-        auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
+        auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData();
         CommunicationNode::intArray[12] = opticalEncoderChannelData.a;
         CommunicationNode::intArray[13] = opticalEncoderChannelData.b;
-        CommunicationNode::intArray[14] = opticalEncoderChannelData.minCostIndex;
-        CommunicationNode::intArray[15] = opticalEncoderChannelData.minCost;
+        CommunicationNode::intArray[14] = opticalEncoderChannelData.c;
+        CommunicationNode::intArray[15] = opticalEncoderChannelData.d;
 
         if (dcServo->isEnabled())
         {

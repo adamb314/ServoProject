@@ -9,7 +9,8 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
 {
   public:
     static constexpr int vecSize = 512;
-    OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec);
+    OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
+            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
 
     ~OpticalEncoderHandler();
 
@@ -19,16 +20,7 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
 
     virtual float getValue() override;
 
-    class DiagnosticData
-    {
-      public:
-        uint16_t a;
-        uint16_t b;
-        uint16_t minCostIndex;
-        uint16_t minCost;
-    };
-
-    DiagnosticData getDiagnosticData();
+    virtual DiagnosticData getDiagnosticData();
 
   private:
     void updatePosition();
@@ -46,9 +38,11 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     AnalogSampler sensor2;
     uint16_t sensor1Value{0};
     uint16_t sensor2Value{0};
-    float value;
-    float wrapAroundCorretion;
-    bool newData;
+    float value{0.0};
+    float wrapAroundCorretion{0.0};
+    bool newData{false};
+
+    const float scaling;
 };
 
 #endif

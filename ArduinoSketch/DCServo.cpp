@@ -1,26 +1,22 @@
 #include "DCServo.h"
 
-DCServo* DCServo::getInstance()
+DCServo::DCServo(std::unique_ptr<CurrentController> currentController,
+            std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
+            std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler,
+            std::unique_ptr<KalmanFilter> kalmanFilter):
+        currentController(std::move(currentController)),
+        mainEncoderHandler(std::move(mainEncoderHandler)),
+        outputEncoderHandler(std::move(outputEncoderHandler)),
+        kalmanFilter(std::move(kalmanFilter))
 {
-    static DCServo dcServo;
-    return &dcServo;
+    init();
 }
 
-DCServo::DCServo() :
-        controlEnabled(false),
-        onlyUseMainEncoderControl(false),
-        openLoopControlMode(false),
-        pwmOpenLoopMode(false),
-        loopNumber(0),
-        current(0),
-        controlSignal(0),
-        uLimitDiff(0),
-        Ivel(0),
-        mainEncoderHandler(ConfigHolder::createMainEncoderHandler()),
-        outputEncoderHandler(ConfigHolder::createOutputEncoderHandler()),
-        kalmanFilter(std::make_unique<KalmanFilter>())
+void DCServo::init()
 {
-    threads.push_back(createThread(2, 1200, 0,
+    uint32_t cycleTime = kalmanFilter->getCycleTimeUs();
+
+    threads.push_back(createThread(3, cycleTime, 0,
         [&]()
         {
             mainEncoderHandler->triggerSample();
@@ -30,10 +26,8 @@ DCServo::DCServo() :
             }
         }));
 
-    refInterpolator.setGetTimeInterval(1200);
+    refInterpolator.setGetTimeInterval(cycleTime);
     refInterpolator.setLoadTimeInterval(12000);
-
-    currentController = ConfigHolder::createCurrentController();
 
     mainEncoderHandler->init();
     if (outputEncoderHandler)
@@ -51,7 +45,7 @@ DCServo::DCServo() :
         outputEncoderHandler->triggerSample();
     }
 
-    rawMainPos = mainEncoderHandler->getValue() * ConfigHolder::getMainEncoderGearRation();
+    rawMainPos = mainEncoderHandler->getValue();
     if (outputEncoderHandler)
     {
         rawOutputPos = outputEncoderHandler->getValue();
@@ -77,7 +71,7 @@ DCServo::DCServo() :
 
     loadNewReference(x[0], 0, 0);
 
-    threads.push_back(createThread(1, 1200, 0,
+    threads.push_back(createThread(1, cycleTime, 0,
         [&]()
         {
             controlLoop();
@@ -96,7 +90,7 @@ void DCServo::enable(bool b)
     ThreadInterruptBlocker blocker;
     if (!isEnabled() && b)
     {
-        L << ConfigHolder::ControlParameters::getLVector(controlSpeed), backlashControlSpeed, backlashControlSpeedVelGain, backlashSize;
+        calculateAndUpdateLVector();
     }
 
     controlEnabled = b;
@@ -196,24 +190,10 @@ float DCServo::getMainEncoderPosition()
     return rawMainPos + initialOutputPosOffset;
 }
 
-template <class T>
-OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(T& encoder)
-{
-    OpticalEncoderHandler::DiagnosticData out = {0};
-    return out;
-}
-
-template <>
-OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(std::unique_ptr<OpticalEncoderHandler>& encoder)
-{
-    return encoder->getDiagnosticData();
-}
-
-template <>
-OpticalEncoderHandler::DiagnosticData DCServo::getMainEncoderDiagnosticData()
+EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 {
     ThreadInterruptBlocker blocker;
-    return getMainEncoderRawDiagnosticDataDispatch(mainEncoderHandler);
+    return mainEncoderHandler->getDiagnosticData();
 }
 
 void DCServo::controlLoop()
@@ -223,7 +203,7 @@ void DCServo::controlLoop()
     rawMainPos =xSim[0];
     rawOutputPos = rawMainPos;
 #else
-    rawMainPos = mainEncoderHandler->getValue() * ConfigHolder::getMainEncoderGearRation();
+    rawMainPos = mainEncoderHandler->getValue();
     if (outputEncoderHandler)
     {
         rawOutputPos = outputEncoderHandler->getValue();
@@ -295,11 +275,11 @@ void DCServo::controlLoop()
 
             if (velRef > 0)
             {
-                u += ConfigHolder::ControlParameters::getFrictionComp();
+                u += kalmanFilter->getFrictionComp();
             }
             else if (velRef < 0)
             {
-                u -= ConfigHolder::ControlParameters::getFrictionComp();
+                u -= kalmanFilter->getFrictionComp();
             }
 
             controlSignal = u;
@@ -352,6 +332,28 @@ void DCServo::controlLoop()
         pwmControlSIgnal = currentController->getFilteredPwm();
     }
 
+}
+
+void DCServo::calculateAndUpdateLVector()
+{
+    const Eigen::Matrix3f& A = kalmanFilter->getA();
+    const Eigen::Vector3f& B = kalmanFilter->getB();
+
+    float dt = A(0, 1);
+    float a = A(1, 1);
+    float b = B(1);
+
+    float posControlPole = exp(-dt * controlSpeed);
+    float velControlPole[] = {exp(-1.0 * dt * 4 * controlSpeed), exp(-0.9 * dt * 4 * controlSpeed)};
+
+    L[0] = (1.0 - posControlPole) / dt;
+    L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
+    L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
+    L[3] = 10 * L[2];
+
+    L[4] = backlashControlSpeed;
+    L[5] = backlashControlSpeedVelGain;
+    L[6] = backlashSize;
 }
 
 ReferenceInterpolator::ReferenceInterpolator()

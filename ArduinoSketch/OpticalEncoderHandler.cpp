@@ -1,7 +1,9 @@
 #include "OpticalEncoderHandler.h"
 
-OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec) :
-    aVec(aVec), bVec(bVec), sensor1(A2), sensor2(A3), value(0), wrapAroundCorretion(0), newData(false)
+OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
+        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
+    aVec(aVec), bVec(bVec), sensor1(sensor1Pin), sensor2(sensor2Pin),
+    scaling(unitsPerRev * (1.0 / 4096.0))
 {
 }
 
@@ -51,11 +53,11 @@ float OpticalEncoderHandler::getValue()
         updatePosition();
     }
 
-    return (value + wrapAroundCorretion);
+    return (value + wrapAroundCorretion) * scaling;
 }
 
 
-OpticalEncoderHandler::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
+EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
 {
     return diagnosticData;
 }
@@ -136,8 +138,8 @@ void OpticalEncoderHandler::updatePosition()
         predictNextPos += vecSize;
     }
 
-    diagnosticData.minCostIndex = bestI;
-    diagnosticData.minCost = bestCost;
+    diagnosticData.c = bestI;
+    diagnosticData.d = bestCost;
 
     float newValue = bestI * (4096.0 / vecSize);
 

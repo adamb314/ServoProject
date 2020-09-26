@@ -11,12 +11,26 @@ class EncoderHandlerInterface
     virtual void triggerSample() = 0;
 
     virtual float getValue() = 0;
+
+    class DiagnosticData
+    {
+      public:
+        uint16_t a{0};
+        uint16_t b{0};
+        uint16_t c{0};
+        uint16_t d{0};
+    };
+
+    virtual DiagnosticData getDiagnosticData()
+    {
+        return DiagnosticData();
+    }
 };
 
 class EncoderHandler : public EncoderHandlerInterface
 {
   public:
-    EncoderHandler(int chipSelectPin);
+    EncoderHandler(int chipSelectPin, float unitsPerRev = 4096.0);
 
     ~EncoderHandler();
 
@@ -33,6 +47,7 @@ class EncoderHandler : public EncoderHandlerInterface
     float value;
     float wrapAroundCorretion;
     uint16_t status;
+    const float scaling;
 };
 
 #endif

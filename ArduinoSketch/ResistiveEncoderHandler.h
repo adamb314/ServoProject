@@ -7,7 +7,7 @@
 class ResistiveEncoderHandler : public EncoderHandlerInterface
 {
   public:
-    ResistiveEncoderHandler(const float& scaling);
+    ResistiveEncoderHandler(int16_t pin, float unitsPerRev = 4096.0);
 
     ~ResistiveEncoderHandler();
 
@@ -18,7 +18,7 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
     virtual float getValue() override;
 
   private:
-    AnalogSampler sensor{A1};
+    AnalogSampler sensor;
     float sensorValue{0};
     const float scaling;
 };

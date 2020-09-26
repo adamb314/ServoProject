@@ -1,6 +1,7 @@
 #ifndef CURRENT_CONTROL_LOOP_H
 #define CURRENT_CONTROL_LOOP_H
 
+#include "ArduinoC++BugFixes.h"
 #include "ThreadHandler.h"
 #include "CurrentSampler.h"
 #include "PwmHandler.h"
@@ -31,7 +32,8 @@ public:
 class CurrentControlLoop : public CurrentController
 {
 public:
-    CurrentControlLoop(uint32_t period);
+    CurrentControlLoop(uint32_t period,  int16_t currentSensorPin = A1,
+            std::unique_ptr<PwmHandler> pwmInstance = std::make_unique<HBridgeHighResPin11And12Pwm>());
 
     ~CurrentControlLoop();
 
@@ -52,7 +54,7 @@ public:
 private:
     void run();
 
-    PwmHandler* pwmInstance;
+    std::unique_ptr<PwmHandler> pwmInstance;
     CurrentSampler* currentSampler;
 
     bool newPwmOverrideValue;
@@ -76,7 +78,8 @@ private:
 class CurrentControlModel : public CurrentController
 {
 public:
-    CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent);
+    CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent,
+            std::unique_ptr<PwmHandler> pwmInstance = std::make_unique<HBridgeHighResPin11And12Pwm>());
 
     ~CurrentControlModel();
 
@@ -100,7 +103,7 @@ private:
     const float pwmToStallCurrent;
     const float backEmfCurrent;
 
-    PwmHandler* pwmInstance;
+    std::unique_ptr<PwmHandler> pwmInstance;
     bool pwmOverride;
     bool brake;
     int16_t ref;

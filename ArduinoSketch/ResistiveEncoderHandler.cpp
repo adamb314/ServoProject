@@ -1,7 +1,8 @@
 #include "ResistiveEncoderHandler.h"
 
-ResistiveEncoderHandler::ResistiveEncoderHandler(const float& scaling) :
-        scaling{scaling}
+ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev) :
+        sensor(pin),
+        scaling{unitsPerRev * (1.0 / 4096.0)}
 {
 }
 

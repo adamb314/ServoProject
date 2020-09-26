@@ -10,8 +10,6 @@
 #include "OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
 
-#include "config/config.h"
-
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
@@ -50,7 +48,10 @@ class ReferenceInterpolator
 class DCServo
 {
  public:
-    static DCServo* getInstance();
+    DCServo(std::unique_ptr<CurrentController> currentController,
+            std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
+            std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler,
+            std::unique_ptr<KalmanFilter> kalmanFilter);
 
     bool isEnabled();
 
@@ -84,20 +85,19 @@ class DCServo
 
     float getMainEncoderPosition();
 
-    template <class T>
-    T getMainEncoderDiagnosticData();
+    EncoderHandlerInterface::DiagnosticData getMainEncoderDiagnosticData();
 
  private:
-    DCServo();
-
+    void init();
+    void calculateAndUpdateLVector();
     void controlLoop();
 
     void identTestLoop();
 
-    bool controlEnabled;
-    bool onlyUseMainEncoderControl;
-    bool openLoopControlMode;
-    bool pwmOpenLoopMode;
+    bool controlEnabled{false};
+    bool onlyUseMainEncoderControl{false};
+    bool openLoopControlMode{false};
+    bool pwmOpenLoopMode{false};
 
     uint8_t controlSpeed{50};
     uint8_t backlashControlSpeed{10};
@@ -113,14 +113,14 @@ class DCServo
     //L[6]: Backlash size
     Eigen::Matrix<float, 7, 1> L;
 
-    uint16_t loopNumber;
-    float rawMainPos;
-    float rawOutputPos;
+    uint16_t loopNumber{0};
+    float rawMainPos{0.0};
+    float rawOutputPos{0.0};
     int forceDir{0};
     bool lastForceDirNotZero{false};
     float currentBacklashStepSize{0.0};
-    float outputPosOffset;
-    float initialOutputPosOffset;
+    float outputPosOffset{0.0};
+    float initialOutputPosOffset{0.0};
 
     //x[0]: Estimated position
     //x[1]: Estimated velocity
@@ -131,31 +131,21 @@ class DCServo
     Eigen::Vector3f xSim;
 #endif
 
-    int16_t current;
-    int16_t pwmControlSIgnal;
-    float controlSignal;
-    float uLimitDiff;
+    int16_t current{0};
+    int16_t pwmControlSIgnal{0};
+    float controlSignal{0.0};
+    float uLimitDiff{0.0};
 
     ReferenceInterpolator refInterpolator;
 
-    float Ivel;
+    float Ivel{0.0};
 
     std::unique_ptr<CurrentController> currentController;
-    decltype(ConfigHolder::createMainEncoderHandler()) mainEncoderHandler;
+    std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;
     std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
 
     std::vector<Thread*> threads;
 };
-
-template <class T>
-T DCServo::getMainEncoderDiagnosticData()
-{
-    T out = {0};
-    return out;
-}
-
-template <>
-OpticalEncoderHandler::DiagnosticData DCServo::getMainEncoderDiagnosticData();
 
 #endif
