@@ -20,7 +20,7 @@ HBridgeHighResPin11And12Pwm::~HBridgeHighResPin11And12Pwm()
 
 int HBridgeHighResPin11And12Pwm::setOutput(int output)
 {
-    const int16_t maxPwm = 600;
+    const int16_t maxPwm = 1023;
 
     if (output > maxPwm)
     {
