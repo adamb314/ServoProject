@@ -9,8 +9,8 @@ CC  = gcc
 CXX = g++
 
 Includes = -Iinclude
-CFLAGS   = -c -O0 -std=c98 -g -Wall $(Includes) 
-CXXFLAGS = -c -O0 -std=c++17 -g -Wall $(Includes) 
+CFLAGS   = -c -O2 -std=c98 -g -Wall $(Includes) 
+CXXFLAGS = -c -O2 -std=c++17 -g -Wall $(Includes) 
 LIBS     = -L. -lrt -lpthread -lboost_system -lboost_program_options
 LDFLAGS  = -g
 
