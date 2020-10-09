@@ -456,7 +456,7 @@ def main():
             systemIdentifier.plotCurrentSystemModel()
 
         dt = 0.0012
-        systemParams = systemIdentifier.getServoSystemModelParameters(0.0012)
+        systemParams = systemIdentifier.getServoSystemModelParameters(dt)
 
         servoModel = ServoModel(dt, systemParams[0], systemParams[1])
 
