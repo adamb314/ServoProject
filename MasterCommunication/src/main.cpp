@@ -76,9 +76,9 @@ public:
         dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 302.75 / 4096.0 * 2 * pi, 0);
         dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, (733.75 - 2048) / 4096.0 * 2 * pi, pi / 2);
         dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, (656.25) / 4096.0 * 2 * pi, pi / 2);
-        dcServoArray[3].setOffsetAndScaling(1.0 * pi / 2000, -(4.0 / 25.0), 0);
-        dcServoArray[4].setOffsetAndScaling(-1.00 * pi / 2000, (2.0 / 25.0), 0);
-        dcServoArray[5].setOffsetAndScaling(1.00 * pi / 2000, -(1.0 / 25.0), 0);
+        dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, 0.337715, 0);
+        dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 0.766032, 0);
+        dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -0.269118, 0);
 
         dcServoArray[0].setControlSpeed(50);
         dcServoArray[0].setBacklashControlSpeed(15, 0.6, 0.012);
@@ -86,6 +86,12 @@ public:
         dcServoArray[1].setBacklashControlSpeed(15, 0.1, 0.006);
         dcServoArray[2].setControlSpeed(50);
         dcServoArray[2].setBacklashControlSpeed(4, 3.0, 0.005);
+        dcServoArray[3].setControlSpeed(50);
+        dcServoArray[3].setBacklashControlSpeed(10, 0.1, 0.04);
+        dcServoArray[4].setControlSpeed(50);
+        dcServoArray[4].setBacklashControlSpeed(10, 0.1, 0.04);
+        dcServoArray[5].setControlSpeed(50);
+        dcServoArray[5].setBacklashControlSpeed(10, 0.1, 0.04);
 
         while (std::any_of(std::begin(dcServoArray), std::end(dcServoArray), [](auto& d)
                 {

@@ -98,10 +98,7 @@ public:
         auto com = std::make_unique<Communication>(&Serial1, 115200);
         com->addCommunicationNode(
                 std::make_unique<DCServoCommunicationHandler>(3, createDCServo<ConfigHolder>()));
-        com->addCommunicationNode(std::make_unique<ServoCommunicationHandler>(4, 5));
-        com->addCommunicationNode(std::make_unique<ServoCommunicationHandler>(5, 7));
-        com->addCommunicationNode(std::make_unique<ServoCommunicationHandler>(6, 9));
-        com->addCommunicationNode(std::make_unique<ServoCommunicationHandler>(7, 10));
+        com->addCommunicationNode(std::make_unique<ServoCommunicationHandler>(7, 5));
 
         return com;
     }
