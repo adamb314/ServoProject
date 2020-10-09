@@ -6,7 +6,7 @@ DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr, s
     CommunicationNode(nodeNr), dcServo(std::move(dcServo))
 {
     threadHandler = ThreadHandler::getInstance();
-    CommunicationNode::intArray[0] = dcServo->getPosition() * positionUpscaling;
+    CommunicationNode::intArray[0] = this->dcServo->getPosition() * positionUpscaling;
     CommunicationNode::intArray[1] = 0;
     CommunicationNode::intArray[2] = 0;
     CommunicationNode::charArray[1] = 0;
