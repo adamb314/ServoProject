@@ -67,12 +67,12 @@ class OpticalEncoderDataVectorGenerator:
     def __init__(self, file):
         data = loadtxtfile(file, (0, 1))
 
-        plt.plot(data[:,0])
-        plt.plot(data[:,1])
+        plt.plot(data[:,0], 'r')
+        plt.plot(data[:,1], 'g')
         plt.show()
 
-        noiseDepresMemLenght = 6
-        startIndex = 0
+        noiseDepresMemLenght = 5
+        startIndex = 2
         constVelIndex = 3000
         endIndex = 6000
 
@@ -97,7 +97,11 @@ class OpticalEncoderDataVectorGenerator:
             for (a, b) in zip(aVec[-noiseDepresMemLenght:], bVec[-noiseDepresMemLenght:]):
                 cov += (ca - a)**2 + (cb - b)**2
 
-            cov += ((ca - aVec[-noiseDepresMemLenght+1] - (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 + (cb - bVec[-noiseDepresMemLenght+1] - (bVec[-1] - bVec[-noiseDepresMemLenght]))**2)**1.0
+            cov += noiseDepresMemLenght * (
+                (ca - aVec[-noiseDepresMemLenght+1] -
+                    (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 +
+                (cb - bVec[-noiseDepresMemLenght+1] -
+                    (bVec[-1] - bVec[-noiseDepresMemLenght]))**2)**0.5
             return cov
 
         while len(modData) > 0:
