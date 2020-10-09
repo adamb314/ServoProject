@@ -32,7 +32,7 @@ namespace RobotParameters
         return out;
     }
 
-    const EigenVectord3 s3Translation{-(0.2 + 0.027 + 0.007) * ey};
+    const EigenVectord3 s3Translation{-(0.2) * ey};
     const EigenVectord3 s3RotationAxis{ex};
     EigenMatrixd3 s3Rotation(double rad)
     {
@@ -54,7 +54,7 @@ namespace RobotParameters
         return out;
     }
 
-    const double s5TranslationLength{0.029};
+    const double s5TranslationLength{0.029 + 0.055};
     const EigenVectord3 s5Translation{-s5TranslationLength * ey};
     const EigenVectord3 s5RotationAxis{-ex};
     EigenMatrixd3 s5Rotation(double rad)
@@ -128,9 +128,9 @@ namespace RobotParameters
     {
         DynamicRetType out{};
 
-        const double mass = 0.069;
-        const double mcDistLength = 0.154;
-        const double pendulumResFre = 30.0 / 27.54;
+        const double mass = 0.118;
+        const double mcDistLength = 0.174;
+        const double pendulumResFre = 35 / (32 + 22 / 30.0);
         const double pendulumResW = 2 * M_PI * pendulumResFre;
         const double inertia = (mass * scalarGravity * mcDistLength) / (pendulumResW  * pendulumResW) - mass * mcDistLength * mcDistLength;
         EigenVectord3 mcDist{0, -mcDistLength, 0};

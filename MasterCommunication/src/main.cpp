@@ -548,10 +548,10 @@ PathAndMoveBuilder createPath()
     deviationLimiterCartesian->add(0.0001, EigenVectord6{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
 
     EigenVectord6 xV{0.1, 0.0, 0.0, 0, 0, 0};
-    EigenVectord6 yV{0.0, 0.1, 0.0, 0, 0, 0};
-    EigenVectord6 zV{0.0, 0.0, 0.1, 0, 0, 0};
+    EigenVectord6 yV{0.0, 0.08, 0.0, 0, 0, 0};
+    EigenVectord6 zV{0.0, 0.0, 0.08, 0, 0, 0};
     EigenVectord6 raV{0, 0, 0, 0.9, 0.0, 0.0};
-    EigenVectord6 rbV{0, 0, 0, 0.0, 1.0, 0.0};
+    EigenVectord6 rbV{0, 0, 0, 0.0, 0.8, 0.0};
 
     JointSpaceCoordinate jointSpaceHome{{0.0, pi / 2, pi / 2, 0, 0, 0}};
     CartesianCoordinate tempCartCoord(jointSpaceHome);
