@@ -1,4 +1,4 @@
 /partialCompileOutput/*
 executable
 /*.sublime-workspace
-/*.txt
+/tempData/*
