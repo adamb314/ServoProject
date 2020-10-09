@@ -117,8 +117,6 @@ class DCServo
     float rawMainPos{0.0};
     float rawOutputPos{0.0};
     int forceDir{0};
-    bool lastForceDirNotZero{false};
-    float currentBacklashStepSize{0.0};
     float outputPosOffset{0.0};
     float initialOutputPosOffset{0.0};
 

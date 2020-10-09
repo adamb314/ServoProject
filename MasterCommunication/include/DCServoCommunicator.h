@@ -60,6 +60,8 @@ class DCServoCommunicator
     void setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
             double backlashCompensationCutOffSpeed, double backlashSize);
 
+    void setFrictionCompensation(double fricComp);
+
     void disableBacklashControl(bool b = true);
 
     bool isInitComplete() const;
@@ -140,6 +142,7 @@ class DCServoCommunicator
     short int refVel{0};
     short int feedforwardU{0};
     std::array<short int, 5> activeFeedforwardU{0};
+    double frictionCompensation{0.0};
 
     double offset{0.0};
     double startPosition{0.0};

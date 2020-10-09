@@ -57,6 +57,12 @@ void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensa
     this->backlashSize = static_cast<unsigned char>(backlashSize / scale);
 }
 
+void DCServoCommunicator::setFrictionCompensation(double fricComp)
+{
+    this->frictionCompensation = fricComp;
+}
+
+
 void DCServoCommunicator::disableBacklashControl(bool b)
 {
     backlashControlDisabled = b;
@@ -78,7 +84,16 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     newOpenLoopControlSignal = false;
     refPos = (pos - offset) / scale * positionUpscaling;
     refVel = vel / scale;
-    this->feedforwardU = feedforwardU;
+
+    if (refVel > 4)
+    {
+        frictionCompensation = std::abs(frictionCompensation);
+    }
+    else if (refVel < -4)
+    {
+        frictionCompensation = -std::abs(frictionCompensation);
+    }
+    this->feedforwardU = feedforwardU + frictionCompensation;
 }
 
 void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)

@@ -232,7 +232,7 @@ void DCServo::controlLoop()
 
             if (!onlyUseMainEncoderControl)
             {
-                int newForceDir = 0;
+                int newForceDir = forceDir;
                 if (feedForwardU > 1.0)
                 {
                     newForceDir = 1;
@@ -242,27 +242,16 @@ void DCServo::controlLoop()
                     newForceDir = -1;
                 }
 
-                if (newForceDir != 0)
+                if (newForceDir != forceDir)
                 {
-                    if (newForceDir != forceDir && forceDir != 0)
-                    {
-                        outputPosOffset -= newForceDir * currentBacklashStepSize;
-                    }
-                    forceDir = newForceDir;
-                    lastForceDirNotZero = true;
+                    outputPosOffset -= newForceDir * L[6];
                 }
-                else if (lastForceDirNotZero)
-                {
-                    lastForceDirNotZero = false;
-                    currentBacklashStepSize = L[6];
-                }
+                forceDir = newForceDir;
                 
                 double gain = L[4] * (0.1 + 0.9 * std::max(0.0,
                         1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
                 double backlashCompensationDiff = gain * 0.0012 * (posRef - rawOutputPos);
                 outputPosOffset -= backlashCompensationDiff;
-                currentBacklashStepSize = std::max(0.0,
-                        currentBacklashStepSize - std::abs(backlashCompensationDiff));
             }
 
             posRef -= outputPosOffset;
