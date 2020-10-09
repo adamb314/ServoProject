@@ -120,7 +120,7 @@ public:
     void run()
     {
         using namespace std::chrono;
-        double cycleTime = 0.012;
+        double cycleTime = 0.018;
 
         high_resolution_clock::time_point sleepUntilTimePoint = high_resolution_clock::now();
         high_resolution_clock::duration clockDurationCycleTime(
@@ -128,8 +128,9 @@ public:
 
         while(!shuttingDown)
         {
+            //double temp = (sleepUntilTimePoint - high_resolution_clock::now()).count();
             std::this_thread::sleep_until(sleepUntilTimePoint);
-            sleepUntilTimePoint += clockDurationCycleTime;;
+            sleepUntilTimePoint += clockDurationCycleTime;
 
             std::function<void(double, Robot*)> tempSendHandlerFunction;
             std::function<void(double, Robot*)> tempReadHandlerFunction;

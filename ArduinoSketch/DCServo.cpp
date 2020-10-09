@@ -27,7 +27,7 @@ void DCServo::init()
         }));
 
     refInterpolator.setGetTimeInterval(cycleTime);
-    refInterpolator.setLoadTimeInterval(12000);
+    refInterpolator.setLoadTimeInterval(18000);
 
     mainEncoderHandler->init();
     if (outputEncoderHandler)
