@@ -74,12 +74,12 @@ public:
                             {6, simulate[5] ? communicationSim.get() : communication}}},
             cycleTime(cycleTime)
     {
-        dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, (733.75 - 2048) / 4096.0 * 2 * pi, pi / 2);
-        dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, (656.25) / 4096.0 * 2 * pi, pi / 2);
-        dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, 0.337715, 0);
-        dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 0.766032, 0);
-        dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -0.269118, 0);
-
+        dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 0.950301, 0);
+        dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, -2.042107923, pi / 2);
+        dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, 1.0339, pi / 2);
+        dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, -1.47531, 0.0);
+        dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 1.23394, 0.0);
+        dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -1.45191, 0.0);
         dcServoArray[0].setControlSpeed(50);
         dcServoArray[0].setBacklashControlSpeed(15, 0.6, 0.008);
         dcServoArray[0].setFrictionCompensation(300);
