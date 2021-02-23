@@ -53,8 +53,8 @@ void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensa
 {
     this->backlashCompensationSpeed = backlashCompensationSpeed;
     this->backlashCompensationSpeedVelDecrease = static_cast<unsigned char>(std::min(255.0,
-            255 * 10 / (backlashCompensationCutOffSpeed / scale)));
-    this->backlashSize = static_cast<unsigned char>(backlashSize / scale);
+            255 * 10 / (backlashCompensationCutOffSpeed / std::abs(scale))));
+    this->backlashSize = static_cast<unsigned char>(backlashSize / std::abs(scale));
 }
 
 void DCServoCommunicator::setFrictionCompensation(double fricComp)
