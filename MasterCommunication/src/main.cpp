@@ -80,24 +80,25 @@ public:
         dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, -1.47531, 0.0);
         dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 1.23394, 0.0);
         dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -1.45191, 0.0);
-        dcServoArray[0].setControlSpeed(50);
-        dcServoArray[0].setBacklashControlSpeed(15, 0.6, 0.008);
-        dcServoArray[0].setFrictionCompensation(300);
-        dcServoArray[1].setControlSpeed(50);
-        dcServoArray[1].setBacklashControlSpeed(15, 0.1, 0.008);
-        dcServoArray[1].setFrictionCompensation(50);
-        dcServoArray[2].setControlSpeed(50);
-        dcServoArray[2].setBacklashControlSpeed(4, 3.0, 0.008);
-        dcServoArray[2].setFrictionCompensation(50);
-        dcServoArray[3].setControlSpeed(50);
-        dcServoArray[3].setBacklashControlSpeed(10, 0.1, 0.04);
-        dcServoArray[3].setFrictionCompensation(50);
-        dcServoArray[4].setControlSpeed(50);
-        dcServoArray[4].setBacklashControlSpeed(10, 0.1, 0.04);
-        dcServoArray[4].setFrictionCompensation(50);
-        dcServoArray[5].setControlSpeed(50);
-        dcServoArray[5].setBacklashControlSpeed(10, 0.1, 0.04);
-        dcServoArray[5].setFrictionCompensation(50);
+
+        dcServoArray[0].setControlSpeed(20);
+        dcServoArray[0].setBacklashControlSpeed(8, 3.0, 0.00);
+        dcServoArray[0].setFrictionCompensation(0);
+        dcServoArray[1].setControlSpeed(20);
+        dcServoArray[1].setBacklashControlSpeed(8, 3.0, 0.00);
+        dcServoArray[1].setFrictionCompensation(0);
+        dcServoArray[2].setControlSpeed(20);
+        dcServoArray[2].setBacklashControlSpeed(8, 3.0, 0.00);
+        dcServoArray[2].setFrictionCompensation(0);
+        dcServoArray[3].setControlSpeed(16);
+        dcServoArray[3].setBacklashControlSpeed(3, 3.0, 0.0);
+        dcServoArray[3].setFrictionCompensation(0);
+        dcServoArray[4].setControlSpeed(16);
+        dcServoArray[4].setBacklashControlSpeed(3, 3.0, 0.0);
+        dcServoArray[4].setFrictionCompensation(0);
+        dcServoArray[5].setControlSpeed(16);
+        dcServoArray[5].setBacklashControlSpeed(3, 3.0, 0.0);
+        dcServoArray[5].setFrictionCompensation(0);
 
         while (std::any_of(std::begin(dcServoArray), std::end(dcServoArray), [](auto& d)
                 {
