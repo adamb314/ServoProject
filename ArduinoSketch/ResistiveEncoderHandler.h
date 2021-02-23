@@ -3,11 +3,13 @@
 
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
+#include <array>
 
 class ResistiveEncoderHandler : public EncoderHandlerInterface
 {
   public:
-    ResistiveEncoderHandler(int16_t pin, float unitsPerRev = 4096.0);
+    static constexpr int vecSize = 32;
+    ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec);
 
     ~ResistiveEncoderHandler();
 
@@ -21,6 +23,7 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
     AnalogSampler sensor;
     float sensorValue{0};
     const float scaling;
+    std::array<int16_t, vecSize> compVec;
 };
 
 #endif

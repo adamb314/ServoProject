@@ -1,8 +1,9 @@
 #include "ResistiveEncoderHandler.h"
 
-ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev) :
+ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
         sensor(pin),
-        scaling{unitsPerRev * (1.0 / 4096.0)}
+        scaling{unitsPerRev * (1.0 / 4096.0)},
+        compVec(compVec)
 {
 }
 
@@ -30,6 +31,10 @@ void ResistiveEncoderHandler::triggerSample()
     }
 
     sensorValue /= n;
+
+    int i = static_cast<int>(sensorValue * (vecSize / 4096.0));
+    sensorValue += compVec[i];
+
     sensorValue *= scaling;
 }
 

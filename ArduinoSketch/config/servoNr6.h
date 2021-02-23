@@ -36,7 +36,8 @@ public:
 
     static std::unique_ptr<EncoderHandlerInterface> createOutputEncoderHandler()
     {
-        return std::make_unique<ResistiveEncoderHandler>(A0, 4096.0 / 1.2595);
+        std::array<int16_t, 32> compVec = {90, 90, 90, 98, 104, 99, 87, 75, 66, 58, 47, 42, 30, 21, 7, -5, -15, -30, -50, -63, -77, -83, -87, -82, -87, -80, -73, -71, -79, -58, -40, -25};
+        return std::make_unique<ResistiveEncoderHandler>(A0, 4096.0 * 200.0 / 360.0, compVec);
     }
 
     static std::unique_ptr<CurrentController> createCurrentController()
