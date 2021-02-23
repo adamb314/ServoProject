@@ -3,18 +3,20 @@
 DCServo::DCServo(std::unique_ptr<CurrentController> currentController,
             std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
             std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler,
-            std::unique_ptr<KalmanFilter> kalmanFilter):
+            std::unique_ptr<KalmanFilter> kalmanFilter,
+            std::unique_ptr<ControlConfigurationInterface> controlConfig):
         currentController(std::move(currentController)),
         mainEncoderHandler(std::move(mainEncoderHandler)),
         outputEncoderHandler(std::move(outputEncoderHandler)),
-        kalmanFilter(std::move(kalmanFilter))
+        kalmanFilter(std::move(kalmanFilter)),
+        controlConfig(std::move(controlConfig))
 {
     init();
 }
 
 void DCServo::init()
 {
-    uint32_t cycleTime = kalmanFilter->getCycleTimeUs();
+    uint32_t cycleTime = controlConfig->getCycleTimeUs();
 
     threads.push_back(createThread(3, cycleTime, 0,
         [&]()
@@ -199,7 +201,7 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 void DCServo::controlLoop()
 {
 #ifdef SIMULATE
-    xSim = kalmanFilter->getA() * xSim + kalmanFilter->getB() * controlSignal;
+    xSim = controlConfig->getA() * xSim + controlConfig->getB() * kalmanFilterCtrlSig;
     rawMainPos =xSim[0];
     rawOutputPos = rawMainPos;
 #else
@@ -214,7 +216,7 @@ void DCServo::controlLoop()
     }
 #endif
 
-    x = kalmanFilter->update(controlSignal, rawMainPos);
+    x = kalmanFilter->update(kalmanFilterCtrlSig, rawMainPos);
 
     if (controlEnabled)
     {
@@ -260,16 +262,15 @@ void DCServo::controlLoop()
 
             float vControlRef = L[0] * posDiff + velRef;
 
+            controlConfig->limitVelocity(vControlRef);
+
             float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
 
-            if (velRef > 0)
-            {
-                u += kalmanFilter->getFrictionComp();
-            }
-            else if (velRef < 0)
-            {
-                u -= kalmanFilter->getFrictionComp();
-            }
+            kalmanFilterCtrlSig = u;
+
+            uint16_t rawEncPos = mainEncoderHandler->getDiagnosticData().c;
+
+            u += controlConfig->getCompensationForce(rawEncPos, vControlRef);
 
             controlSignal = u;
 
@@ -296,11 +297,13 @@ void DCServo::controlLoop()
             if (pwmOpenLoopMode)
             {
                 controlSignal = 0;
+                kalmanFilterCtrlSig = 0;
                 currentController->overidePwmDuty(feedForwardU);
             }
             else
             {
                 controlSignal = feedForwardU;
+                kalmanFilterCtrlSig = feedForwardU;
                 currentController->setReference(static_cast<int16_t>(controlSignal));
             }
             currentController->applyChanges();
@@ -315,6 +318,7 @@ void DCServo::controlLoop()
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
+        kalmanFilterCtrlSig = 0;
         currentController->activateBrake();
         currentController->applyChanges();
         current = currentController->getCurrent();
@@ -325,8 +329,8 @@ void DCServo::controlLoop()
 
 void DCServo::calculateAndUpdateLVector()
 {
-    const Eigen::Matrix3f& A = kalmanFilter->getA();
-    const Eigen::Vector3f& B = kalmanFilter->getB();
+    const Eigen::Matrix3f& A = controlConfig->getA();
+    const Eigen::Vector3f& B = controlConfig->getB();
 
     float dt = A(0, 1);
     float a = A(1, 1);

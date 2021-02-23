@@ -45,13 +45,87 @@ class ReferenceInterpolator
     uint16_t getTimeInterval{1200};
 };
 
+class ControlConfigurationInterface
+{
+public:
+    virtual const Eigen::Matrix3f& getA() = 0;
+    virtual const Eigen::Vector3f& getB() = 0;
+    virtual void limitVelocity(float& vel) = 0;
+    virtual float getCompensationForce(float rawEncPos, float velRef) = 0;
+
+    virtual uint32_t getCycleTimeUs()
+    {
+        return static_cast<uint32_t>(getA()(0, 1) * 1000000ul);
+    }
+};
+
+class DefaultControlConfiguration : public ControlConfigurationInterface
+{
+public:
+    DefaultControlConfiguration(const Eigen::Matrix3f& A, const Eigen::Vector3f& B,
+        const float& maxVel, const float& frictionComp) :
+            A(A), B(B), maxVel(maxVel), frictionComp(frictionComp)
+    {}
+
+    template<typename T>
+    static std::unique_ptr<DefaultControlConfiguration> create();
+
+    virtual const Eigen::Matrix3f& getA() override
+    {
+        return A;
+    }
+
+    virtual const Eigen::Vector3f& getB() override
+    {
+        return B;
+    }
+
+    virtual void limitVelocity(float& vel) override
+    {
+        vel = std::min(maxVel, vel);
+        vel = std::max(-maxVel, vel);
+    }
+
+    virtual float getCompensationForce(float rawEncPos, float velRef) override
+    {
+        float out = 0;
+        if (velRef > 0)
+        {
+            out += frictionComp;
+        }
+        else if (velRef < 0)
+        {
+            out -= frictionComp;
+        }
+
+        return out;
+    }
+
+private:
+    Eigen::Matrix3f A;
+    Eigen::Vector3f B;
+    float frictionComp;
+    float maxVel;
+};
+
+template<typename T>
+std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create()
+{
+    return std::make_unique<DefaultControlConfiguration>(
+            T::getAMatrix(),
+            T::getBVector(),
+            T::getMaxVelocity(),
+            T::getFrictionComp());
+}
+
 class DCServo
 {
  public:
     DCServo(std::unique_ptr<CurrentController> currentController,
             std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
             std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler,
-            std::unique_ptr<KalmanFilter> kalmanFilter);
+            std::unique_ptr<KalmanFilter> kalmanFilter,
+            std::unique_ptr<ControlConfigurationInterface> controlConfig);
 
     bool isEnabled();
 
@@ -132,6 +206,7 @@ class DCServo
     int16_t current{0};
     int16_t pwmControlSIgnal{0};
     float controlSignal{0.0};
+    float kalmanFilterCtrlSig{0.0};
     float uLimitDiff{0.0};
 
     ReferenceInterpolator refInterpolator;
@@ -142,6 +217,7 @@ class DCServo
     std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;
     std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler;
     std::unique_ptr<KalmanFilter> kalmanFilter;
+    std::unique_ptr<ControlConfigurationInterface> controlConfig;
 
     std::vector<Thread*> threads;
 };

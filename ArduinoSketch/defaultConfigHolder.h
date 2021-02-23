@@ -71,6 +71,11 @@ public:
             return B;
         }
 
+        static float getMaxVelocity()
+        {
+            return std::numeric_limits<float>::max();
+        }
+
         static float getFrictionComp()
         {
             return 0.0;
@@ -85,12 +90,14 @@ std::unique_ptr<DCServo> createDCServo()
     auto mainEncoder = T::createMainEncoderHandler();
     auto outputEncoder = T::createOutputEncoderHandler();
     auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>();
+    auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>();
 
     return std::make_unique<DCServo>(
             std::move(currentController),
             std::move(mainEncoder),
             std::move(outputEncoder),
-            std::move(kalmanFilter));
+            std::move(kalmanFilter),
+            std::move(controlConfig));
 }
 
 #endif

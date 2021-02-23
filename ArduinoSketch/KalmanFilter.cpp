@@ -2,9 +2,8 @@
 
 KalmanFilter::KalmanFilter(const Eigen::Matrix3f& A,
             const Eigen::Vector3f& B,
-            const Eigen::Vector3f& AInvXK,
-            float frictionComp) :
-    A(A), B(B), AInvXK(AInvXK), frictionComp(frictionComp)
+            const Eigen::Vector3f& AInvXK) :
+    A(A), B(B), AInvXK(AInvXK)
 {
 }
 
