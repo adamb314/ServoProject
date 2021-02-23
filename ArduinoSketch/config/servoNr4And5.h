@@ -43,7 +43,7 @@ public:
     static std::unique_ptr<CurrentController> createCurrentController()
     {
         constexpr float pwmToStallCurrent{1.0};
-        constexpr float backEmfCurrent{-1.6693232382199313e-05};
+        constexpr float backEmfCurrent{-1.6693232382199313e-05 * 2};
 
         return std::make_unique<CurrentControlModel>(pwmToStallCurrent, backEmfCurrent, std::make_unique<HBridge2WirePwm>(11, 12));
     }
@@ -57,7 +57,7 @@ public:
             Eigen::Vector3f K;
             K << 2.011661941066074,
                 493.0937878670418,
-                103.38332707332667;
+                103.38332707332667 * 2;
 
             return K;
         }
@@ -66,8 +66,8 @@ public:
         static Eigen::Matrix3f getAMatrix()
         {
             Eigen::Matrix3f A;
-            A << 1.0, 0.0024, 0.0014842527435006162,
-                0.0, 0.9819417628930723, 1.2368772862505137,
+            A << 1.0, 0.0024, 0.0014842527435006162 / 2,
+                0.0, 0.9819417628930723, 1.2368772862505137 / 2,
                 0.0, 0.0, 1.0;
 
             return A;
@@ -77,8 +77,8 @@ public:
         static Eigen::Matrix3f getAInvMatrix()
         {
             Eigen::Matrix3f AInv;
-            AInv << 1.0, -0.0024441368018903024, 0.0015388445512464705,
-                0.0, 1.0183903341209595, -1.2596238728112863,
+            AInv << 1.0, -0.0024441368018903024, 0.0015388445512464705 / 2,
+                0.0, 1.0183903341209595, -1.2596238728112863 / 2,
                 0.0, 0.0, 1.0;
 
             return AInv;
@@ -88,8 +88,8 @@ public:
         static Eigen::Vector3f getBVector()
         {
             Eigen::Vector3f B;
-            B << 0.0014842527435006162,
-                1.2368772862505137,
+            B << 0.0014842527435006162 / 2,
+                1.2368772862505137 / 2,
                 0.0;
 
             return B;
@@ -123,9 +123,9 @@ public:
     static std::unique_ptr<CurrentController> createCurrentController()
     {
         constexpr float pwmToStallCurrent{1.0};
-        constexpr float backEmfCurrent{-1.6693232382199313e-05};
+        constexpr float backEmfCurrent{0.0001538331760438727};
 
-        return std::make_unique<CurrentControlModel>(pwmToStallCurrent, backEmfCurrent, std::make_unique<HBridge2WirePwm>(9, 10));
+        return std::make_unique<CurrentControlModel>(pwmToStallCurrent, backEmfCurrent, std::make_unique<HBridge2WirePwm>(3, 4));
     }
 
     class ControlParameters : public SetupConfigHolder::DefaultControlParameters
@@ -135,9 +135,9 @@ public:
         static Eigen::Vector3f getKVector()
         {
             Eigen::Vector3f K;
-            K << 2.011661941066074,
-                493.0937878670418,
-                103.38332707332667;
+            K << 2.0040734732795924,
+                487.05380054424984,
+                331.65594286687923;
 
             return K;
         }
@@ -146,8 +146,8 @@ public:
         static Eigen::Matrix3f getAMatrix()
         {
             Eigen::Matrix3f A;
-            A << 1.0, 0.0024, 0.0014842527435006162,
-                0.0, 0.9819417628930723, 1.2368772862505137,
+            A << 1.0, 0.0024, 0.00046093594172144956,
+                0.0, 0.9743532960026547, 0.38411328476787465,
                 0.0, 0.0, 1.0;
 
             return A;
@@ -157,8 +157,8 @@ public:
         static Eigen::Matrix3f getAInvMatrix()
         {
             Eigen::Matrix3f AInv;
-            AInv << 1.0, -0.0024441368018903024, 0.0015388445512464705,
-                0.0, 1.0183903341209595, -1.2596238728112863,
+            AInv << 1.0, -0.0024631722495794387, 0.0004852012420135838,
+                0.0, 1.0263217706580996, -0.3942238265562639,
                 0.0, 0.0, 1.0;
 
             return AInv;
@@ -168,8 +168,8 @@ public:
         static Eigen::Vector3f getBVector()
         {
             Eigen::Vector3f B;
-            B << 0.0014842527435006162,
-                1.2368772862505137,
+            B << 0.00046093594172144956,
+                0.38411328476787465,
                 0.0;
 
             return B;
@@ -178,7 +178,7 @@ public:
         //system model friction comp value
         static float getFrictionComp()
         {
-            return 62.79863496418996;
+            return 72.96369247808231;
         }
     };
 };
