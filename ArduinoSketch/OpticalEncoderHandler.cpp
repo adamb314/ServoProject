@@ -166,17 +166,6 @@ uint32_t OpticalEncoderHandler::calcCost(int& i, uint16_t a, uint16_t b)
         i += vecSize;
     }
 
-    int predictDiff = i - predictNextPos;
-
-    if (predictDiff > vecSize / 2)
-    {
-        predictDiff -= vecSize;
-    }
-    else if (predictDiff < -vecSize / 2)
-    {
-        predictDiff += vecSize;
-    }
-
     uint32_t tempA;
     tempA = aVec[i] - a;
     tempA = tempA * tempA;
@@ -185,5 +174,5 @@ uint32_t OpticalEncoderHandler::calcCost(int& i, uint16_t a, uint16_t b)
     tempB = bVec[i] - b;
     tempB = tempB * tempB;
 
-    return tempA + tempB + 20 * abs(predictDiff);
+    return tempA + tempB;
 }
