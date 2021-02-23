@@ -66,6 +66,7 @@ namespace RobotParameters
         return out;
     }
 
+    const EigenVectord3 s6Translation{-(0.0) * ez};
     const EigenVectord3 s6ZeroRotationDir{-ez};
     const EigenVectord3 s6RotationAxis{ey};
     EigenMatrixd3 s6Rotation(double rad)

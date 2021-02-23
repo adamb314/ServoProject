@@ -42,6 +42,7 @@ namespace RobotParameters
     extern const EigenVectord3 s5RotationAxis;
     EigenMatrixd3 s5Rotation(double rad);
 
+    extern const EigenVectord3 s6Translation;
     extern const EigenVectord3 s6ZeroRotationDir;
     extern const EigenVectord3 s6RotationAxis;
     EigenMatrixd3 s6Rotation(double rad);

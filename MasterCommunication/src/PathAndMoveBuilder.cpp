@@ -234,11 +234,15 @@ JointSpaceCoordinate::JointSpaceCoordinate(const CartesianCoordinate& cartesian)
     EigenVectord3 s4s5Vec = s5Rotation(cartesian.c[4]) * s5Translation;
     s4s5Vec = s1Rotation(cartesian.c[3]) * s4s5Vec;
 
-    EigenVectord3 s6Vec = s6Rotation(cartesian.c[5]) * s6ZeroRotationDir;
-    s6Vec = s5Rotation(cartesian.c[4]) * s6Vec;
-    s6Vec = s1Rotation(cartesian.c[3]) * s6Vec;
+    EigenVectord3 s6DirVec = s6Rotation(cartesian.c[5]) * s6ZeroRotationDir;
+    s6DirVec = s5Rotation(cartesian.c[4]) * s6DirVec;
+    s6DirVec = s1Rotation(cartesian.c[3]) * s6DirVec;
 
-    s1s2s3Vec -= s4s5Vec;
+    EigenVectord3 s6TransVec = s6Rotation(cartesian.c[5]) * s6Translation;
+    s6TransVec = s5Rotation(cartesian.c[4]) * s6TransVec;
+    s6TransVec = s1Rotation(cartesian.c[3]) * s6TransVec;
+
+    s1s2s3Vec -= s4s5Vec + s6TransVec;
 
     const double& x = s1s2s3Vec[0];
     const double& y = s1s2s3Vec[1];
@@ -298,9 +302,9 @@ JointSpaceCoordinate::JointSpaceCoordinate(const CartesianCoordinate& cartesian)
     EigenMatrixd3 r4M = s4Rotation(-angle4);
     EigenMatrixd3 r5M = s5Rotation(-angle5);
 
-    s6Vec = r5M * r4M * r3M * r2M * r1M * s6Vec;
+    s6DirVec = r5M * r4M * r3M * r2M * r1M * s6DirVec;
 
-    double sinAngle6 = ex.dot(s6Vec);
+    double sinAngle6 = ex.dot(s6DirVec);
     double angle6 = -asin(sinAngle6);
 
     c[3] = angle4;
@@ -318,6 +322,7 @@ CartesianCoordinate::CartesianCoordinate(const JointSpaceCoordinate& joint)
     EigenMatrixd3 r1M = s1Rotation(joint.c[0]);
 
     EigenVectord3 s6RotDir = r1M * r2M * r3M * r4M * r5M * r6M * s6ZeroRotationDir;
+    EigenVectord3 s6Vec = r1M * r2M * r3M * r4M * r5M * r6M * s6Translation;
     EigenVectord3 s4s5Vec = r1M * r2M * r3M * r4M * (s4Translation +  r5M * s5Translation);
     EigenVectord3 s1s2s3Vec = r1M * (s1Translation + r2M * (s2Translation + r3M * s3Translation));
 
@@ -338,7 +343,7 @@ CartesianCoordinate::CartesianCoordinate(const JointSpaceCoordinate& joint)
 
     double angle1 = atan2(s6sinProjectionVec[1], s6sinProjectionVec[0]);
 
-    EigenVectord3 xyzPos = s1s2s3Vec + s4s5Vec;
+    EigenVectord3 xyzPos = s1s2s3Vec + s4s5Vec + s6Vec;
 
     c << xyzPos[0], xyzPos[1], xyzPos[2], angle1, angle2, angle3;
 }
