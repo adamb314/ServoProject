@@ -3,6 +3,7 @@ import numpy as np
 import scipy.signal
 import math
 import matplotlib.pyplot as plt
+import numba
 
 def loadtxtfile(file, cols):
     out = np.loadtxt((x.replace(':',',') for x in file), delimiter = ',', usecols = cols)
@@ -63,67 +64,163 @@ def printAsEigenInit(mat, indent = ""):
     string += ";\n"
     return string
 
-class OpticalEncoderDataVectorGenerator:
-    def __init__(self, file):
-        data = loadtxtfile(file, (0, 1))
+@numba.jit(nopython=True)
+def calcCovWithEndOfVectors(aVec, bVec, ca, cb, noiseDepresMemLenght,  dir):
+    cov = 0
 
-        plt.plot(data[:,0], 'r')
-        plt.plot(data[:,1], 'g')
+    aDiff = (aVec[-1] - aVec[-noiseDepresMemLenght]) / noiseDepresMemLenght
+    bDiff = (bVec[-1] - bVec[-noiseDepresMemLenght]) / noiseDepresMemLenght
+
+    if dir == False:
+        aDiff = 0
+        bDiff = 0
+
+    for i, (a, b) in enumerate(zip(aVec[-noiseDepresMemLenght:], bVec[-noiseDepresMemLenght:])):
+        a += aDiff * (noiseDepresMemLenght - i - 1)
+        b += bDiff * (noiseDepresMemLenght - i - 1)
+
+        cov += (ca - a)**2 + (cb - b)**2
+    if dir == True:
+        cov += noiseDepresMemLenght * (
+            (ca - aVec[-noiseDepresMemLenght+1] -
+                (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 +
+            (cb - bVec[-noiseDepresMemLenght+1] -
+                (bVec[-1] - bVec[-noiseDepresMemLenght]))**2)
+        
+    return cov
+
+@numba.jit(nopython=True)
+def findBestFitt(data, modData, aVec, bVec, noiseDepresMemLenght):
+    minCov = 1000000
+    minIndex = 0
+    done = False
+    wrapIndex = 0
+
+    for i, d in enumerate(modData):
+        cov = calcCovWithEndOfVectors(aVec, bVec, d[0], d[1], noiseDepresMemLenght, False) #len(aVec) < 40)
+
+        if minCov > cov:
+            minIndex = i
+            minCov = cov
+
+    if len(modData) < len(data) * 0.2:
+        for i in range(noiseDepresMemLenght, int(len(aVec) / 2)):
+            cov = calcCovWithEndOfVectors(aVec, bVec, aVec[i], bVec[i], noiseDepresMemLenght, False)
+
+            if minCov > cov:
+                wrapIndex = i
+                done = True
+                break
+
+    return (minIndex, done, wrapIndex)
+
+@numba.jit(nopython=True)
+def findBestFitt2(a, b, aVec, bVec):
+    minCov = 1000000
+    minIndex = 0
+
+    for i, d in enumerate(zip(aVec[1:], bVec[1:])):
+        cov = (aVec[i] - a)**2 + (bVec[i] - b)**2 + (aVec[i + 1] - a)**2 + (bVec[i + 1] - b)**2
+
+        if minCov > cov:
+            minIndex = i
+            minCov = cov
+
+    return minIndex + 1
+
+@numba.jit(nopython=True)
+def findWorstFitt(aVec, bVec):
+    maxCov = 0
+    maxIndex = 0
+
+    for i, d in enumerate(zip(aVec[1:], bVec[1:])):
+        a = aVec[i + 1]
+        b = bVec[i + 1]
+
+        nextI = i + 2
+        if nextI == len(aVec):
+            nextI = -1
+
+        cov = (aVec[i] - a)**2 + 0 * (bVec[i] - b)**2 + (aVec[nextI] - a)**2 + 0 * (bVec[nextI] - b)**2
+
+        if maxCov < cov:
+            maxIndex = i
+            maxCov = cov
+
+    return maxIndex + 1
+
+class OpticalEncoderDataVectorGenerator:
+    def __init__(self, file, segment = 3000,
+            constVelIndex = 10000, noiseDepresMemLenght = 5):
+
+        self.data = loadtxtfile(file, (0, 1))
+        self.noiseDepresMemLenght = noiseDepresMemLenght
+
+        plt.plot(self.data[:,0], 'r')
+        plt.plot(self.data[:,1], 'g')
         plt.show()
 
-        noiseDepresMemLenght = 5
-        startIndex = 2
-        constVelIndex = 3000
-        endIndex = 6000
+        maxA = 0
+        maxAIndex = 0
+        a0 = self.data[0, 0]
+        armed = False
 
-        a0 = data[0, 0]
-        b0 = data[0, 1]
-        a1 = data[3, 0]
-        b1 = data[3, 1]
-        aVec = []
-        bVec = []
-        for t in np.arange(0.0, 1.0, 1.0 / noiseDepresMemLenght):
-            aVec.append(a0 + (a1 - a0) * t)
-            bVec.append(b0 + (b1 - b0) * t)
+        for i, d in enumerate(self.data[0:1000, 0]):
+            if abs(a0 - d) > 150:
+                armed = True
 
-        data = data[constVelIndex:endIndex]
-        modData = data
-        done = False
+            if armed and abs(a0 - d) < 50:
+                startIndex = i
+                break
+
+        print(startIndex)
+
+        self.a0 = self.data[startIndex, 0]
+        self.b0 = self.data[startIndex, 1]
+        self.a1 = self.data[startIndex + noiseDepresMemLenght, 0]
+        self.b1 = self.data[startIndex + noiseDepresMemLenght, 1]
+
+        self.aVecList = []
+        self.bVecList = []
+
+        self.aVec = np.zeros(512)
+        self.bVec = np.zeros(512)
+
+        nr = int((len(self.data) - constVelIndex) / segment)
+        actNr = 0
+        for i in range(0, nr):
+            print(str(i + 1) + ' of ' + str(nr))
+            try:
+                aVecShrunk, bVecShrunk, aVec, bVec = self.genVec(constVelIndex + segment * i, constVelIndex + segment * (i + 1))
+                self.aVec += aVecShrunk
+                self.bVec += bVecShrunk
+
+                self.aVecList.append(aVec)
+                self.bVecList.append(bVec)
+
+                actNr += 1
+
+            except:
+                pass
+
+        self.aVec = self.aVec / actNr
+        self.bVec = self.bVec / actNr
+
+    def genVec(self, beginIndex, endIndex):
+        aVec = numba.typed.List()
+        bVec = numba.typed.List()
+        for i in range(0, self.noiseDepresMemLenght):
+            aVec.append(self.a0)
+            bVec.append(self.b0)
+
+        data = self.data[beginIndex:endIndex]
+        modData = data[:]
         wrapIndex = 0
 
-        def calcCovWithEndOfVectors(aVec, bVec, ca, cb):
-            cov = 0
-
-            for (a, b) in zip(aVec[-noiseDepresMemLenght:], bVec[-noiseDepresMemLenght:]):
-                cov += (ca - a)**2 + (cb - b)**2
-
-            cov += noiseDepresMemLenght * (
-                (ca - aVec[-noiseDepresMemLenght+1] -
-                    (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 +
-                (cb - bVec[-noiseDepresMemLenght+1] -
-                    (bVec[-1] - bVec[-noiseDepresMemLenght]))**2)**0.5
-            return cov
-
         while len(modData) > 0:
-            print (str(len(modData)) + " data points left to sort...", end="\r")
-            minCov = 1000000
-            minIndex = 0
-
-            for i, d in enumerate(modData):
-                cov = calcCovWithEndOfVectors(aVec, bVec, d[0], d[1])
-
-                if minCov > cov:
-                    minIndex = i
-                    minCov = cov
-
-            if len(modData) < len(data) * 0.5:
-                for i in range(noiseDepresMemLenght, int(len(aVec) / 2)):
-                    cov = calcCovWithEndOfVectors(aVec, bVec, aVec[i], bVec[i])
-
-                    if minCov > cov:
-                        wrapIndex = i
-                        done = True
-                        break
+            print (str(len(modData)) + " data points left to sort...      ", end="\r")
+            
+            minIndex, done, wrapIndex = findBestFitt(data, modData, aVec, bVec, self.noiseDepresMemLenght)
 
             if done:
                 break
@@ -133,24 +230,66 @@ class OpticalEncoderDataVectorGenerator:
 
             modData = np.delete(modData, minIndex, 0)
 
-        aVec = aVec[wrapIndex:-1]
-        bVec = bVec[wrapIndex:-1]
+        aVec = aVec[wrapIndex:]
+        bVec = bVec[wrapIndex:]
+
+        while len(modData) > 0:
+            print (str(len(modData)) + " data points left to sort...      ", end="\r")
+            
+            minIndex = findBestFitt2(modData[0, 0], modData[0, 1], aVec, bVec)
+
+            aVec.insert(minIndex, modData[0, 0])
+            bVec.insert(minIndex, modData[0, 1])
+
+            modData = np.delete(modData, 0, 0)
+
+        print ("                                 ", end="\r")
+        print ("data points sorted")
+
+        if abs(aVec[0] - self.a0) > 20:
+                raise Exception("Too ruff")
+
+        if abs(bVec[0] - self.b0) > 20:
+                raise Exception("Too ruff")
+
+        for d in zip(aVec[0:-1], aVec[1:]):
+            if abs(d[1] - d[0]) > 20:
+                raise Exception("Too ruff")
+
+        for d in zip(bVec[0:-1], bVec[1:]):
+            if abs(d[1] - d[0]) > 20:
+                raise Exception("Too ruff")
+
+        dirNoiseDepresMemLenght = int(len(data) / 50)
+
+        dirSign = 0
+        if abs(self.a1 - self.a0) > abs(self.b1 - self.b0):
+            dirSign = (aVec[dirNoiseDepresMemLenght] - aVec[0]) / (self.a1 - self.a0)
+        else:
+            dirSign = (bVec[dirNoiseDepresMemLenght] - bVec[0]) / (self.b1 - self.b0)
+
+        if dirSign < 0:
+            aVec = aVec[::-1]
+            bVec = bVec[::-1]
 
         aVecShrunk = shrinkArray(aVec, 512)
         bVecShrunk = shrinkArray(bVec, 512)
 
-        self.aVec = aVec
-        self.bVec = bVec
-        self.aVecShrunk = aVecShrunk
-        self.bVecShrunk = bVecShrunk
+        return (np.array(aVecShrunk), np.array(bVecShrunk), aVec, bVec)
 
     def plotGeneratedVectors(self):
-        x = np.arange(len(self.aVec)) * len(self.aVecShrunk) / len(self.aVec)
-        plt.plot(x, self.aVec, 'r+')
-        plt.plot(x, self.bVec, 'g+')
+        plt.plot(self.data[:,0], 'r')
+        plt.plot(self.data[:,1], 'g')
+        plt.show()
 
-        plt.plot(self.aVecShrunk, 'r.-')
-        plt.plot(self.bVecShrunk, 'g.-')
+        for d in zip(self.aVecList, self.bVecList):
+            x = np.arange(len(d[0])) * len(self.aVec) / len(d[0])
+            plt.plot(x, d[0], '-')
+            plt.plot(x, d[1], '-')
+
+        plt.plot(self.aVec, 'r.-')
+        plt.plot(self.bVec, 'g.-')
+
         plt.show()
 
 def sign(v):
@@ -427,15 +566,17 @@ def main():
     if rawDataVecotrsFile == None:
         pass
     else:
-        opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(rawDataVecotrsFile)
         
+        opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
+                rawDataVecotrsFile, constVelIndex=10000, noiseDepresMemLenght=8)
+
         if args.plotData:
             opticalEncoderDataVectorGenerator.plotGeneratedVectors()
-        
+
         out += "    static std::unique_ptr<OpticalEncoderHandler> createMainEncoderHandler()\n"
         out += "    {\n"
-        out += "        std::array<uint16_t, 512> aVec = " + intArrayToString(opticalEncoderDataVectorGenerator.aVecShrunk) + "\n"
-        out += "        std::array<uint16_t, 512> bVec = " + intArrayToString(opticalEncoderDataVectorGenerator.bVecShrunk) + "\n"
+        out += "        std::array<uint16_t, 512> aVec = " + intArrayToString(opticalEncoderDataVectorGenerator.aVec) + "\n"
+        out += "        std::array<uint16_t, 512> bVec = " + intArrayToString(opticalEncoderDataVectorGenerator.bVec) + "\n"
         out += "        return std::make_unique<OpticalEncoderHandler>(aVec, bVec);\n"
         out += "    }\n"
         out += "\n"
