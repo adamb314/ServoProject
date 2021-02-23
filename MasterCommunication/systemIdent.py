@@ -303,9 +303,10 @@ class SystemIdentificationObject:
 
         self.dt = data[1, 0] - data[0, 0]
 
+        derivativeTimeSteps = 2
         tempVelData = 0 * data[:, 1]
-        for i, d in enumerate(zip(data[2:,1], data[0:-2,1])):
-            tempVelData[i + 1] = (d[0] - d[1]) / self.dt
+        for i, d in enumerate(zip(data[derivativeTimeSteps:,1], data[0:-derivativeTimeSteps,1])):
+            tempVelData[i + 1] = 0.75 * tempVelData[i] + 0.25 * (d[0] - d[1]) / (derivativeTimeSteps * self.dt)
 
         def minDiff(vec, v):
             min = vec[0]
@@ -364,7 +365,7 @@ class SystemIdentificationObject:
         plt.show()
 
     def identifyCurrentSystemModel(self):
-        self.currentModelParams = np.array([1.0, self.servoModelParameters[2,0]])
+        self.currentModelParams = np.array([1.0, self.servoModelParameters[3,0]])
         return self.currentModelParams
 
     def plotCurrentSystemModel(self):
@@ -389,7 +390,7 @@ class SystemIdentificationObject:
 
         for d in zip(velData[1+5:-5], velData[0+5:-1-5], pwmData[0+5:-1-5], pwmData[0:-1-5-5], pwmData[0+5+5:-1]):
             if d[4][0] == d[3][0]:
-                phi = np.matrix([[d[1][0]], [d[2][0]], [d[1][0] * d[2][0]], [1.0]])
+                phi = np.matrix([[d[1][0]], [d[2][0]], [1.0], [d[1][0] * d[2][0]]])
                 y = d[0][0]
 
                 temp = phi * np.transpose(phi)
@@ -407,8 +408,8 @@ class SystemIdentificationObject:
         print("cov = " + str(cov))
         print("covY = " + str(covY))
         self.servoModelParameters = np.linalg.solve(cov, covY)
-        self.servoModelParameters[2,0] = self.servoModelParameters[2,0] / self.servoModelParameters[1,0]
-        self.servoModelParameters[3,0] = -self.servoModelParameters[3,0] / self.servoModelParameters[1,0]
+        self.servoModelParameters[2,0] = -self.servoModelParameters[2,0] / self.servoModelParameters[1,0]
+        self.servoModelParameters[3,0] = self.servoModelParameters[3,0] / self.servoModelParameters[1,0]
         print("servoModelParameters = " + str(self.servoModelParameters))
         return self.servoModelParameters
 
@@ -422,11 +423,11 @@ class SystemIdentificationObject:
                 pwm = d[2][0]
                 friction = 0
                 if pwm > 0:
-                    friction = -self.servoModelParameters[3,0]
+                    friction = -self.servoModelParameters[2,0]
                 elif pwm < 0:
-                    friction = self.servoModelParameters[3,0]
+                    friction = self.servoModelParameters[2,0]
                 simVel[i] = (self.servoModelParameters[0] * lastSimVel +
-                    self.servoModelParameters[1] * (pwm + self.servoModelParameters[2] * lastSimVel * abs(pwm) + friction))
+                    self.servoModelParameters[1] * (pwm + friction + self.servoModelParameters[3] * lastSimVel * abs(pwm)))
             else:
                 simVel[i] = d[0][0]
 
@@ -484,7 +485,7 @@ class ServoModel(object):
             self.B = np.array([[dt2p / 2], [dtp]]) * b
             self.C = np.array([[1, 0]])
 
-            self.kalmanFilter = KalmanFilter(dt, self.A, self.B, self.C, 60 * 4 * 2)
+            self.kalmanFilter = KalmanFilter(dt, self.A, self.B, self.C, 30 * 4 * 4)
 
 import sys
 import argparse
@@ -651,17 +652,7 @@ def main():
         out += "        //system model friction comp value\n"
         out += "        static float getFrictionComp()\n"
         out += "        {\n"
-        out += "            return " + str(systemIdentifier.servoModelParameters[3,0]) + ";\n"
-        out += "        }\n"
-        out += "\n"
-        out += "        //state feedback vecktor\n"
-        out += "        static Eigen::Matrix<float, 4, 1> getLVector(uint8_t controllerSpeed)\n"
-        out += "        {\n"
-        out += "            float dt = getAMatrix()(0, 1);\n"
-        out += "            float a = getAMatrix()(1, 1);\n"
-        out += "            float b = getBVector()(1);\n"
-        out += "\n"
-        out += "            return calculateLVector(controllerSpeed, dt, a, b);\n"
+        out += "            return " + str(systemIdentifier.servoModelParameters[2,0]) + ";\n"
         out += "        }\n"
         out += "    };\n"
 
