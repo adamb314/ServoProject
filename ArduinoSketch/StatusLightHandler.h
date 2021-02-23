@@ -2,6 +2,7 @@
 #include <Adafruit_DotStar.h>
 #undef max
 #undef min
+#include <vector>
 #include "ArduinoC++BugFixes.h"
 #include "ThreadHandler.h"
 
