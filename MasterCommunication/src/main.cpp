@@ -481,14 +481,16 @@ void recordeSystemIdentData(Robot& robot, size_t i, double pwmAmp, double fricti
 
     bool doneRunning = false;
 
-    auto pwmTestVec = std::vector<double>{1.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
-                                         -1.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm,
-                                          2.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
-                                         -2.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm,
-                                          3.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
-                                         -3.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm,
-                                          4.0 * pwmAmp/4.0 + frictionPwm,  frictionPwm,
-                                         -4.0 * pwmAmp/4.0 - frictionPwm, -frictionPwm};
+    auto pwmTestVec = std::vector<double>();
+
+    int nr = 10;
+    for (int i = 4; i != nr + 1; ++i)
+    {
+        pwmTestVec.push_back(i * pwmAmp / nr + frictionPwm);
+        pwmTestVec.push_back(frictionPwm);
+        pwmTestVec.push_back(-(i * pwmAmp / nr + frictionPwm));
+        pwmTestVec.push_back(-frictionPwm);
+    }
 
     double t = 0;
     double pwm = 0;
