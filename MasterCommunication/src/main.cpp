@@ -65,15 +65,15 @@ public:
 
     std::unique_ptr<SimulateCommunication> communicationSim{std::make_unique<SimulateCommunication>()};
 
-    Robot(Communication* communication, const std::array<bool, 6> simulate = {false}) :
+    Robot(Communication* communication, const std::array<bool, 6> simulate = {false}, double cycleTime = 0.018) :
             dcServoArray{{{1, simulate[0] ? communicationSim.get() : communication},
                             {2, simulate[1] ? communicationSim.get() : communication},
                             {3, simulate[2] ? communicationSim.get() : communication},
                             {4, simulate[3] ? communicationSim.get() : communication},
                             {5, simulate[4] ? communicationSim.get() : communication},
-                            {6, simulate[5] ? communicationSim.get() : communication}}}
+                            {6, simulate[5] ? communicationSim.get() : communication}}},
+            cycleTime(cycleTime)
     {
-        dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 302.75 / 4096.0 * 2 * pi, 0);
         dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, (733.75 - 2048) / 4096.0 * 2 * pi, pi / 2);
         dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, (656.25) / 4096.0 * 2 * pi, pi / 2);
         dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, 0.337715, 0);
@@ -126,15 +126,13 @@ public:
     void run()
     {
         using namespace std::chrono;
-        double cycleTime = 0.018;
-
         high_resolution_clock::time_point sleepUntilTimePoint = high_resolution_clock::now();
         high_resolution_clock::duration clockDurationCycleTime(
                 duration_cast<high_resolution_clock::duration>(duration<double>(cycleTime)));
 
         while(!shuttingDown)
         {
-            //double temp = (sleepUntilTimePoint - high_resolution_clock::now()).count();
+            cycleSleepTime = std::chrono::duration<double>(sleepUntilTimePoint - high_resolution_clock::now()).count();
             std::this_thread::sleep_until(sleepUntilTimePoint);
             sleepUntilTimePoint += clockDurationCycleTime;
 
@@ -189,9 +187,17 @@ public:
             t.join();
         }
     }
+
+    double getCycleSleepTime()
+    {
+        return cycleSleepTime;
+    }
+
     std::array<DCServoCommunicator, dof> dcServoArray;
 
 private:
+    double cycleTime;
+    double cycleSleepTime{0};
     Eigen::Matrix<double, dof, 1> currentPosition{Eigen::Matrix<double, dof, 1>::Zero()};
 
     bool shuttingDown{false};
@@ -725,7 +731,16 @@ int main(int argc, char* argv[])
         }
     }
 
-    Robot robot(communication.get());
+    double comCycleTime = 0.018;
+    std::array<bool, 6> servoSimulated{{false, false, false, false, false, false}};
+    if (servoNr != -1 &&
+        vm.count("recSystemIdentData") == false)
+    {
+        comCycleTime = 0.004;
+        servoSimulated.fill(true);
+        servoSimulated[servoNr - 1] = false;
+    }
+    Robot robot(communication.get(), servoSimulated, comCycleTime);
 
     if (vm.count("recOpticalEncoder"))
     {
