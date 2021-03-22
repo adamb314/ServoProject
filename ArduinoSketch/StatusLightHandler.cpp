@@ -12,6 +12,10 @@ StatusLightHandler::StatusLightHandler() :
     dotStarLed.begin();
     dotStarLed.show();
 
+    pinMode(13, OUTPUT);
+    digitalWrite(13, LOW);
+
+
     threads.push_back(createThread(0, 30000, 0,
         [&]()
         {
@@ -109,6 +113,16 @@ StatusLightHandler::StatusLightHandler() :
 
                 dotStarLed.setPixelColor(0, red, green, blue);
                 dotStarLed.show();
+
+                if ((static_cast<int>(red) + green + blue) != 0 &&
+                    (static_cast<int>(red) * green * blue) == 0)
+                {
+                    digitalWrite(13, HIGH);
+                }
+                else
+                {
+                    digitalWrite(13, LOW);
+                }
             }
         }));
 }
