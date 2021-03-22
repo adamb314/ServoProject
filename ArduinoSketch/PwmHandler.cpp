@@ -1,14 +1,28 @@
 #include "PwmHandler.h"
 
-HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm()
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction) :
+    timer(TCC0),
+    invert(invert),
+    linearizeFunction(linearizeFunction)
 {
     connectOutput();
 }
 
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction) :
+    timer(timer),
+    invert(invert),
+    linearizeFunction(linearizeFunction)
+{
+}
+
 HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(HBridgeHighResPin11And12Pwm&& in) :
+    timer(in.timer),
     pin11WriteValue(in.pin11WriteValue),
     pin12WriteValue(in.pin12WriteValue),
-    outputConnected(in.outputConnected)
+    outputConnected(in.outputConnected),
+    invert(in.invert),
+    linearizeFunction(in.linearizeFunction)
+
 {
     in.outputConnected = false;
 }
@@ -20,6 +34,11 @@ HBridgeHighResPin11And12Pwm::~HBridgeHighResPin11And12Pwm()
 
 int HBridgeHighResPin11And12Pwm::setOutput(int output)
 {
+    if (invert)
+    {
+        output = -output;
+    }
+
     const int16_t maxPwm = 1023;
 
     if (output > maxPwm)
@@ -34,24 +53,29 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
     if (output >= 0)
     {
         pin11WriteValue = 0;
-        pin12WriteValue = 2 * output;
+        pin12WriteValue = 2 * linearizeFunction(output);
     }
     else
     {
-        pin11WriteValue = -2 * output;
+        pin11WriteValue = 2 * linearizeFunction(-output);
         pin12WriteValue = 0;
     }
 
     if (outputConnected)
     {
-        TCC0->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
+        timer->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
                              TCC_CTRLBCLR_LUPD;
 
-        TCC0->CCB[0].bit.CCB = pin11WriteValue;
-        TCC0->CCB[1].bit.CCB = pin12WriteValue;
+        timer->CCB[0].bit.CCB = pin11WriteValue;
+        timer->CCB[1].bit.CCB = pin12WriteValue;
 
-        TCC0->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
+        timer->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
                              TCC_CTRLBCLR_LUPD;
+    }
+
+    if (invert)
+    {
+        return -output;
     }
 
     return output;
@@ -64,13 +88,13 @@ void HBridgeHighResPin11And12Pwm::activateBrake()
 
     if (outputConnected)
     {
-        TCC0->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
+        timer->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
                              TCC_CTRLBCLR_LUPD;
 
-        TCC0->CCB[0].bit.CCB = pin11WriteValue;
-        TCC0->CCB[1].bit.CCB = pin12WriteValue;
+        timer->CCB[0].bit.CCB = pin11WriteValue;
+        timer->CCB[1].bit.CCB = pin12WriteValue;
 
-        TCC0->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
+        timer->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
                              TCC_CTRLBCLR_LUPD;
     }
 
@@ -84,12 +108,12 @@ void HBridgeHighResPin11And12Pwm::disconnectOutput()
         return;
     }
 
-    TCC0->CTRLA.bit.ENABLE = false;
+    timer->CTRLA.bit.ENABLE = false;
 
     // sync
 
-    TCC0->CC[0].bit.CC = 0;
-    TCC0->CC[1].bit.CC = 0;
+    timer->CC[0].bit.CC = 0;
+    timer->CC[1].bit.CC = 0;
 
     outputConnected = false;
 }
@@ -102,65 +126,8 @@ void HBridgeHighResPin11And12Pwm::connectOutput()
     }
 
     PM->APBCMASK.bit.TCC0_ = true;
-
-    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
-                        GCLK_CLKCTRL_GEN_GCLK0 |
-                        GCLK_CLKCTRL_ID_TCC0_TCC1;
-
-    while (GCLK->STATUS.bit.SYNCBUSY == 1)
-    {
-    }
-
-    TCC0->CTRLA.bit.ENABLE = false;
-
-    TCC0->CTRLA.reg = TCC_CTRLA_RESETVALUE |
-                      TCC_CTRLA_RUNSTDBY |
-                      TCC_CTRLA_PRESCALER_DIV1;
-
-    TCC0->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
-                         TCC_CTRLBCLR_DIR |
-                         TCC_CTRLBCLR_LUPD |
-                         TCC_CTRLBCLR_ONESHOT;
-
-    TCC0->FCTRLA.reg = TCC_FCTRLA_RESETVALUE;
-    TCC0->FCTRLB.reg = TCC_FCTRLB_RESETVALUE;
-
-    TCC0->WEXCTRL.reg = TCC_WEXCTRL_RESETVALUE |
-                        TCC_WEXCTRL_OTMX(0x1);
-
-    // Inverts output on D2 and D5
-    TCC0->DRVCTRL.reg = TCC_DRVCTRL_RESETVALUE |
-                        TCC_DRVCTRL_INVEN4 |
-                        TCC_DRVCTRL_INVEN5;
-
-    TCC0->DBGCTRL.reg = TCC_DBGCTRL_RESETVALUE |
-                        TCC_DBGCTRL_DBGRUN;
-
-    TCC0->WAVE.reg = TCC_WAVE_RESETVALUE |
-                     TCC_WAVE_WAVEGEN_NPWM;
-
-    TCC0->PATT.reg = TCC_PATT_RESETVALUE;
-
-    TCC0->PER.bit.PER = 2 * 1024;
-
-    TCC0->CC[0].bit.CC = pin11WriteValue;
-    TCC0->CC[1].bit.CC = pin12WriteValue;
-
-    TCC0->CC[2].bit.CC = 0;
-    TCC0->CC[3].bit.CC = 0;
-
-    TCC0->WAVEB.reg = TCC0->WAVE.reg;
-
-    TCC0->PATTB.reg = TCC0->PATT.reg;
-
-    TCC0->PERB.bit.PERB = TCC0->PER.bit.PER;
-
-    TCC0->CCB[0].bit.CCB = TCC0->CC[0].bit.CC;
-    TCC0->CCB[1].bit.CCB = TCC0->CC[1].bit.CC;
-    TCC0->CCB[2].bit.CCB = TCC0->CC[2].bit.CC;
-    TCC0->CCB[3].bit.CCB = TCC0->CC[3].bit.CC;
-
-    TCC0->CTRLA.bit.ENABLE = true;
+    
+    configTimer();
 
     // Setting D11(PA16) and D12(PA19) as output
     PORT->Group[0].DIRCLR.reg = (1ul << 16) |
@@ -177,6 +144,101 @@ void HBridgeHighResPin11And12Pwm::connectOutput()
                                   PORT_WRCONFIG_PINMASK(
                                     (1 << 0) |
                                     (1 << 3));
+
+    outputConnected = true;
+}
+
+void HBridgeHighResPin11And12Pwm::configTimer()
+{
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+                        GCLK_CLKCTRL_GEN_GCLK0 |
+                        GCLK_CLKCTRL_ID_TCC0_TCC1;
+
+    while (GCLK->STATUS.bit.SYNCBUSY == 1)
+    {
+    }
+
+
+    timer->CTRLA.bit.ENABLE = false;
+
+    timer->CTRLA.reg = TCC_CTRLA_RESETVALUE |
+                      TCC_CTRLA_RUNSTDBY |
+                      TCC_CTRLA_PRESCALER_DIV1;
+
+    timer->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
+                         TCC_CTRLBCLR_DIR |
+                         TCC_CTRLBCLR_LUPD |
+                         TCC_CTRLBCLR_ONESHOT;
+
+    timer->FCTRLA.reg = TCC_FCTRLA_RESETVALUE;
+    timer->FCTRLB.reg = TCC_FCTRLB_RESETVALUE;
+
+    timer->WEXCTRL.reg = TCC_WEXCTRL_RESETVALUE |
+                        TCC_WEXCTRL_OTMX(0x1);
+
+    timer->DRVCTRL.reg = TCC_DRVCTRL_RESETVALUE;
+
+    timer->DBGCTRL.reg = TCC_DBGCTRL_RESETVALUE |
+                        TCC_DBGCTRL_DBGRUN;
+
+    timer->WAVE.reg = TCC_WAVE_RESETVALUE |
+                     TCC_WAVE_WAVEGEN_NPWM;
+
+    timer->PATT.reg = TCC_PATT_RESETVALUE;
+
+    timer->PER.bit.PER = 2 * 1024;
+
+    timer->CC[0].bit.CC = pin11WriteValue;
+    timer->CC[1].bit.CC = pin12WriteValue;
+
+    timer->WAVEB.reg = timer->WAVE.reg;
+
+    timer->PATTB.reg = timer->PATT.reg;
+
+    timer->PERB.bit.PERB = timer->PER.bit.PER;
+
+    timer->CCB[0].bit.CCB = timer->CC[0].bit.CC;
+    timer->CCB[1].bit.CCB = timer->CC[1].bit.CC;
+
+    timer->CTRLA.bit.ENABLE = true;
+}
+
+HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, LinearizeFunctionType linearizeFunction) :
+    HBridgeHighResPin11And12Pwm(TCC1, invert, linearizeFunction)
+{
+    connectOutput();
+}
+
+HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(HBridgeHighResPin3And4Pwm&& in) :
+    HBridgeHighResPin11And12Pwm(std::move(in))
+{
+}
+
+void HBridgeHighResPin3And4Pwm::connectOutput()
+{
+    if (outputConnected)
+    {
+        return;
+    }
+
+    PM->APBCMASK.bit.TCC1_ = true;
+    
+    configTimer();
+
+    // Setting D3(PA9) and D4(PA8) as output
+    PORT->Group[0].DIRCLR.reg = (1ul << 8) |
+                             (1ul << 9);
+
+    PORT->Group[0].OUTCLR.reg = (1ul << 8) |
+                              (1ul << 9);
+
+    PORT->Group[0].WRCONFIG.reg = PORT_WRCONFIG_WRPINCFG |
+                                  PORT_WRCONFIG_WRPMUX |
+                                  PORT_WRCONFIG_PMUX(PORT_PMUX_PMUXE_F_Val) |
+                                  PORT_WRCONFIG_PMUXEN |
+                                  PORT_WRCONFIG_PINMASK(
+                                    (1 << 8) |
+                                    (1 << 9));
 
     outputConnected = true;
 }
