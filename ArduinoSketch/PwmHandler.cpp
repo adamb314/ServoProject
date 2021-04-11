@@ -301,13 +301,20 @@ int HBridge2WirePwm::setOutput(int output)
 
 void HBridge2WirePwm::activateBrake()
 {
+    if (pin1WriteValue != 255 ||
+        pin2WriteValue != 255)
+    {
+        analogWrite(pin1, 0);
+        analogWrite(pin2, 0);
+    }
+
     pin1WriteValue = 255;
     pin2WriteValue = 255;
 
     if (outputConnected)
     {
-        digitalWrite(pin1, 1);
-        digitalWrite(pin2, 1);
+        digitalWrite(pin1, HIGH);
+        digitalWrite(pin2, HIGH);
     }
 
     return;
@@ -320,8 +327,8 @@ void HBridge2WirePwm::disconnectOutput()
         return;
     }
 
-    digitalWrite(pin1, 0);
-    digitalWrite(pin2, 0);
+    digitalWrite(pin1, LOW);
+    digitalWrite(pin2, LOW);
 
     outputConnected = false;
 }
@@ -339,8 +346,8 @@ void HBridge2WirePwm::connectOutput()
     if (pin1WriteValue == 255 &&
         pin2WriteValue == 255)
     {
-        digitalWrite(pin1, 1);
-        digitalWrite(pin2, 1);
+        digitalWrite(pin1, HIGH);
+        digitalWrite(pin2, HIGH);
     }
     else
     {
