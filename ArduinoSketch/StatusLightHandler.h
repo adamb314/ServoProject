@@ -1,9 +1,7 @@
 #include <Arduino.h>
 #include <Adafruit_DotStar.h>
-#undef max
-#undef min
-#include <vector>
 #include "ArduinoC++BugFixes.h"
+#include <vector>
 #include "ThreadHandler.h"
 
 #ifndef STATUS_LIGHT_HANDLER_H

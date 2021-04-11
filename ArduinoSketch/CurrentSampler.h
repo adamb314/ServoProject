@@ -2,8 +2,7 @@
 #define CURRENT_SAMPLER_H
 
 #include <Arduino.h>
-#undef max
-#undef min
+#include "ArduinoC++BugFixes.h"
 
 #include "AdcHandler.h"
 

@@ -2,8 +2,6 @@
 #define PWM_HANDLER_H
 
 #include <Arduino.h>
-#undef max
-#undef min
 #include "ArduinoC++BugFixes.h"
 #include <sam.h>
 #include <ctype.h>
