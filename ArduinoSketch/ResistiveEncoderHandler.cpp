@@ -33,11 +33,10 @@ void ResistiveEncoderHandler::triggerSample()
 
     sensorValue /= n;
 
-    float t = sensorValue * (vecSize / 4096.0) - 0.5;
-    t = std::max(0.0f, t);
+    float t = sensorValue * (vecSize / 4096.0);
     int i = std::min(vecSize - 2, static_cast<int>(t));
     t -= i;
-    sensorValue += compVec[i] * (1.0 - t) + compVec[i + 1] * t;
+    sensorValue -= compVec[i] * (1.0 - t) + compVec[i + 1] * t;
 
     sensorValue *= scaling;
 }
