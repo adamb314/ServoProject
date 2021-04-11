@@ -69,6 +69,8 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
     {
         dcServo->enable(false);
 
+        intArrayIndex0Upscaler.set(CommunicationNode::intArray[3]);
+
         statusLight.showDisabled();
     }
 }
@@ -82,7 +84,9 @@ void DCServoCommunicationHandler::onComCycleEvent()
     {
         ThreadInterruptBlocker blocker;
 
-        CommunicationNode::intArray[3] = dcServo->getPosition() * positionUpscaling;
+        long int pos = dcServo->getPosition() * positionUpscaling;
+        CommunicationNode::intArray[3] = pos;
+        CommunicationNode::charArray[7] = static_cast<char>(pos >> 16);
         CommunicationNode::intArray[4] = dcServo->getVelocity();
         CommunicationNode::intArray[5] = dcServo->getControlSignal();
         CommunicationNode::intArray[6] = dcServo->getCurrent();
