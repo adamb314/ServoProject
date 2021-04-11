@@ -1,6 +1,7 @@
 #include "ResistiveEncoderHandler.h"
 
 ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
+        EncoderHandlerInterface(unitsPerRev),
         sensor(pin),
         scaling{unitsPerRev * (1.0 / 4096.0)},
         compVec(compVec)

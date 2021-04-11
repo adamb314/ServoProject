@@ -61,12 +61,15 @@ class DefaultControlConfiguration : public ControlConfigurationInterface
 {
 public:
     DefaultControlConfiguration(const Eigen::Matrix3f& A, const Eigen::Vector3f& B,
-        const float& maxVel, const float& frictionComp) :
-            A(A), B(B), maxVel(maxVel), frictionComp(frictionComp)
+        const float& maxVel, const float& frictionComp, const EncoderHandlerInterface* encoder) :
+            A(A),
+            B(B),
+            maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
+            frictionComp(frictionComp)
     {}
 
     template<typename T>
-    static std::unique_ptr<DefaultControlConfiguration> create();
+    static std::unique_ptr<DefaultControlConfiguration> create(const EncoderHandlerInterface* encoder);
 
     virtual const Eigen::Matrix3f& getA() override
     {
@@ -107,13 +110,14 @@ private:
 };
 
 template<typename T>
-std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create()
+std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create(const EncoderHandlerInterface* encoder)
 {
     return std::make_unique<DefaultControlConfiguration>(
             T::getAMatrix(),
             T::getBVector(),
             T::getMaxVelocity(),
-            T::getFrictionComp());
+            T::getFrictionComp(),
+            encoder);
 }
 
 class DCServo

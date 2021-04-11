@@ -1,6 +1,7 @@
 #include "EncoderHandler.h"
 
 EncoderHandler::EncoderHandler(int chipSelectPin, float unitsPerRev) :
+    EncoderHandlerInterface(unitsPerRev),
     chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0),
     scaling(unitsPerRev * (1.0 / 4096.0))
 {

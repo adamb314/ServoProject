@@ -6,6 +6,7 @@
 class EncoderHandlerInterface
 {
   public:
+    EncoderHandlerInterface(float unitsPerRev) : unitsPerRev(unitsPerRev){};
     virtual void init() = 0;
 
     virtual void triggerSample() = 0;
@@ -25,6 +26,8 @@ class EncoderHandlerInterface
     {
         return DiagnosticData();
     }
+
+    const float unitsPerRev;
 };
 
 class EncoderHandler : public EncoderHandlerInterface

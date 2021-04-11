@@ -90,7 +90,7 @@ std::unique_ptr<DCServo> createDCServo()
     auto mainEncoder = T::createMainEncoderHandler();
     auto outputEncoder = T::createOutputEncoderHandler();
     auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>();
-    auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>();
+    auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
 
     return std::make_unique<DCServo>(
             std::move(currentController),

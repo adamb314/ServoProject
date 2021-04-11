@@ -2,6 +2,7 @@
 
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
         int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
+    EncoderHandlerInterface(unitsPerRev),
     aVec(aVec), bVec(bVec), sensor1(sensor1Pin), sensor2(sensor2Pin),
     scaling(unitsPerRev * (1.0 / 4096.0))
 {
