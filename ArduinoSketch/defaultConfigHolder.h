@@ -2,6 +2,7 @@
 #include "EncoderHandler.h"
 #include "CurrentControlLoop.h"
 #include "OpticalEncoderHandler.h"
+#include "ResistiveEncoderHandler.h"
 #include "ArduinoC++BugFixes.h"
 #include "CommunicationHandlers.h"
 
