@@ -1232,11 +1232,8 @@ class ServoModel(object):
         
         temp = True
         temp = pwmToStallCurrentPattern.search(configClassString) != None and temp
-        print(temp)
         temp = backEmfCurrentPattern.search(configClassString) != None and temp
-        print(temp)
         temp = controlParametersPattern.search(configClassString) != None and temp
-        print(temp)
         if temp:
             out = r'\1{' + str(self.systemModel.currentModelParams[0]) + r'};'
             configClassString = re.sub(pwmToStallCurrentPattern, out, configClassString)
@@ -1655,7 +1652,6 @@ class GuiWindow(Gtk.Window):
         self.isClosed = False
 
         def closeEvent(widget, event):
-            print('closeEvent')
             self.isClosed = True
         self.connect('delete-event', closeEvent)
 
@@ -1687,8 +1683,7 @@ class GuiWindow(Gtk.Window):
             response = dialog.run()
             dialog.destroy()
 
-        def printOnEvent(widget):
-            #print('event')
+        def nullFunEvent(widget):
             pass
 
         def passOnScroll(widget, event):
@@ -1723,7 +1718,7 @@ class GuiWindow(Gtk.Window):
 
             return box
 
-        def creatComboBox(currentItem, itemList, onChangeFun = printOnEvent, getLowLev = False):
+        def creatComboBox(currentItem, itemList, onChangeFun = nullFunEvent, getLowLev = False):
             activeIndex = -1
             items = Gtk.ListStore(str)
             for i, name in enumerate(itemList):
@@ -1756,7 +1751,7 @@ class GuiWindow(Gtk.Window):
 
             return eventBox
 
-        def creatSpinButton(startValue, minValue, maxValue, stepSize, onChangeFun = printOnEvent, getLowLev = False):
+        def creatSpinButton(startValue, minValue, maxValue, stepSize, onChangeFun = nullFunEvent, getLowLev = False):
             spinButton = Gtk.SpinButton.new_with_range(min=minValue, max=maxValue, step=stepSize)
             spinButton.set_value(startValue)
             spinButton.set_margin_start(40)
@@ -1774,7 +1769,7 @@ class GuiWindow(Gtk.Window):
 
             return box
 
-        def createButton(text, onClickFun = printOnEvent, width = 500, getLowLev = False):
+        def createButton(text, onClickFun = nullFunEvent, width = 500, getLowLev = False):
             button = Gtk.Button(label=text)
             button.connect("clicked", onClickFun)
             button.set_margin_start(40)
@@ -1791,7 +1786,7 @@ class GuiWindow(Gtk.Window):
 
             return box
 
-        def createEntry(initText, onEdit = printOnEvent, width = 500, getLowLev = False):
+        def createEntry(initText, onEdit = nullFunEvent, width = 500, getLowLev = False):
             entry = Gtk.Entry()
             entry.set_text(initText)
             entry.connect('changed', onEdit)
@@ -1825,7 +1820,7 @@ class GuiWindow(Gtk.Window):
 
             return box
 
-        def creatHScale(startValue, minValue, maxValue, stepSize, onChangeFun = printOnEvent, width = 500, getLowLev = False):
+        def creatHScale(startValue, minValue, maxValue, stepSize, onChangeFun = nullFunEvent, width = 500, getLowLev = False):
             scale = Gtk.Scale.new_with_range(orientation=Gtk.Orientation.HORIZONTAL, min=minValue, max=maxValue, step=stepSize)
             scale.set_value(startValue)
             scale.set_margin_start(40)
@@ -4719,5 +4714,4 @@ if __name__ == "__main__":
     #calling Gtk.main_quit when all shown
     #figures are closed
     while not window.isClosed:
-        print('restart')
         Gtk.main()
