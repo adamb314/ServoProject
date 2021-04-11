@@ -71,7 +71,9 @@ class HBridgeHighResPin3And4Pwm : public HBridgeHighResPin11And12Pwm
 class HBridge2WirePwm : public PwmHandler
 {
   public:
-    HBridge2WirePwm(int16_t pin1, int16_t pin2);
+    typedef uint16_t (*LinearizeFunctionType)(uint16_t);
+
+    HBridge2WirePwm(int16_t pin1, int16_t pin2, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;});
     HBridge2WirePwm(HBridge2WirePwm&&);
     ~HBridge2WirePwm();
 
@@ -95,6 +97,8 @@ class HBridge2WirePwm : public PwmHandler
     uint16_t pin2WriteValue{0};
 
     bool outputConnected{false};
+
+    const LinearizeFunctionType linearizeFunction;
 };
 
 #endif

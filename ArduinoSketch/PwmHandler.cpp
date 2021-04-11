@@ -243,8 +243,8 @@ void HBridgeHighResPin3And4Pwm::connectOutput()
     outputConnected = true;
 }
 
-HBridge2WirePwm::HBridge2WirePwm(int16_t pin1, int16_t pin2) :
-    pin1(pin1), pin2(pin2)
+HBridge2WirePwm::HBridge2WirePwm(int16_t pin1, int16_t pin2, LinearizeFunctionType linearizeFunction) :
+    pin1(pin1), pin2(pin2), linearizeFunction(linearizeFunction)
 {
     connectOutput();
 }
@@ -253,7 +253,8 @@ HBridge2WirePwm::HBridge2WirePwm(HBridge2WirePwm&& in) :
     pin1(in.pin1), pin2(in.pin2),
     pin1WriteValue(in.pin1WriteValue),
     pin2WriteValue(in.pin2WriteValue),
-    outputConnected(in.outputConnected)
+    outputConnected(in.outputConnected),
+    linearizeFunction(in.linearizeFunction)
 {
     in.pin1 = -1;
     in.pin2 = -1;
@@ -281,11 +282,11 @@ int HBridge2WirePwm::setOutput(int output)
     if (output >= 0)
     {
         pin1WriteValue = 0;
-        pin2WriteValue = output / 4;
+        pin2WriteValue = linearizeFunction(output) / 4;
     }
     else
     {
-        pin1WriteValue = (-output) / 4;
+        pin1WriteValue = linearizeFunction(-output) / 4;
         pin2WriteValue = 0;
     }
 
