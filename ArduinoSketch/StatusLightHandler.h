@@ -3,6 +3,7 @@
 #undef max
 #undef min
 #include "ArduinoC++BugFixes.h"
+#include <vector>
 #include "ThreadHandler.h"
 
 #ifndef STATUS_LIGHT_HANDLER_H

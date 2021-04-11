@@ -1,3 +1,7 @@
+#undef max
+#undef min
+#undef abs
+
 #ifndef ARDUINO_CPP_BUG_FIXES_H
 #define ARDUINO_CPP_BUG_FIXES_H
 

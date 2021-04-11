@@ -1,6 +1,4 @@
 #include <Arduino.h>
-#undef max
-#undef min
 #include "ArduinoC++BugFixes.h"
 #include <array>
 #include <vector>

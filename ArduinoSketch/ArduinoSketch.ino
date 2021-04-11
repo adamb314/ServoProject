@@ -1,6 +1,3 @@
-#undef max
-#undef min
-
 #include "ArduinoC++BugFixes.h"
 #include "ThreadHandler.h"
 
