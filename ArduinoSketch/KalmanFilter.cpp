@@ -12,7 +12,7 @@ KalmanFilter::KalmanFilter(const Eigen::Matrix3f& A,
 void KalmanFilter::setFilterSpeed(float speed)
 {
 	float speed3 = speed * speed * speed;
-	float speed2 = speed;
+	float speed2 = speed * speed;
 
     Eigen::Vector3f K;
     K << polyK(0, 0) * speed3 + polyK(0, 1) * speed2 + polyK(0, 2) * speed + polyK(0, 3),
