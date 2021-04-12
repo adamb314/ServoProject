@@ -1379,22 +1379,24 @@ class HighFrqPwmNonlinearityIdentifier(object):
                 ampSum += d[1]**2
                 ampSumNr += 1
 
-        maxActualAmp = self.ampList[-1]
-        lastPwm = pwmList[-1]
+        self.timeList.append(self.data[-1, 0])
+        pwmList.append(lastPwm)
+        self.ampList.append(math.sqrt(ampSum / ampSumNr))
+
         i = len(pwmList) - 1
-        while True:
-            lastPwm += pwmList[i] - pwmList[i - 1]
-            if lastPwm > 1023:
-                break
-            pwmList.append(lastPwm)
-            self.timeList.append(2 * self.timeList[i] - self.timeList[i - 1])
-            self.ampList.append(2 * self.ampList[i] - self.ampList[i - 1])
+        
+        t = (1023 - pwmList[i - 1]) / (pwmList[i] - pwmList[i - 1])
+
+        pwmList.append((pwmList[i] - pwmList[i - 1]) * t + pwmList[i - 1])
+        self.timeList.append((self.timeList[i] - self.timeList[i - 1]) * t + self.timeList[i - 1])
+        self.ampList.append(((self.ampList[i] * pwmList[i] - self.ampList[i - 1] * pwmList[i - 1]) * t 
+            + self.ampList[i - 1] * pwmList[i - 1]) / 1023)
 
         lastZero = 0
         self.compList = [0]
         self.compListPwm = [0]
         for i, d in enumerate(zip(pwmList, self.ampList)):
-            comp = d[0] * d[1] / maxActualAmp
+            comp = d[0] * d[1] / self.ampList[-1]
             self.compList.append(comp)
             self.compListPwm.append(d[0])
             if comp < 20:
@@ -1408,11 +1410,7 @@ class HighFrqPwmNonlinearityIdentifier(object):
             newValue = pwm**2 / firstNoneZeroValPwm**2 * firstNoneZeroVal
             self.compList[i] = newValue
 
-        #self.compList = range(0, 1024, 2)
-        #self.compListPwm = [0, 129, 161, 209, 241, 265, 289, 313, 337, 353, 377, 393, 409, 425, 441, 457, 473, 489, 505, 513, 529, 545, 553, 569, 581, 593, 601, 617, 625, 637, 649, 657, 669, 679, 679, 679, 683, 683, 683, 683, 683, 683, 687, 687, 687, 687, 687, 689, 691, 691, 691, 691, 691, 693, 695, 695, 695, 695, 695, 699, 699, 699, 699, 699, 699, 703, 703, 703, 703, 703, 705, 707, 707, 707, 707, 707, 711, 711, 711, 711, 711, 711, 715, 715, 715, 715, 715, 717, 719, 719, 719, 719, 719, 721, 723, 723, 723, 723, 723, 727, 727, 727, 727, 727, 729, 731, 731, 731, 731, 731, 733, 735, 735, 735, 735, 735, 739, 739, 739, 739, 739, 741, 743, 743, 743, 743, 743, 745, 747, 747, 747, 747, 747, 751, 751, 751, 751, 751, 753, 755, 755, 755, 755, 755, 757, 759, 759, 759, 759, 759, 763, 763, 763, 763, 763, 765, 767, 767, 767, 767, 767, 771, 771, 771, 771, 771, 771, 775, 775, 775, 775, 775, 777, 779, 779, 779, 779, 779, 783, 783, 783, 783, 783, 785, 787, 787, 787, 787, 787, 789, 791, 791, 791, 791, 791, 795, 795, 795, 795, 795, 797, 799, 799, 799, 799, 799, 803, 803, 803, 803, 803, 805, 807, 807, 807, 807, 807, 809, 811, 811, 811, 811, 811, 815, 815, 815, 815, 815, 817, 819, 819, 819, 819, 819, 823, 823, 823, 823, 823, 825, 827, 827, 827, 827, 827, 831, 831, 831, 831, 831, 833, 835, 835, 835, 835, 835, 837, 839, 839, 839, 839, 839, 843, 843, 843, 843, 843, 845, 847, 847, 847, 847, 847, 851, 851, 851, 851, 851, 853, 855, 855, 855, 855, 855, 859, 859, 859, 859, 859, 861, 863, 863, 863, 863, 863, 867, 867, 867, 867, 867, 869, 871, 871, 871, 871, 871, 875, 875, 875, 875, 875, 877, 879, 879, 879, 879, 879, 883, 883, 883, 883, 883, 885, 887, 887, 887, 887, 887, 891, 891, 891, 891, 891, 893, 895, 895, 895, 895, 895, 899, 899, 899, 899, 899, 901, 903, 903, 903, 903, 903, 907, 907, 907, 907, 907, 909, 911, 911, 911, 911, 911, 915, 915, 915, 915, 915, 917, 919, 919, 919, 919, 919, 923, 923, 923, 923, 923, 925, 927, 927, 927, 927, 927, 931, 931, 931, 931, 931, 933, 935, 935, 935, 935, 935, 939, 939, 939, 939, 939, 943, 943, 943, 943, 943, 945, 947, 947, 947, 947, 947, 951, 951, 951, 951, 951, 953, 955, 955, 955, 955, 955, 959, 959, 959, 959, 959, 961, 963, 963, 963, 963, 963, 967, 967, 967, 967, 967, 971, 971, 971, 971, 971, 973, 975, 975, 975, 975, 975, 979, 979, 979, 979, 979, 981, 983, 983, 983, 983, 983, 987, 987, 987, 987, 987, 991, 991, 991, 991, 991, 993, 995, 995, 995, 995, 995, 999, 999, 999, 999, 999, 1001, 1003, 1003, 1003, 1003, 1005, 1007, 1007, 1007, 1007, 1007, 1011, 1011, 1011, 1011, 1011, 1013, 1015, 1015, 1015, 1015, 1015, 1019, 1019, 1019, 1019, 1019, 1023, 1023, 1023, 1023, 1023]
-
         self.pwmNonlinearityCompLookUp = []
-
 
         for pwm in range(0, 1024, self.lookUpStepSize):
             index = -1
@@ -1425,10 +1423,6 @@ class HighFrqPwmNonlinearityIdentifier(object):
             t = (pwm - self.compList[index]) / (self.compList[index + 1] - self.compList[index])
             self.pwmNonlinearityCompLookUp.append(self.compListPwm[index] + (self.compListPwm[index + 1] - self.compListPwm[index]) * t)
 
-        scale = 1023.0 / self.pwmNonlinearityCompLookUp[-1]
-        self.pwmNonlinearityCompLookUp = np.array(self.pwmNonlinearityCompLookUp) * scale
-        self.compListPwm = np.array(self.compListPwm) * scale
-
     def plotGeneratedVector(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
@@ -1436,8 +1430,6 @@ class HighFrqPwmNonlinearityIdentifier(object):
         ax.plot(range(0, 1024, self.lookUpStepSize), range(0, 1024, self.lookUpStepSize), 'k-')
         ax.plot(range(0, 1024, self.lookUpStepSize), self.pwmNonlinearityCompLookUp, 'g+-')
         ax.plot(self.compList, self.compListPwm, 'c.')
-        ax.set_xlim(0.0, 1023.0)
-        ax.set_ylim(0.0, 1023.0)
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
