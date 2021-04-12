@@ -4195,12 +4195,12 @@ class GuiWindow(Gtk.Window):
                                         servo = robot.dcServoArray[nodeNr - 1]
 
                                         pwm = 0.0
-                                        if int(t / 2.0) < len(pwmSampleValues):
-                                            pwm = pwmSampleValues[int(t / 2.0)]
+                                        if int(t / 4.0) < len(pwmSampleValues):
+                                            pwm = pwmSampleValues[int(t / 4.0)]
                                         else:
                                             return
 
-                                        GLib.idle_add(updateRecordingProgressBar, (t / 2.0) / len(pwmSampleValues))
+                                        GLib.idle_add(updateRecordingProgressBar, (t / 4.0) / len(pwmSampleValues))
 
                                         servo.setOpenLoopControlSignal(pwm, True)
 
@@ -4213,7 +4213,7 @@ class GuiWindow(Gtk.Window):
                                         nonlocal doneRunning
                                         nonlocal pwmSampleValues
 
-                                        stop = int(t / 2.0) >= len(pwmSampleValues)
+                                        stop = int(t / 4.0) >= len(pwmSampleValues)
                                         with threadMutex:
                                             if runThread == False:
                                                 stop = True
@@ -4226,7 +4226,7 @@ class GuiWindow(Gtk.Window):
                                         servo = robot.dcServoArray[nodeNr - 1]
                                         out.append([t,
                                                 servo.getPosition(False) / servo.getScaling(),
-                                                pwmSampleValues[int(t / 2.0)]])
+                                                pwmSampleValues[int(t / 4.0)]])
 
                                     robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
