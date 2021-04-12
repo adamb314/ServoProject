@@ -3499,13 +3499,13 @@ class GuiWindow(Gtk.Window):
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
 
-                            maxOscillationFrq = 50 
+                            maxOscillationFrq = 10 
                             maxFrqScale = creatHScale(maxOscillationFrq, 0, 100, 1, getLowLev=True)
                             maxFrqScale = addTopLabelTo('<b>Max oscillation frequency</b>', maxFrqScale[0]), maxFrqScale[1]
                             calibrationBox.pack_start(maxFrqScale[0], False, False, 0)
 
-                            midPwmValue = 400
-                            maxPwmValue = 1023
+                            midPwmValue = 500
+                            maxPwmValue = 605
                             midPwmScale = creatHScale(midPwmValue, 0, 1023, 10, getLowLev=True)
                             midPwmScale = addTopLabelTo('<b>Pwm value for switching to sparse sample points</b>\n Lower value limits motor heat up at the cost of calibration resolution', midPwmScale[0]), midPwmScale[1]
                             calibrationBox.pack_start(midPwmScale[0], False, False, 0)
