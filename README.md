@@ -121,6 +121,7 @@ Dependencies
 #### MasterCommunication/Makefile
 * GNU Make >= 4.2.1
 * boost >= 1.71.0
+* Eigen >= 3.4.0
 
 #### MasterCommunication/systemIdent.py
 * Python >= 3.8.2
