@@ -107,8 +107,8 @@ Dependencies
 * Adafruit_DotStar `source:` Arduino Library List
 * LinkedList `source:` Arduino Library List
 * EigenArduino `source:` https://github.com/vancegroup/EigenArduino.git
-* AdcHandler `source:` https://bitbucket.org/adamb3_14/adchandler
-* ThreadHandler `source:` https://bitbucket.org/adamb3_14/threadhandler
+* AdcHandler `source:` https://github.com/adamb314/adchandler
+* ThreadHandler `source:` https://github.com/adamb314/threadhandler
 
 #### ArduinoSketch/configSelector.py
 * Python >= 3.8.2
@@ -121,6 +121,7 @@ Dependencies
 #### MasterCommunication/Makefile
 * GNU Make >= 4.2.1
 * boost >= 1.71.0
+* Eigen >= 3.4.0
 
 #### MasterCommunication/systemIdent.py
 * Python >= 3.8.2
