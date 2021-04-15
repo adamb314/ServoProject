@@ -65,13 +65,14 @@ public:
 
     std::unique_ptr<SimulateCommunication> communicationSim{std::make_unique<SimulateCommunication>()};
 
-    Robot(Communication* communication, const std::array<bool, 6> simulate = {false}, double cycleTime = 0.018) :
+    Robot(Communication* communication, const std::array<bool, 7> simulate = {false}, double cycleTime = 0.018) :
             dcServoArray{{{1, simulate[0] ? communicationSim.get() : communication},
                             {2, simulate[1] ? communicationSim.get() : communication},
                             {3, simulate[2] ? communicationSim.get() : communication},
                             {4, simulate[3] ? communicationSim.get() : communication},
                             {5, simulate[4] ? communicationSim.get() : communication},
                             {6, simulate[5] ? communicationSim.get() : communication}}},
+            gripperServo{7, simulate[6] ? communicationSim.get() : communication},
             cycleTime(cycleTime)
     {
         dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 0.950301, 0);
@@ -100,21 +101,32 @@ public:
         dcServoArray[5].setBacklashControlSpeed(3, 3.0, 0.0);
         dcServoArray[5].setFrictionCompensation(0);
 
+        gripperServo.setOffsetAndScaling(pi / 1900.0, 0.0, 0.0);
+
         while (std::any_of(std::begin(dcServoArray), std::end(dcServoArray), [](auto& d)
                 {
                     return !d.isInitComplete();
-                }))
+                }) || !gripperServo.isInitComplete())
         {
             std::for_each(std::begin(dcServoArray), std::end(dcServoArray), [](auto& d)
                 {
                     d.run();
                 });
+
+            gripperServo.run();
         }
 
         std::transform(std::begin(dcServoArray), std::end(dcServoArray), std::begin(currentPosition), [](auto& d)
             {
                 return d.getPosition();
             });
+
+        for (size_t i = 0; i != 2; ++i)
+        {
+            gripperServo.setReference(pi / 2.0, 0.0, 0.0);
+            gripperServo.run();
+            gripperServo.getPosition();
+        }
 
         t = std::thread{&Robot::run, this};
     }
@@ -152,10 +164,14 @@ public:
                     d.run();
                 });
 
+            gripperServo.run();
+
             std::transform(std::begin(dcServoArray), std::end(dcServoArray), std::begin(currentPosition), [](auto& d)
                 {
                     return d.getPosition();
                 });
+
+            gripperServo.getPosition();
  
             tempReadHandlerFunction(cycleTime, this);
         }
@@ -195,6 +211,7 @@ public:
     }
 
     std::array<DCServoCommunicator, dof> dcServoArray;
+    DCServoCommunicator gripperServo;
 
 private:
     double cycleTime;
@@ -353,6 +370,40 @@ void playPath(Robot& robot,
             if (reachedEndOfTrajectory || communicationError)
             {
                 robot->removeHandlerFunctions();
+                doneRunning = true;
+            }
+        };
+
+    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+
+    while(!doneRunning)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
+void moveGripper(Robot& robot, double pos, double time = 1.0)
+{
+    pos = asin(2.0 * pos - 1.0);
+
+    bool doneRunning = false;
+
+    double t = 0;
+    double startPos = robot.gripperServo.getPosition();
+    double amp = pos - startPos;
+    auto sendCommandHandlerFunction = [&](double dt, Robot* robotPointer)
+        {
+            t = std::min(t + dt / time, 1.0);
+
+            double pRef = startPos + amp * (1.0 - cos(pi * t)) / 2.0;
+            robotPointer->gripperServo.setReference(pRef, 0.0, 0.0);
+        };
+
+    auto readResultHandlerFunction = [&](double dt, Robot* robotPointer)
+        {
+            if (t >= 1.0)
+            {
+                robotPointer->removeHandlerFunctions();
                 doneRunning = true;
             }
         };

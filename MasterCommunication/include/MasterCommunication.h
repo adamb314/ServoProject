@@ -124,7 +124,7 @@ public:
         std::array<short int, 16> intArray{0};
     };
 
-    std::array<ServoSim, 6> servoSims{};
+    std::array<ServoSim, 7> servoSims{};
 };
 
 #endif
