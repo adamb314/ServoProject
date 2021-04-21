@@ -50,13 +50,13 @@ class SerialCommunication(object):
 
     def getLastReadChar(self, nr):
         out = self.charArray[int(nr)]
-        if out > (256 / 2):
+        if out >= (256 / 2):
             out -= 256
         return out
 
     def getLastReadInt(self, nr):
         out = self.intArray[int(nr)]
-        if out > (256 * 256 / 2):
+        if out >= (256 * 256 / 2):
             out -= 256 * 256
         return out
 
@@ -224,14 +224,14 @@ class SimulateCommunication(SerialCommunication):
                 value = self.commandArray[i] % 256
                 i+= 1
                 value += (self.commandArray[i] % 256) * 256
-                if value > (256 * 256 / 2):
+                if value >= (256 * 256 / 2):
                     value -= 256 * 256
                 servo.intArray[intNr] = value
             else:
                 charNr = self.commandArray[i]
                 i+= 1
                 value = self.commandArray[i] % 256
-                if value > (256 / 2):
+                if value >= (256 / 2):
                     value -= 256
                 servo.charArray[charNr] = value
 
@@ -513,6 +513,9 @@ class DCServoCommunicator(object):
                 self.intReadBufferIndex11Upscaling.update(self.intReadBuffer[11])
             else:
                 upscaledPos = (self.intReadBuffer[3] % (256 * 256)) + (self.charReadBuffer[7] % 256) * 256 * 256
+                if upscaledPos >= 256**3 / 2:
+                    upscaledPos -= 256**3
+
                 self.intReadBufferIndex3Upscaling.set(upscaledPos)
                 self.intReadBufferIndex10Upscaling.set(self.intReadBuffer[10])
                 self.intReadBufferIndex11Upscaling.set(self.intReadBuffer[11])
