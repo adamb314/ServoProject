@@ -1102,7 +1102,16 @@ def sign(v):
     return -1.0
 
 class SystemIdentificationObject:
-    def __init__(self, data):
+    def __init__(self, data, a=None, b=None, c=None, f=None, dt=None):
+        if len(data) == 0:
+            self.dt = dt
+            self.velData = np.array([[0], [0]])
+            self.pwmData = np.array([[0], [0]])
+
+            self.servoModelParameters = np.array([[a], [b], [f], [c]])
+            self.identifyCurrentSystemModel()
+            return
+
         self.dt = data[1, 0] - data[0, 0]
 
         derivativeTimeSteps = 2
@@ -1285,12 +1294,6 @@ class ServoModel(object):
             temp = self.systemModel.getServoSystemModelParameters(self.dt)
             a = temp[0]
             b = temp[1]
-
-            #if False:
-            #    self.systemModel.currentModelParams[0] = 1.0
-            #    self.systemModel.currentModelParams[1] = 1.4148004669616816e-05
-            #    a = 0.9861505426899848
-            #    b = 2.3463860900790015 / 0.0024
 
             self.A = np.array([[1, dtp], [0, a]])
             self.B = np.array([[dt2p / 2], [dtp]]) * b
