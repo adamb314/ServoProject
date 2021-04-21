@@ -1003,28 +1003,76 @@ class OpticalEncoderDataVectorGenerator:
 
         return (np.array(aVecShrunk), np.array(bVecShrunk), aVec, bVec)
 
-    def plotGeneratedVectors(self, box):
+    def plotGeneratedVectors(self, box, classString = ''):
+        oldAVec = None
+        oldBVec = None
+
+        if classString != '':
+            aVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*aVec\s*=\s*)\{([\d\s,]*)\};')
+            bVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*bVec\s*=\s*)\{([\d\s,]*)\};')
+            
+            temp1 = aVecPattern.search(classString)
+            temp2 = bVecPattern.search(classString)
+
+            if temp1 != None and temp2 != None:
+                oldAVecStr = temp1.group(3)
+                oldBVecStr = temp2.group(3)
+                oldAVecStr = '[' + oldAVecStr + ']'
+                oldBVecStr = '[' + oldBVecStr + ']'
+
+                oldAVec = eval(oldAVecStr)
+                oldBVec = eval(oldBVecStr)
+
+                if len(oldAVec) <= 1:
+                    oldAVec = None
+                if len(oldBVec) <= 1:
+                    oldBVec = None
+
+            def aligneTo(aVec, bVec, refAVec, refBVec):
+                def calcCost(aVec, bVec, refAVec, refBVec):
+                    cost = 0
+                    for d in zip(aVec, bVec, refAVec, refBVec):
+                        cost += (d[0] - d[2])**2 + (d[1] - d[3])**2
+                    return cost
+
+                bestFittShift = 0
+                bestFittCost = float('inf')
+                for shift in range(0, 512):
+                    tempA = aVec[-shift:] + aVec[0:-shift]
+                    tempB = bVec[-shift:] + bVec[0:-shift]
+
+                    cost = calcCost(tempA, tempB, refAVec, refBVec)
+
+                    if cost < bestFittCost:
+                        bestFittCost = cost
+                        bestFittShift = shift
+
+                tempA = aVec[-bestFittShift:] + aVec[0:-bestFittShift]
+                tempB = bVec[-bestFittShift:] + bVec[0:-bestFittShift]
+                return tempA, tempB
+
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
         for d in zip(self.aVecList, self.bVecList):
             x = np.arange(len(d[0])) * len(self.aVec) / len(d[0])
-            ax.plot(x, d[0], '-')
-            ax.plot(x, d[1], '-')
+            ax.plot(x, d[0], ',')
+            ax.plot(x, d[1], ',')
 
-        ax.plot(self.aVec, 'r.-')
-        ax.plot(self.bVec, 'g.-')
+        if oldAVec != None and oldBVec != None:
+            oldAVec, oldBVec = aligneTo(oldAVec, oldBVec, self.aVec, self.bVec)
+
+            ax.plot(oldAVec, 'm-')
+            ax.plot(oldBVec, 'c-')
+
+        ax.plot(self.aVec, 'r-')
+        ax.plot(self.bVec, 'g-')
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
         box.add(canvas)
 
         box.show_all()
-
-        plt.figure(1)
-        plt.plot(self.data[:, 0])
-        plt.plot(self.data[:, 1])
-        plt.show()
 
     def writeVectorsToConfigClassString(self, configClassString):
         aVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*aVec\s*=\s*)\{[\d\s,]*\};')
