@@ -1575,7 +1575,7 @@ class OutputEncoderCalibrationGenerator(object):
 
         for d in self.data:
             if d[1] != maxPos and d[1] != minPos:
-                pos = int(round(d[1] / 8))
+                pos = int(round((d[1] % 4096) / 8))
                 if pos == posListSize:
                     pos = posListSize - 1
                 posList[pos].append(d[2])
@@ -1673,7 +1673,7 @@ class OutputEncoderCalibrationGenerator(object):
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        ax.plot(self.data[:, 1], self.data[:, 2], 'b,')
+        ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b,')
         #ax.plot(self.minList, 'b-+')
         #ax.plot(self.maxList, 'r-+')
         ax.plot(range(0, 4096 + 8, 8), self.meanList, 'g-+')
