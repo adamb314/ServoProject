@@ -29,6 +29,7 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     DiagnosticData diagnosticData;
 
     uint16_t lastMinCostIndex{0};
+    uint16_t iAtLastOffsetUpdate{0};
     uint16_t predictNextPos{0};
 
     std::array<uint16_t, vecSize> aVec;
@@ -38,6 +39,7 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     AnalogSampler sensor2;
     uint16_t sensor1Value{0};
     uint16_t sensor2Value{0};
+    float sensorValueOffset{0.0};
     float value{0.0};
     float wrapAroundCorretion{0.0};
     bool newData{false};
