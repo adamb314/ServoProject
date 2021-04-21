@@ -1737,7 +1737,7 @@ class GuiWindow(Gtk.Window):
             response = dialog.run()
             dialog.destroy()
 
-        def disconnectMessageMotorFromGearboxMessage():
+        def disconnectMotorFromGearboxMessage():
             dialog = Gtk.MessageDialog(
                     transient_for=self,
                     flags=0,
@@ -1747,6 +1747,22 @@ class GuiWindow(Gtk.Window):
             )
             dialog.format_secondary_text(
                 "Please make sure the motor can run freely by disconnecting it from the gearbox before continuing"
+            )
+            response = dialog.run()
+            dialog.destroy()
+
+        def startManuallyCalibrationMessage(timeString):
+            dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    flags=0,
+                    message_type=Gtk.MessageType.INFO,
+                    buttons=Gtk.ButtonsType.OK,
+                    text='Start manual calibration',
+            )
+            dialog.format_secondary_text(
+                "Please connect the motor to the gearbox and move the servo-output-shaft "
+                "back and forth for " + timeString + " over the whole range of motion, "
+                "with constant speed."
             )
             response = dialog.run()
             dialog.destroy()
@@ -3061,7 +3077,6 @@ class GuiWindow(Gtk.Window):
         box0.pack_start(activeConfigCombo[0], False, False, 0)
 
         activeNodeNrCombo = addTopLabelTo('<b>Select node number</b>', activeNodeNrCombo[0]), activeNodeNrCombo[1]
-        box1.pack_start(activeNodeNrCombo[0], False, False, 0)
         activeComPortCombo = addTopLabelTo('<b>Select COM port</b>', activeComPortCombo[0]), activeComPortCombo[1]
         box1.pack_start(activeComPortCombo[0], False, False, 0)
 
@@ -3129,8 +3144,19 @@ class GuiWindow(Gtk.Window):
                     activeNodeNrCombo[1].set_model(items)
                     activeNodeNrCombo[1].set_active(0)
 
+                    if len(items) == 1:
+                        box1.remove(activeNodeNrCombo[0])
+                        box1.remove(activeComPortCombo[0])
+                        box1.pack_start(activeComPortCombo[0], False, False, 0)
+                    else:
+                        box1.remove(activeNodeNrCombo[0])
+                        box1.remove(activeComPortCombo[0])
+                        box1.pack_start(activeNodeNrCombo[0], False, False, 0)
+                        box1.pack_start(activeComPortCombo[0], False, False, 0)
+
                     supportedCalibrationOptions = ['',
                             'Optical encoder',
+                            'Optical encoder (manual)',
                             'Pwm nonlinearity',
                             'System identification',
                             'Output encoder calibration',
@@ -3178,16 +3204,23 @@ class GuiWindow(Gtk.Window):
                         if calibrationType == '':
                             calibrationBox = None
 
-                        elif calibrationType == 'Optical encoder':
+                        elif calibrationType == 'Optical encoder' or calibrationType == 'Optical encoder (manual)':
 ############################# Optical encoder #################################################################
-                            disconnectMessageMotorFromGearboxMessage()
+                            manualMovement = False
+                            if calibrationType == 'Optical encoder (manual)':
+                                manualMovement = True
+                            else:
+                                disconnectMotorFromGearboxMessage()
 
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
                             pwmValue = 0
-                            pwmScale = creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+                            if not manualMovement:
+                                pwmValue = 1
+                            pwmScale = creatHScale(pwmValue, 1, 1023, 10, getLowLev=True)
                             pwmScale = addTopLabelTo('<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]), pwmScale[1]
-                            calibrationBox.pack_start(pwmScale[0], False, False, 0)
+                            if not manualMovement:
+                                calibrationBox.pack_start(pwmScale[0], False, False, 0)
 
                             testButton = createButton('Test pwm value', getLowLev=True)
                             startButton = createButton('Start calibration', getLowLev=True)
@@ -3343,7 +3376,8 @@ class GuiWindow(Gtk.Window):
 
 
                             testButton[1].connect('clicked', onTestPwm)
-                            calibrationBox.pack_start(testButton[0], False, False, 0)
+                            if not manualMovement:
+                                calibrationBox.pack_start(testButton[0], False, False, 0)
 
                             recordingProgressBar = creatProgressBar(label='Recording', getLowLev=True)
                             analyzingProgressBar = creatProgressBar(label='Analyzing', getLowLev=True)
@@ -3374,6 +3408,15 @@ class GuiWindow(Gtk.Window):
                                         nonlocal configName
                                         nonlocal configClassName
 
+                                        classString = ''
+
+                                        with open("config/" + configName, "r") as configFile:
+                                            configFileAsString = configFile.read()
+
+                                            classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+                                            temp = classPattern.search(configFileAsString)
+                                            if temp != None:
+                                                classString = temp.group(0)
 
                                         dialog = Gtk.MessageDialog(
                                                 transient_for=self,
@@ -3385,41 +3428,37 @@ class GuiWindow(Gtk.Window):
                                         dialog.format_secondary_text(
                                             "Should the configuration be updated with the new data?"
                                         )
-                                        opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area())
+                                        opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area(), classString)
                                         response = dialog.run()
                                         dialog.destroy()
 
                                         if response == Gtk.ResponseType.YES:
-                                            with open("config/" + configName, "r") as configFile:
-                                                configFileAsString = configFile.read()
+                                            classString = opticalEncoderDataVectorGenerator.writeVectorsToConfigClassString(classString)
+                                            if classString != '':
+                                                configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                                with open("config/" + configName, "w") as configFile:
+                                                    configFile.write(configFileAsString)
+                                                    transferToTargetMessage()
 
-                                                classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-                                                classString = classPattern.search(configFileAsString).group(0)
+                                                    return
 
-                                                classString = opticalEncoderDataVectorGenerator.writeVectorsToConfigClassString(classString)
-                                                if classString != '':
-                                                    configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                                                    with open("config/" + configName, "w") as configFile:
-                                                        configFile.write(configFileAsString)
-                                                        transferToTargetMessage()
-                                                else:
-                                                    dialog = Gtk.MessageDialog(
-                                                            transient_for=self,
-                                                            flags=0,
-                                                            message_type=Gtk.MessageType.ERROR,
-                                                            buttons=Gtk.ButtonsType.OK,
-                                                            text='Configuration format error!',
-                                                    )
-                                                    dialog.format_secondary_text(
-                                                        "Please past in the new aVec and bVec manually"
-                                                    )
-                                                    box = dialog.get_message_area()
-                                                    vecEntry = Gtk.Entry()
-                                                    vecEntry.set_text(opticalEncoderDataVectorGenerator.getGeneratedVectors())
-                                                    box.add(vecEntry)
-                                                    box.show_all()
-                                                    response = dialog.run()
-                                                    dialog.destroy()
+                                            dialog = Gtk.MessageDialog(
+                                                    transient_for=self,
+                                                    flags=0,
+                                                    message_type=Gtk.MessageType.ERROR,
+                                                    buttons=Gtk.ButtonsType.OK,
+                                                    text='Configuration format error!',
+                                            )
+                                            dialog.format_secondary_text(
+                                                "Please past in the new aVec and bVec manually"
+                                            )
+                                            box = dialog.get_message_area()
+                                            vecEntry = Gtk.Entry()
+                                            vecEntry.set_text(opticalEncoderDataVectorGenerator.getGeneratedVectors())
+                                            box.add(vecEntry)
+                                            box.show_all()
+                                            response = dialog.run()
+                                            dialog.destroy()
 
                                     def handleAnalyzeError(info):
                                         dialog = Gtk.MessageDialog(
@@ -3463,10 +3502,12 @@ class GuiWindow(Gtk.Window):
                                         nonlocal doneRunning
 
                                         runTime = 210.0
+                                        if manualMovement:
+                                            runTime = 200.0
 
                                         servo = robot.dcServoArray[nodeNr - 1]
                                         opticalEncoderData = servo.getOpticalEncoderChannelData()
-                                        if t < 100.0 or t > 110.0:
+                                        if t > 0.1 and (t < 100.0 or t > 110.0 or manualMovement):
                                             out.append([t,
                                                     opticalEncoderData.a,
                                                     opticalEncoderData.b,
@@ -3542,6 +3583,9 @@ class GuiWindow(Gtk.Window):
                                 if widget.get_label() == 'Start calibration':
                                     widget.set_label('Abort calibration')
 
+                                    if manualMovement:
+                                        startManuallyCalibrationMessage('200 seconds')
+
                                     recordingProgressBar[1].set_fraction(0.0)
                                     analyzingProgressBar[1].set_fraction(0.0)
                                     testButton[1].set_sensitive(False)
@@ -3570,13 +3614,13 @@ class GuiWindow(Gtk.Window):
 
                         elif calibrationType == 'Pwm nonlinearity':
 ############################# Pwm nonlinearity ################################################################
-                            disconnectMessageMotorFromGearboxMessage()
+                            disconnectMotorFromGearboxMessage()
 
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
 
                             maxOscillationFrq = 10 
-                            maxFrqScale = creatHScale(maxOscillationFrq, 0, 100, 1, getLowLev=True)
+                            maxFrqScale = creatHScale(maxOscillationFrq, 1, 100, 1, getLowLev=True)
                             maxFrqScale = addTopLabelTo('<b>Max oscillation frequency</b>', maxFrqScale[0]), maxFrqScale[1]
                             calibrationBox.pack_start(maxFrqScale[0], False, False, 0)
 
@@ -3586,7 +3630,7 @@ class GuiWindow(Gtk.Window):
                             midPwmScale = addTopLabelTo('<b>Pwm value for switching to sparse sample points</b>\n Lower value limits motor heat up at the cost of calibration resolution', midPwmScale[0]), midPwmScale[1]
                             calibrationBox.pack_start(midPwmScale[0], False, False, 0)
 
-                            maxPwmScale = creatHScale(maxPwmValue, 0, 1023, 10, getLowLev=True)
+                            maxPwmScale = creatHScale(maxPwmValue, 1, 1023, 10, getLowLev=True)
                             maxPwmScale = addTopLabelTo('<b>Max motor pwm value</b>', maxPwmScale[0]), maxPwmScale[1]
                             calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
 
@@ -3810,32 +3854,36 @@ class GuiWindow(Gtk.Window):
                                         configFileAsString = configFile.read()
 
                                         classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-                                        classString = classPattern.search(configFileAsString).group(0)
+                                        temp = classPattern.search(configFileAsString)
+                                        if temp != None:
+                                            classString = temp.group(0)
 
-                                        classString = pwmNonlinearityIdentifier.writeLinearizationFunctionToConfigClassString(classString)
-                                        if classString != '':
-                                            configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                                            with open("config/" + configName, "w") as configFile:
-                                                configFile.write(configFileAsString)
-                                                transferToTargetMessage()
-                                        else:
-                                            dialog = Gtk.MessageDialog(
-                                                    transient_for=self,
-                                                    flags=0,
-                                                    message_type=Gtk.MessageType.ERROR,
-                                                    buttons=Gtk.ButtonsType.OK,
-                                                    text='Configuration format error!',
-                                            )
-                                            dialog.format_secondary_text(
-                                                "Please past in the linearization function manually"
-                                            )
-                                            box = dialog.get_message_area()
-                                            funEntry = Gtk.Entry()
-                                            funEntry.set_text(pwmNonlinearityIdentifier.getLinearizationFunction())
-                                            box.add(funEntry)
-                                            box.show_all()
-                                            response = dialog.run()
-                                            dialog.destroy()
+                                            classString = pwmNonlinearityIdentifier.writeLinearizationFunctionToConfigClassString(classString)
+                                            if classString != '':
+                                                configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                                with open("config/" + configName, "w") as configFile:
+                                                    configFile.write(configFileAsString)
+                                                    transferToTargetMessage()
+
+                                                    return
+                                        
+                                    dialog = Gtk.MessageDialog(
+                                            transient_for=self,
+                                            flags=0,
+                                            message_type=Gtk.MessageType.ERROR,
+                                            buttons=Gtk.ButtonsType.OK,
+                                            text='Configuration format error!',
+                                    )
+                                    dialog.format_secondary_text(
+                                        "Please past in the linearization function manually"
+                                    )
+                                    box = dialog.get_message_area()
+                                    funEntry = Gtk.Entry()
+                                    funEntry.set_text(pwmNonlinearityIdentifier.getLinearizationFunction())
+                                    box.add(funEntry)
+                                    box.show_all()
+                                    response = dialog.run()
+                                    dialog.destroy()
 
                             def startCalibrationRun(nodeNr, port):
                                 nonlocal runThread
@@ -4007,13 +4055,19 @@ class GuiWindow(Gtk.Window):
 
                         elif calibrationType == 'System identification':
 ############################# System identification ################################################################
-                            disconnectMessageMotorFromGearboxMessage()
+                            disconnectMotorFromGearboxMessage()
 
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
 
+                            motorSettleTime = 2
                             minPwmValue = 10
                             maxPwmValue = 100
+
+                            motorSettleTimeScale = creatHScale(motorSettleTime, 1, 10, 1, getLowLev=True)
+                            motorSettleTimeScale = addTopLabelTo('<b>Motor settle time</b>', motorSettleTimeScale[0]), motorSettleTimeScale[1]
+                            calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
+
                             minPwmScale = creatHScale(minPwmValue, 0, 200, 1, getLowLev=True)
                             minPwmScale = addTopLabelTo('<b>Min motor pwm value</b>', minPwmScale[0]), minPwmScale[1]
                             calibrationBox.pack_start(minPwmScale[0], False, False, 0)
@@ -4030,6 +4084,13 @@ class GuiWindow(Gtk.Window):
                             testPwmValue = minPwmValue
 
                             threadMutex = threading.Lock()
+
+                            def motorSettleTimeChanged(widget):
+                                nonlocal motorSettleTime
+                                nonlocal threadMutex
+
+                                with threadMutex:
+                                    motorSettleTime = widget.get_value()
 
                             def minPwmValueChanged(widget):
                                 nonlocal maxPwmScale
@@ -4057,6 +4118,7 @@ class GuiWindow(Gtk.Window):
                                 if maxPwmValue < minPwmScale[1].get_value():
                                     minPwmScale[1].set_value(maxPwmValue)
 
+                            motorSettleTimeScale[1].connect('value-changed', motorSettleTimeChanged)
                             minPwmScale[1].connect('value-changed', minPwmValueChanged)
                             maxPwmScale[1].connect('value-changed', maxPwmValueChanged)
 
@@ -4073,6 +4135,7 @@ class GuiWindow(Gtk.Window):
                                 startButton[1].set_label('Start calibration')
                                 startButton[1].set_sensitive(True)
                                 calibrationBox.remove(recordingProgressBar[0])
+                                motorSettleTimeScale[1].set_sensitive(True)
                                 minPwmScale[1].set_sensitive(True)
                                 maxPwmScale[1].set_sensitive(True)
 
@@ -4202,48 +4265,56 @@ class GuiWindow(Gtk.Window):
                                 dialog.destroy()
 
                                 if response == Gtk.ResponseType.YES:
+                                    dt = 0.0012
                                     with open("config/" + configName, "r") as configFile:
                                         configFileAsString = configFile.read()
 
                                         classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-                                        classString = classPattern.search(configFileAsString).group(0)
+                                        temp = classPattern.search(configFileAsString)
+                                        if temp != None:
+                                            classString = temp.group(0)
 
-                                        dtPattern = re.compile(r'Eigen::Matrix3f\s+A;\s+A\s*<<\s*[^,]*,\s*([\d.]*)')
-                                        dt = float(dtPattern.search(classString).group(1))
+                                            dtPattern = re.compile(r'Eigen::Matrix3f\s+A;\s+A\s*<<\s*[^,]*,\s*([\d.]*)')
+                                            temp = dtPattern.search(classString)
+                                            if temp != None:
+                                                dt = float(temp.group(1))
 
-                                        servoModel = ServoModel(dt, systemIdentifier)
-                                        
-                                        classString = servoModel.writeModelToConfigClassString(classString)
+                                                servoModel = ServoModel(dt, systemIdentifier)
+                                                
+                                                classString = servoModel.writeModelToConfigClassString(classString)
 
-                                        if classString != '':
-                                            configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                                            with open("config/" + configName, "w") as configFile:
-                                                configFile.write(configFileAsString)
-                                                transferToTargetMessage()
-                                        else:
-                                            dialog = Gtk.MessageDialog(
-                                                    transient_for=self,
-                                                    flags=0,
-                                                    message_type=Gtk.MessageType.ERROR,
-                                                    buttons=Gtk.ButtonsType.OK,
-                                                    text='Configuration format error!',
-                                            )
-                                            dialog.format_secondary_text(
-                                                "Please past in the new model manually"
-                                            )
-                                            box = dialog.get_message_area()
-                                            funEntry = Gtk.Entry()
-                                            funEntry.set_text(servoModel.getGeneratedModel())
-                                            box.add(funEntry)
-                                            box.show_all()
-                                            response = dialog.run()
-                                            dialog.destroy()
+                                                if classString != '':
+                                                    configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                                    with open("config/" + configName, "w") as configFile:
+                                                        configFile.write(configFileAsString)
+                                                        transferToTargetMessage()
+
+                                                        return
+
+                                    dialog = Gtk.MessageDialog(
+                                            transient_for=self,
+                                            flags=0,
+                                            message_type=Gtk.MessageType.ERROR,
+                                            buttons=Gtk.ButtonsType.OK,
+                                            text='Configuration format error!',
+                                    )
+                                    dialog.format_secondary_text(
+                                        "Please past in the new model manually"
+                                    )
+                                    box = dialog.get_message_area()
+                                    funEntry = Gtk.Entry()
+                                    funEntry.set_text(ServoModel(dt, systemIdentifier).getGeneratedModel())
+                                    box.add(funEntry)
+                                    box.show_all()
+                                    response = dialog.run()
+                                    dialog.destroy()
 
                             def startCalibrationRun(nodeNr, port):
                                 nonlocal runThread
                                 nonlocal threadMutex
                                 nonlocal minPwmValue
                                 nonlocal maxPwmValue
+                                nonlocal motorSettleTime
 
                                 try:
                                     robot = createRobot(nodeNr, port, 0.018)
@@ -4271,12 +4342,12 @@ class GuiWindow(Gtk.Window):
                                         servo = robot.dcServoArray[nodeNr - 1]
 
                                         pwm = 0.0
-                                        if int(t / 4.0) < len(pwmSampleValues):
-                                            pwm = pwmSampleValues[int(t / 4.0)]
+                                        if int(t / motorSettleTime) < len(pwmSampleValues):
+                                            pwm = pwmSampleValues[int(t / motorSettleTime)]
                                         else:
                                             return
 
-                                        GLib.idle_add(updateRecordingProgressBar, (t / 4.0) / len(pwmSampleValues))
+                                        GLib.idle_add(updateRecordingProgressBar, (t / motorSettleTime) / len(pwmSampleValues))
 
                                         servo.setOpenLoopControlSignal(pwm, True)
 
@@ -4289,7 +4360,7 @@ class GuiWindow(Gtk.Window):
                                         nonlocal doneRunning
                                         nonlocal pwmSampleValues
 
-                                        stop = int(t / 4.0) >= len(pwmSampleValues)
+                                        stop = int(t / motorSettleTime) >= len(pwmSampleValues)
                                         with threadMutex:
                                             if runThread == False:
                                                 stop = True
@@ -4302,7 +4373,7 @@ class GuiWindow(Gtk.Window):
                                         servo = robot.dcServoArray[nodeNr - 1]
                                         out.append([t,
                                                 servo.getPosition(False) / servo.getScaling(),
-                                                pwmSampleValues[int(t / 4.0)]])
+                                                pwmSampleValues[int(t / motorSettleTime)]])
 
                                     robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
@@ -4326,6 +4397,7 @@ class GuiWindow(Gtk.Window):
                                 nonlocal runThread
 
                                 nonlocal calibrationBox
+                                nonlocal motorSettleTimeScale
                                 nonlocal minPwmScale
                                 nonlocal maxPwmScale
                                 nonlocal recordingProgressBar
@@ -4337,6 +4409,7 @@ class GuiWindow(Gtk.Window):
                                     recordingProgressBar[1].set_fraction(0.0)
                                     testButton[1].set_sensitive(False)
                                     calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
+                                    motorSettleTimeScale[1].set_sensitive(False)
                                     minPwmScale[1].set_sensitive(False)
                                     maxPwmScale[1].set_sensitive(False)
 
@@ -4399,8 +4472,10 @@ class GuiWindow(Gtk.Window):
                                     classString = classPattern.search(configFileAsString).group(0)
 
                                     wrapAroundAndUnitPerRevPattern = re.compile(r'return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\(([^\)]*)\s*compVec\s*\)\s*;')
+
+                                    temp = wrapAroundAndUnitPerRevPattern.search(classString)
                                     
-                                    magneticEncoder = wrapAroundAndUnitPerRevPattern.search(classString).group(1) == 'EncoderHandler'
+                                    magneticEncoder = temp.group(1) == 'EncoderHandler'
                                     unitsPerRev = 4096
                                     if not magneticEncoder:
                                         paramStr = wrapAroundAndUnitPerRevPattern.search(classString).group(2)
@@ -4427,31 +4502,33 @@ class GuiWindow(Gtk.Window):
                                     dialog.destroy()
 
                                     if response == Gtk.ResponseType.YES:
-                                            classString = outputEncoderCalibrationGenerator.writeVectorToConfigClassString(classString)
+                                        classString = outputEncoderCalibrationGenerator.writeVectorToConfigClassString(classString)
 
-                                            if classString != '':
-                                                configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                                                with open("config/" + configName, "w") as configFile:
-                                                    configFile.write(configFileAsString)
-                                                    transferToTargetMessage()
-                                            else:
-                                                dialog = Gtk.MessageDialog(
-                                                        transient_for=self,
-                                                        flags=0,
-                                                        message_type=Gtk.MessageType.ERROR,
-                                                        buttons=Gtk.ButtonsType.OK,
-                                                        text='Configuration format error!',
-                                                )
-                                                dialog.format_secondary_text(
-                                                    "Please past in the new model manually"
-                                                )
-                                                box = dialog.get_message_area()
-                                                funEntry = Gtk.Entry()
-                                                funEntry.set_text(servoModel.getGeneratedModel())
-                                                box.add(funEntry)
-                                                box.show_all()
-                                                response = dialog.run()
-                                                dialog.destroy()
+                                        if classString != '':
+                                            configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                            with open("config/" + configName, "w") as configFile:
+                                                configFile.write(configFileAsString)
+                                                transferToTargetMessage()
+
+                                                return
+
+                                        dialog = Gtk.MessageDialog(
+                                                transient_for=self,
+                                                flags=0,
+                                                message_type=Gtk.MessageType.ERROR,
+                                                buttons=Gtk.ButtonsType.OK,
+                                                text='Configuration format error!',
+                                        )
+                                        dialog.format_secondary_text(
+                                            "Please past in the new compensation vector manually"
+                                        )
+                                        box = dialog.get_message_area()
+                                        vecEntry = Gtk.Entry()
+                                        vecEntry.set_text(outputEncoderCalibrationGenerator.getGeneratedModel())
+                                        box.add(vecEntry)
+                                        box.show_all()
+                                        response = dialog.run()
+                                        dialog.destroy()
 
                             def startCalibrationRun(nodeNr, port):
                                 nonlocal runThread
@@ -4469,6 +4546,8 @@ class GuiWindow(Gtk.Window):
                                         nonlocal threadMutex
 
                                         servo = robot.dcServoArray[nodeNr - 1]
+
+                                        servo.setOpenLoopControlSignal(0, True)
 
                                     out = []
 
@@ -4527,22 +4606,48 @@ class GuiWindow(Gtk.Window):
                                 nonlocal testButton
 
                                 if widget.get_label() == 'Start calibration':
+                                    configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+
+                                    with open("config/" + configName, "r") as configFile:
+                                        configFileAsString = configFile.read()
+
+                                        classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+                                        temp = classPattern.search(configFileAsString)
+                                        if temp != None:
+                                            classString = temp.group(0)
+
+                                            compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*([^\}]*)\s*\};')
+            
+                                            temp = compVecPattern.search(configClassString)
+                                            if temp != None:
+                                                if temp.group(3) != '0':
+                                                    dialog = Gtk.MessageDialog(
+                                                            transient_for=self,
+                                                            flags=0,
+                                                            message_type=Gtk.MessageType.ERROR,
+                                                            buttons=Gtk.ButtonsType.YES_NO,
+                                                            text='Output encoder calibration already done for this configuration!',
+                                                    )
+                                                    dialog.format_secondary_text(
+                                                        "Output encoder calibration only works on configurations without previous calibration.\n\nShould the calibration be reset?"
+                                                    )
+                                                    response = dialog.run()
+                                                    dialog.destroy()
+
+                                                    if response == Gtk.ResponseType.NO:
+                                                        return
+
+                                                    classString = re.sub(compVecPattern, r'\1{0};', classString)
+                                                    configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                                    with open("config/" + configName, "w") as configFile:
+                                                        configFile.write(configFileAsString)
+                                                        transferToTargetMessage()
+
+                                                    return
+
                                     widget.set_label('Abort calibration')
 
-                                    dialog = Gtk.MessageDialog(
-                                            transient_for=self,
-                                            flags=0,
-                                            message_type=Gtk.MessageType.INFO,
-                                            buttons=Gtk.ButtonsType.OK,
-                                            text='Start output encoder calibration',
-                                    )
-                                    dialog.format_secondary_text(
-                                        "Please connect the motor to the gearbox and move the servo-output-shaft "
-                                        "back and forth for 60 seconds over the whole range of motion, "
-                                        "with constant speed."
-                                    )
-                                    response = dialog.run()
-                                    dialog.destroy()
+                                    startManuallyCalibrationMessage('60 seconds')
 
                                     recordingProgressBar[1].set_fraction(0.0)
                                     calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
