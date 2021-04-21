@@ -329,7 +329,7 @@ void DCServo::controlLoop()
 
 void DCServo::calculateAndUpdateLVector()
 {
-    kalmanFilter->setFilterSpeed(controlSpeed * 4 * 4);
+    kalmanFilter->setFilterSpeed(controlSpeed * 4 * 20);
 
     const Eigen::Matrix3f& A = controlConfig->getA();
     const Eigen::Vector3f& B = controlConfig->getB();
