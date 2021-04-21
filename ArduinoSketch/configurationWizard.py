@@ -1426,7 +1426,7 @@ class ServoModel(object):
 
         return out
 
-class HighFrqPwmNonlinearityIdentifier(object):
+class PwmNonlinearityIdentifier(object):
     def __init__(self, data):
         self.data = data
 
@@ -1685,7 +1685,7 @@ class OutputEncoderCalibrationGenerator(object):
         box.show_all()
 
     def writeVectorToConfigClassString(self, configClassString):
-        compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{[\d\s,]*\};')
+        compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*[^\}]*\s*\};')
         
         temp = compVecPattern.search(configClassString)
         if temp != None:
@@ -1697,7 +1697,7 @@ class OutputEncoderCalibrationGenerator(object):
 
     def getGeneratedVector(self):
         out = ''
-        out += 'std::array<int16_t, 513 > aVec = ' + intArrayToString(self.meanList)
+        out += 'std::array<int16_t, 513 > compVec = ' + intArrayToString(self.meanList)
 
         return out
 
@@ -3787,7 +3787,7 @@ class GuiWindow(Gtk.Window):
                                 recordingProgressBar[1].set_fraction(fraction)
 
                             def handleResults(data):
-                                pwmNonlinearityIdentifier = HighFrqPwmNonlinearityIdentifier(data)
+                                pwmNonlinearityIdentifier = PwmNonlinearityIdentifier(data)
 
                                 configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
 
