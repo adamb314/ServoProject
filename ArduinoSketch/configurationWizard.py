@@ -886,8 +886,26 @@ class OpticalEncoderDataVectorGenerator:
         self.aVec = np.zeros(512)
         self.bVec = np.zeros(512)
 
-        nr = int((len(self.data) - constVelIndex) / segment)
-        self.data = self.data[0: nr * segment + constVelIndex]
+        filteredData = []
+        filterSeg = []
+        for d in data:
+            if len(filterSeg) < 10:
+                filterSeg.append([d[0], d[1]])
+            else:
+                cov = 0
+                s = filterSeg[0]
+                for e in filterSeg[1:]:
+                    cov += (e[0] - s[0])**2
+                    cov += (e[1] - s[1])**2
+
+                if cov > 10000:
+                    for d in filterSeg:
+                        filteredData.append(d)
+
+                filterSeg = []
+
+        nr = int((len(filteredData) - constVelIndex) / segment)
+        self.data = np.array(filteredData[0: nr * segment + constVelIndex])
 
         actNr = 0
         for i in range(0, nr):
@@ -895,14 +913,18 @@ class OpticalEncoderDataVectorGenerator:
                 if self.shouldAbort():
                     return
 
-            aVecShrunk, bVecShrunk, aVec, bVec = self.genVec(constVelIndex + segment * i, constVelIndex + segment * (i + 1))
-            self.aVec += aVecShrunk
-            self.bVec += bVecShrunk
+            try:
+                aVecShrunk, bVecShrunk, aVec, bVec = self.genVec(constVelIndex + segment * i, constVelIndex + segment * (i + 1))
+                self.aVec += aVecShrunk
+                self.bVec += bVecShrunk
 
-            self.aVecList.append(aVec)
-            self.bVecList.append(bVec)
+                self.aVecList.append(aVec)
+                self.bVecList.append(bVec)
 
-            actNr += 1
+                actNr += 1
+                time.sleep(0.1)
+            except Exception as e:
+                print(format(e))
 
         if actNr == 0:
             raise Exception('Not enough data')
