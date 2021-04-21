@@ -2,6 +2,6 @@
 ArduinoSketch/enableAutoUpload
 ..*
 *.sublime-workspace
-ArduinoSketch/config/config.h
+ArduinoSketch/config/*
 PcbDesignes/**/*-cache*
 PcbDesignes/**/*.sch-bak
