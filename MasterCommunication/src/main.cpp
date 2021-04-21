@@ -78,27 +78,27 @@ public:
         dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 0.950301, 0);
         dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, -2.042107923, pi / 2);
         dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, 1.0339, pi / 2);
-        dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, -1.47531, 0.0);
-        dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 1.23394, 0.0);
-        dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -1.45191, 0.0);
+        dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, -1.47531 + 0.242229, 0.0);
+        dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 1.23394 + 0.393326, 0.0);
+        dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -1.45191 + 0.191361, 0.0);
 
-        dcServoArray[0].setControlSpeed(20);
-        dcServoArray[0].setBacklashControlSpeed(8, 3.0, 0.00);
+        dcServoArray[0].setControlSpeed(10);
+        dcServoArray[0].setBacklashControlSpeed(10, 3.0, 0.00);
         dcServoArray[0].setFrictionCompensation(0);
         dcServoArray[1].setControlSpeed(20);
-        dcServoArray[1].setBacklashControlSpeed(8, 3.0, 0.00);
+        dcServoArray[1].setBacklashControlSpeed(10, 3.0, 0.00);
         dcServoArray[1].setFrictionCompensation(0);
-        dcServoArray[2].setControlSpeed(20);
-        dcServoArray[2].setBacklashControlSpeed(8, 3.0, 0.00);
+        dcServoArray[2].setControlSpeed(10);
+        dcServoArray[2].setBacklashControlSpeed(10, 3.0, 0.00);
         dcServoArray[2].setFrictionCompensation(0);
-        dcServoArray[3].setControlSpeed(16);
-        dcServoArray[3].setBacklashControlSpeed(3, 3.0, 0.0);
+        dcServoArray[3].setControlSpeed(20);
+        dcServoArray[3].setBacklashControlSpeed(10, 3.0, 0.0);
         dcServoArray[3].setFrictionCompensation(0);
-        dcServoArray[4].setControlSpeed(16);
-        dcServoArray[4].setBacklashControlSpeed(3, 3.0, 0.0);
+        dcServoArray[4].setControlSpeed(20);
+        dcServoArray[4].setBacklashControlSpeed(10, 3.0, 0.0);
         dcServoArray[4].setFrictionCompensation(0);
-        dcServoArray[5].setControlSpeed(16);
-        dcServoArray[5].setBacklashControlSpeed(3, 3.0, 0.0);
+        dcServoArray[5].setControlSpeed(20);
+        dcServoArray[5].setBacklashControlSpeed(10, 3.0, 0.0);
         dcServoArray[5].setFrictionCompensation(0);
 
         gripperServo.setOffsetAndScaling(pi / 1900.0, 0.0, 0.0);
@@ -320,15 +320,15 @@ void playPath(Robot& robot,
 
             EigenVectord6 velJ;
             std::transform(std::cbegin(servos), std::cend(servos), std::begin(velJ),
-                    [](const auto& c){return c.getVelocity();});
+                    [](const auto& c){return c.getBacklashCompensation();});
 
             EigenVectord6 erroJ;
             std::transform(std::cbegin(servos), std::cend(servos), std::begin(erroJ),
-                    [](const auto& c){return c.getControlError();});
+                    [](const auto& c){return c.getControlError(true);});
 
             EigenVectord6 controlSignal;
             std::transform(std::cbegin(servos), std::cend(servos), std::begin(controlSignal),
-                    [](const auto& c){return c.getControlSignal();});
+                    [](const auto& c){return c.getControlError(false);});
 
             JointSpaceCoordinate tempJ{posJ};
             CartesianCoordinate tempC{tempJ};
@@ -420,17 +420,18 @@ void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time, st
 {
     bool doneRunning = false;
 
-    auto sendCommandHandlerFunction = [&i, &pwm](double dt, Robot* robot)
+    double t = 0;
+
+    auto sendCommandHandlerFunction = [&i, &pwm, &t](double dt, Robot* robot)
         {
             auto& servos = robot->dcServoArray;
 
             if (pwm != 0.0)
             {
-                servos[i].setOpenLoopControlSignal(pwm, true);
+                servos[i].setOpenLoopControlSignal(std::min(pwm, static_cast<float>(t * pwm)), true);
             }
         };
 
-    double t = 0;
     auto readResultHandlerFunction = [&t, &doneRunning, &i, time, &outStream](double dt, Robot* robot)
         {
             t += dt;
@@ -439,7 +440,13 @@ void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time, st
             outStream << opticalEncoderData.a << ", " 
                       << opticalEncoderData.b << ", "
                       << opticalEncoderData.minCostIndex << ", "
-                      << opticalEncoderData.minCost << "\n";
+                      << opticalEncoderData.minCost << ", "
+                      << servos[i].getVelocity() / servos[i].getScaling() << "\n";
+
+            if (true)
+            {
+                std::cout << static_cast<int>(100 * t / time) << "%\r";
+            }
 
             if (t >= time)
             {
@@ -717,11 +724,13 @@ int main(int argc, char* argv[])
     po::options_description options("Allowed options");
     options.add_options()
         ("servoNr", po::value<int>(), "servo nr")
+        ("amp", po::value<double>(), "amplitude for recMomentOfInertia")
+        ("frq", po::value<double>(), "frequency for recMomentOfInertia")
         ("pwmAmp", po::value<int>(), "pwm amplitude for recOpticalEncoder and recSystemIdentData")
         ("fricPwmAmp", po::value<int>(), "pwm amplitude to overcome friction")
-        ("recOpticalEncoder", "recorde optical encoder data of given servo")
-        ("recSystemIdentData", "recorde system ident data of given servo")
-        ("recMomentOfInertia", "recorde moment of inertia data of given servo")
+        ("recOpticalEncoder", "record optical encoder data of given servo")
+        ("recSystemIdentData", "record system ident data of given servo")
+        ("recMomentOfInertia", "record moment of inertia data of given servo")
         ("playPath", "play the path defined in createPath()")
         ("output", po::value<std::string>(), "data output file")
         ("simulate", "simulate servos");
@@ -744,13 +753,25 @@ int main(int argc, char* argv[])
         servoNr = vm["servoNr"].as<int>();
     }
 
+    double amp = -1.0;
+    if (vm.count("amp"))
+    {
+        amp = vm["amp"].as<double>();
+    }
+
+    double frq = -1.0;
+    if (vm.count("frq"))
+    {
+        frq = vm["frq"].as<double>();
+    }
+
     int pwmAmp = -1;
     if (vm.count("pwmAmp"))
     {
         pwmAmp = vm["pwmAmp"].as<int>();
     }
 
-    int fricPwmAmp = 0;
+    int fricPwmAmp = -1;
     if (vm.count("fricPwmAmp"))
     {
         fricPwmAmp = vm["fricPwmAmp"].as<int>();
@@ -786,11 +807,13 @@ int main(int argc, char* argv[])
     }
 
     double comCycleTime = 0.018;
-    std::array<bool, 6> servoSimulated{{false, false, false, false, false, false}};
-    if (servoNr != -1 &&
-        vm.count("recSystemIdentData") == false)
+    std::array<bool, 7> servoSimulated{{false, false, false, false, false, false, true}};
+    if (servoNr != -1)
     {
-        comCycleTime = 0.004;
+        if (vm.count("recSystemIdentData") == false)
+        {
+            comCycleTime = 0.004;
+        }
         servoSimulated.fill(true);
         servoSimulated[servoNr - 1] = false;
     }
@@ -802,10 +825,10 @@ int main(int argc, char* argv[])
         {
             if (pwmAmp == -1)
             {
-                pwmAmp = 20;
-                std::cout << "no pwmAmp given, using default value " << pwmAmp << "\n";
+                std::cout << "pwmAmp = ?\n";
+                std::cin >> pwmAmp;
             }
-            recordeOpticalEncoderData(robot, std::max(servoNr - 1, 0), pwmAmp, 100, *outStream);
+            recordeOpticalEncoderData(robot, std::max(servoNr - 1, 0), pwmAmp, 200, *outStream);
         }
         else
         {
@@ -818,8 +841,13 @@ int main(int argc, char* argv[])
         {
             if (pwmAmp == -1)
             {
-                pwmAmp = 200;
-                std::cout << "no pwmAmp given, using default value " << pwmAmp << "\n";
+                std::cout << "pwmAmp = ?\n";
+                std::cin >> pwmAmp;
+            }
+            if (fricPwmAmp == -1)
+            {
+                std::cout << "fricPwmAmp = ?\n";
+                std::cin >> fricPwmAmp;
             }
             recordeSystemIdentData(robot, std::max(servoNr - 1, 0), pwmAmp, fricPwmAmp, *outStream);
         }
@@ -832,7 +860,17 @@ int main(int argc, char* argv[])
     {
         if (servoNr != -1)
         {
-            recordeMomentOfInertia(robot, std::max(servoNr - 1, 0), 0.05, 4, *outStream);
+            if (amp == -1.0)
+            {
+                std::cout << "amp = ?\n";
+                std::cin >> amp;
+            }
+            if (frq < 0.0)
+            {
+                std::cout << "frq = ?\n";
+                std::cin >> frq;
+            }
+            recordeMomentOfInertia(robot, std::max(servoNr - 1, 0), amp, frq, *outStream);
         }
         else
         {

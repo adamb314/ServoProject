@@ -10,7 +10,7 @@ namespace RobotParameters
     const double scalarGravity = 9.81;
     const EigenVectord3 gravity{scalarGravity * ez};
 
-    const EigenVectord3 s1Translation{(0.015 - 0.011) * ex};
+    const EigenVectord3 s1Translation{(0.015 - 0.014) * ex};
     const EigenVectord3 s1RotationAxis{ez};
     EigenMatrixd3 s1Rotation(double rad)
     {
@@ -54,7 +54,7 @@ namespace RobotParameters
         return out;
     }
 
-    const double s5TranslationLength{0.020 + 0 * 0.062 + 0.0475};
+    const double s5TranslationLength{0.020 + 0.055 - 0.0265};
     const EigenVectord3 s5Translation{-s5TranslationLength * ey};
     const EigenVectord3 s5RotationAxis{-ex};
     EigenMatrixd3 s5Rotation(double rad)
@@ -66,7 +66,7 @@ namespace RobotParameters
         return out;
     }
 
-    const EigenVectord3 s6Translation{-(0.054) * ez};
+    const EigenVectord3 s6Translation{-(0.029 / 2 + 0.020) * ez};
     const EigenVectord3 s6ZeroRotationDir{-ez};
     const EigenVectord3 s6RotationAxis{ey};
     EigenMatrixd3 s6Rotation(double rad)
