@@ -1566,6 +1566,11 @@ class OutputEncoderCalibrationGenerator(object):
 
         minPos = min(self.data[:, 1])
         maxPos = max(self.data[:, 1])
+        minDiff = min(self.data[:, 2])
+        maxDiff = max(self.data[:, 2])
+
+        self.meanCompSlope = abs(maxDiff - minDiff) / abs(maxPos - minPos)
+
         posListSize = int(4096 / 8)
         if not wrapAround:
             posListSize += 1
@@ -1669,6 +1674,8 @@ class OutputEncoderCalibrationGenerator(object):
         self.data[:, 2] -= np.mean(self.meanList)
         self.meanList -= np.mean(self.meanList)
 
+    def isInverted(self):
+        return self.meanCompSlope > 1.5
 
     def plotGeneratedVector(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
@@ -1701,6 +1708,18 @@ class OutputEncoderCalibrationGenerator(object):
         out += 'std::array<int16_t, 513 > compVec = ' + intArrayToString(self.meanList)
 
         return out
+
+    def invertOutputEncoder(self, configClassString):
+        unitPerRevPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*\w*\s*>\s*\([^,]*,\s*)([^,]*)(,\s*compVec\s*\)\s*;)')
+
+        temp = unitPerRevPattern.search(configClassString)
+
+        if temp != None:
+            configClassString = re.sub(unitPerRevPattern, r'\1-(\3)\4', configClassString)
+        
+            return configClassString
+
+        return ''
 
 
 import os
@@ -4512,6 +4531,46 @@ class GuiWindow(Gtk.Window):
                                         unitsPerRev = eval(paramStr)
 
                                     outputEncoderCalibrationGenerator = OutputEncoderCalibrationGenerator(data, magneticEncoder, unitsPerRev)
+
+                                    if outputEncoderCalibrationGenerator.isInverted():
+                                        dialog = Gtk.MessageDialog(
+                                                transient_for=self,
+                                                flags=0,
+                                                message_type=Gtk.MessageType.INFO,
+                                                buttons=Gtk.ButtonsType.YES_NO,
+                                                text='Output encoder needs to be inverted',
+                                        )
+                                        dialog.format_secondary_text(
+                                            "Should the output encoder be inverted in the configuration?"
+                                        )
+                                        response = dialog.run()
+                                        dialog.destroy()
+
+                                        if response == Gtk.ResponseType.YES:
+                                            classString = outputEncoderCalibrationGenerator.invertOutputEncoder(classString)
+
+                                            if classString != '':
+                                                configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                                with open("config/" + configName, "w") as configFile:
+                                                    configFile.write(configFileAsString)
+                                                    transferToTargetMessage()
+
+                                                    return
+
+                                            dialog = Gtk.MessageDialog(
+                                                    transient_for=self,
+                                                    flags=0,
+                                                    message_type=Gtk.MessageType.ERROR,
+                                                    buttons=Gtk.ButtonsType.OK,
+                                                    text='Configuration format error!',
+                                            )
+                                            dialog.format_secondary_text(
+                                                "Please invert the output encoder manually"
+                                            )
+                                            response = dialog.run()
+                                            dialog.destroy()
+
+                                            return
 
                                     dialog = Gtk.MessageDialog(
                                             transient_for=self,
