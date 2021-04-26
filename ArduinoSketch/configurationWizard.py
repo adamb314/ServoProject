@@ -1055,10 +1055,15 @@ class OpticalEncoderDataVectorGenerator:
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
+        labelStr = 'Red is channel A and green is channel B. A good result\nis indicated by all points cohering to a smooth curve.'
+        
         for d in zip(self.aVecList, self.bVecList):
             x = np.arange(len(d[0])) * len(self.aVec) / len(d[0])
-            ax.plot(x, d[0], ',')
-            ax.plot(x, d[1], ',')
+            ax.plot(x, d[0], 'r,')
+            ax.plot(x, d[1], 'g,')
+
+        ax.plot(self.aVec, 'r-')
+        ax.plot(self.bVec, 'g-')
 
         if oldAVec != None and oldBVec != None:
             oldAVec, oldBVec = aligneTo(oldAVec, oldBVec, self.aVec, self.bVec)
@@ -1066,12 +1071,21 @@ class OpticalEncoderDataVectorGenerator:
             ax.plot(oldAVec, 'm-')
             ax.plot(oldBVec, 'c-')
 
-        ax.plot(self.aVec, 'r-')
-        ax.plot(self.bVec, 'g-')
+            labelStr += '\nMagenta and cyan curves are old channel A and channel B.'
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
         box.add(canvas)
+
+
+        label = Gtk.Label(label=labelStr)
+        label.set_use_markup(True)
+        label.set_margin_start(30)
+        label.set_margin_end(50)
+        label.set_margin_top(8)
+        label.set_margin_bottom(10)
+        label.set_xalign(0.0)
+        box.add(label)
 
         box.show_all()
 
@@ -1231,6 +1245,15 @@ class SystemIdentificationObject:
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
         box.add(canvas)
+
+        label = Gtk.Label(label='Blue curve is real system and black is model. A good result\nis indicated by the black curve resembling the blue.')
+        label.set_use_markup(True)
+        label.set_margin_start(30)
+        label.set_margin_end(50)
+        label.set_margin_top(8)
+        label.set_margin_bottom(10)
+        label.set_xalign(0.0)
+        box.add(label)
 
         box.show_all()
 
