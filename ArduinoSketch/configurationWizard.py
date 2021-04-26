@@ -2,6 +2,7 @@
 import numpy as np
 import scipy.signal
 import math
+import random
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_gtk3agg import (
     FigureCanvasGTK3Agg as FigureCanvas)
@@ -186,8 +187,8 @@ class SimulateCommunication(SerialCommunication):
 
                 self.pos += dt * self.vel
 
-                self.intArray[12] = (1 + math.sin(self.pos)) * 2000
-                self.intArray[13] = (1 + math.cos(self.pos)) * 2000
+                self.intArray[12] = (1 + math.sin(self.pos)) * 1000 + 1000 + random.random() * 15
+                self.intArray[13] = (1 + math.cos(self.pos)) * 1000 + 1000 + random.random() * 15
 
                 self.intArray[3] = self.pos
                 self.intArray[10] = self.pos
