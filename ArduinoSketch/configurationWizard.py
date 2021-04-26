@@ -4703,7 +4703,7 @@ class GuiWindow(Gtk.Window):
 
                                             compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*([^\}]*)\s*\};')
             
-                                            temp = compVecPattern.search(configClassString)
+                                            temp = compVecPattern.search(classString)
                                             if temp != None:
                                                 if temp.group(3) != '0':
                                                     dialog = Gtk.MessageDialog(
