@@ -1452,7 +1452,7 @@ class PwmNonlinearityIdentifier(object):
                 ampSum = 0
                 ampSumNr = 0
 
-            if d[0] - startOfPwmValue > 1:
+            if d[0] - startOfPwmValue > 2.0:
                 ampSum += d[1]**2
                 ampSumNr += 1
 
@@ -3889,18 +3889,43 @@ class GuiWindow(Gtk.Window):
                             def startCalibrationRun(nodeNr, port):
                                 nonlocal runThread
                                 nonlocal threadMutex
+                                nonlocal maxOscillationFrq
+                                nonlocal maxPwmValue
 
                                 try:
                                     robot = createRobot(nodeNr, port)
 
-                                    temp = [v for v in range(0, int(midPwmValue), 25)]
-                                    temp = np.array(temp) / temp[-1] * midPwmValue
-                                    temp2 = [v for v in range(0, int(maxPwmValue - midPwmValue), 100)]
-                                    temp2 = np.array(temp2) / temp2[-1] * (maxPwmValue - midPwmValue)
-                                    temp2 += np.ones(len(temp2)) * midPwmValue
-                                    pwmSampleValues = np.append(temp[1:], temp2[1:])
+                                    with threadMutex:
+                                        highResStep = min(25, int(midPwmValue / 10.0))
+                                        temp = [v for v in range(0, int(midPwmValue), highResStep)]
+                                        print(temp)
+                                        temp = np.array(temp)
+                                        temp += highResStep
+                                        temp = temp / temp[-1] * midPwmValue
+
+                                        temp2 = [v for v in range(0, int(maxPwmValue - midPwmValue), 100)]
+                                        temp2 = np.array(temp2)
+                                        temp2 += 100
+                                        temp2 = temp2 / temp2[-1] * (maxPwmValue - midPwmValue)
+                                        temp2 += midPwmValue
+                                        pwmSampleValues = np.append(temp, temp2)
+
+                                        temp = []
+                                        for v in pwmSampleValues:
+                                            frq = v / maxPwmValue * maxOscillationFrq
+
+                                            sampleTime = max(4.0, 2.0 + 10 / frq)
+
+                                            i = 0
+                                            while i < sampleTime:
+                                                i += 1
+                                                temp.append(v)
+
+                                        pwmSampleValues = np.array(temp)
+                                        print(pwmSampleValues)
 
                                     t = 0.0
+                                    runTime = 6.0
                                     doneRunning = False
 
                                     def sendCommandHandlerFunction(dt, robot):
@@ -3915,8 +3940,8 @@ class GuiWindow(Gtk.Window):
                                         servo = robot.dcServoArray[nodeNr - 1]
 
                                         pwmAmp = 0.0
-                                        if int(t / 3.0) < len(pwmSampleValues):
-                                            pwmAmp = pwmSampleValues[int(t / 3.0)]
+                                        if int(t) < len(pwmSampleValues):
+                                            pwmAmp = pwmSampleValues[int(t)]
                                         else:
                                             return
 
@@ -3924,7 +3949,7 @@ class GuiWindow(Gtk.Window):
                                         with threadMutex:
                                             frq = pwmAmp / maxPwmValue * maxOscillationFrq
 
-                                        GLib.idle_add(updateRecordingProgressBar, (t / 3.0) / len(pwmSampleValues))
+                                        GLib.idle_add(updateRecordingProgressBar, t / len(pwmSampleValues))
 
                                         pwm = pwmAmp * math.sin(frq * 2 * pi * t)
                                         servo.setOpenLoopControlSignal(pwm, True)
@@ -3941,7 +3966,7 @@ class GuiWindow(Gtk.Window):
                                         nonlocal pwmSampleValues
                                         nonlocal lastPosition
 
-                                        stop = int(t / 3.0) >= len(pwmSampleValues)
+                                        stop = int(t) >= len(pwmSampleValues)
                                         with threadMutex:
                                             if runThread == False:
                                                 stop = True
@@ -3958,7 +3983,7 @@ class GuiWindow(Gtk.Window):
                                         if lastPosition == None:
                                             lastPosition = position
 
-                                        out.append([t, (position - lastPosition) / dt, pwmSampleValues[int(t / 3.0)]])
+                                        out.append([t, (position - lastPosition) / dt, pwmSampleValues[int(t)]])
 
                                         lastPosition = position
 
