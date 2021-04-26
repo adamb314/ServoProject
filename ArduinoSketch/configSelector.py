@@ -66,9 +66,10 @@ class ConfigSelectWindow(Gtk.Window):
         path = "config"
         for filename in os.listdir(path):
             ipath = path + "/" + filename
-            if not os.path.isdir(ipath) and not filename == "config.h":
+            if not os.path.isdir(ipath) and not filename == "config.h" and filename[-2:] == '.h':
                 configs.append(filename)
 
+        configs.sort()
         return configs
 
     def getSelectedConfigurationName(self):
