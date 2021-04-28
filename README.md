@@ -1,9 +1,8 @@
-
 # ServoProject
+by Adam Bäckström
+### Getting the most out of your hobby servo
 
 ![Robot](readmeResources/robot.jpg)
-
-#### Getting the most out of your hobby servo
 
 Theory
 ------
@@ -14,7 +13,7 @@ The control system of a regular hobby servo looks something like this:
 
 This control scheme is good at holding and moving fast between position, but not so good at following a smooth predefined motion. Which is what you want when you build a robot.
 
-Industrial servo controllers uses a cascade based control scheme insted, which looks something more like this:
+Industrial servo controllers use a cascade based control scheme instead, which looks something like this:
 
 ![loop2](readmeResources/ControlLoop2.png)
 
@@ -33,11 +32,11 @@ Project structure
 
 ### ArduinoSketch
 
-Holds the the Arduino project for the Adafruit ItsyBitsy M0 Express boards.
+This folder contains the Arduino project for the Adafruit ItsyBitsy M0 Express boards.
 
-When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` and the `configurationWizard.py` scripts can be used to to simplify the config selecting process by giving a dropdown list with all configs in the config folder.
+When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` and the `configurationWizard.py` scripts can be used to to simplify the config selecting process by giving a drop-down list with all configs in the config folder.
 
-The folder also holds a Makefile which can be used to compile and transfer the project. One benefit of using the make file is that the configSelector script always is executed prior to compiling. To be able to use the Makefile you most first install arduino-cli.
+The folder also holds a Makefile which can be used to compile and transfer the project. One benefit of using the Makefile is that the configSelector script always is executed prior to compiling. To be able to use the Makefile you must first install arduino-cli.
 
 #### Setup
 
@@ -47,7 +46,7 @@ The folder also holds a Makefile which can be used to compile and transfer the p
 
 ![setupStep2](readmeResources/arduinoSetup/step2.png)
 
-2) Make the new configuration the active configuration by selecting it in the dropdown and transfer the project to the microcontroller. Either with the Arduino IDE or the make script.
+2) Make the new configuration the active configuration by selecting it in the drop-down and transfer the project to the microcontroller. Either with the Arduino IDE or the make script.
 
 ![setupStep3](readmeResources/arduinoSetup/step3.png)
 
@@ -79,9 +78,9 @@ Allowed options:
 
 Obsolete options:
   --servoNr arg         servo nr
-  --recOpticalEncoder   recorde optical encoder data of given servo
-  --recSystemIdentData  recorde system ident data of given servo
-  --recMomentOfInertia  recorde moment of inertia data of given servo
+  --recOpticalEncoder   record optical encoder data of given servo
+  --recSystemIdentData  record system ident data of given servo
+  --recMomentOfInertia  record moment of inertia data of given servo
   --amp                 amplitude for recMomentOfInertia
   --frq                 frequency for recMomentOfInertia
   --pwmAmp              pwm amplitude for recOpticalEncoder and recSystemIdentData
@@ -98,7 +97,7 @@ to start robot movement and update plots.
 
 ### USB_To_Serial
 
-Basic Arduino project to turn an arm based Arduino into a fast usb-to-serial-converter. The resulting communication delay becomes much lower than FTDI based converters. This is important since the master has to be able to send and receive from all six communication slaves every 18 ms. 
+Basic Arduino project to turn an arm based Arduino into a fast usb-to-serial-converter. The resulting communication delay becomes much lower than FTDI based converters. This is important since the master has to be able to send and receive from all six servos every 18 ms. 
 
 ### CadFiles
 
@@ -221,10 +220,10 @@ CadFiles/Robot
 
 #### Build MainPcb and AS5048aEncoderBoard
 
-A video of how to build the MainPcb and AS5048aEncoderBoard can be found at https://youtu.be/YQpAAr5RPSE?t=60.
+A video on how to build the MainPcb and AS5048aEncoderBoard can be found at https://youtu.be/YQpAAr5RPSE?t=60.
 This video is for an older version but the building instructions are the same.
 
-#### Servo gearbox with 3D prited parts
+#### Servo gearbox with 3D printed parts
 
 | <img width="500px" src="readmeResources/fullSizeServo/parts2.png"> | 
 | --- |
@@ -252,7 +251,7 @@ This video is for an older version but the building instructions are the same.
 | <img width="300px" src="readmeResources/fullSizeServo/OptEncBuild/step4.jpg"> | <img width="300px" src="readmeResources/fullSizeServo/OptEncBuild/step5_1.jpg"> | <img width="300px" src="readmeResources/fullSizeServo/OptEncBuild/step5_2.jpg"> |
 | --- | --- | --- |
 
-2) Remove the two steel brushes from the lid carefully by cutting the lid into pieces. Take the 3D printed motor lid and Insert the two steel brushes and two ITR8307 into the new lid. Solder the ITR8307 according to:
+2) Remove the two steel brushes from the lid carefully by cutting the lid into pieces. Take the 3D printed motor lid and insert the two steel brushes and two ITR8307 into the new lid. Solder the ITR8307 according to:
 ```
 PcbDesignes/Servo/OpticalEncoder/OpticalEncoder.sch
 ```
@@ -317,7 +316,7 @@ Then carefully put the new lid on the motor without bending the steel brushes.
 | <img width="300px" src="readmeResources/microServoBuild/4_sensorsWiring2.png"> | <img width="300px" src="readmeResources/microServoBuild/4_sensorsWiring3.png"> | <img width="300px" src="readmeResources/microServoBuild/4_sensorsWiring4.png"> |
 | --- | --- | --- |
 
-9) Solder together the potentiometers and the optical encoders 3.3V and GND while soldering on a 5 wire flat cable to the assembly. Connect the third wire of the flat cable to the potentiometer sens wire and connect the fourth and fifth to the IR sensors third pin. This wires up the flat cable so that from right to left we have: 3.3V, GND, output shaft potentiometer, optical encoder channel A and lastly channel B.
+9) Connect the potentiometers 3.3V and ground to the optical encoder sensors while soldering on a 5 wire flat cable to the assembly. Then connect the third wire of the flat cable to the potentiometer sens wire and connect the fourth and fifth wires to the IR sensors third pin. This wires up the flat cable so that from right to left we have: 3.3V, GND, output shaft potentiometer, optical encoder channel A and lastly channel B.
 
 | <img width="300px" src="readmeResources/microServoBuild/5_mounting1.png"> | <img width="300px" src="readmeResources/microServoBuild/5_mounting2.png"> | <img width="300px" src="readmeResources/microServoBuild/5_mounting3.png"> |
 | --- | --- | --- |
