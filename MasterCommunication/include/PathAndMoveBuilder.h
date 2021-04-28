@@ -10,18 +10,24 @@
 class VelocityLimiter
 {
 public:
-    VelocityLimiter(const double& velocity, const EigenVectord6& selector = EigenVectord6::Ones());
+    VelocityLimiter(const double& velocity, const EigenVectord6& selector = EigenVectord6::Ones(),
+            const double& distFromBendAcc = 0.0);
 
-    void add(const double& velocity, const EigenVectord6& selector);
+    void add(const double& velocity, const EigenVectord6& selector = EigenVectord6::Ones(),
+            const double& distFromBendAcc = 0.0);
 
-    double getLimit(const EigenVectord6& moveDir) const;
+    void setMoveDir(const EigenVectord6& moveDir);
+
+    double getLimit(const double& distFromBend = 0.0) const;
 
 private:
     class Zip
     {
     public:
-        double velocity{0};
+        double velocity{0.0};
+        double distFromBendAcc{0.0};
         EigenVectord6 selector{EigenVectord6::Ones()};
+        double selectorScalingResult{1.0};
     };
 
     std::vector<Zip> limits;
@@ -189,18 +195,18 @@ class JointSpaceLinearPath : public PathObjectInterface
 {
 public:
     static std::unique_ptr<JointSpaceLinearPath> create(const JointSpaceCoordinate& pos,
-            VelocityLimiter velocityLimiterForLink,
-            VelocityLimiter velocityLimiterAtBend,
+            VelocityLimiter velocityLimiter,
+            VelocityLimiter velocityLimiterAtEnd,
             std::shared_ptr<DeviationLimiter> deviationLimiter);
 
     static std::unique_ptr<JointSpaceLinearPath> create(const EigenVectord6& pos,
-            VelocityLimiter velocityLimiterForLink,
-            VelocityLimiter velocityLimiterAtBend,
+            VelocityLimiter velocityLimiter,
+            VelocityLimiter velocityLimiterAtEnd,
             std::shared_ptr<DeviationLimiter> deviationLimiter);
 
     JointSpaceLinearPath(const EigenVectord6& pos,
-            VelocityLimiter velocityLimiterForLink,
-            VelocityLimiter velocityLimiterAtBend,
+            VelocityLimiter velocityLimiter,
+            VelocityLimiter velocityLimiterAtEnd,
             std::shared_ptr<DeviationLimiter> deviationLimiter);
 
     virtual ~JointSpaceLinearPath() = default;
@@ -208,7 +214,7 @@ public:
     class Iterator : public PathObjectInterface::IteratorInterface
     {
     public:
-        Iterator(const void* id);
+        Iterator(const JointSpaceLinearPath* parent);
 
         Iterator(const Iterator& in);
 
@@ -217,10 +223,19 @@ public:
         virtual PathObjectInterface::BendItem getBendItem();
 
         virtual void stepImp();
-        
+
         virtual std::unique_ptr<IteratorInterface> makeCopy();
 
     private:
+        void init();
+
+        void updateCurrentBendItem();
+
+        const JointSpaceLinearPath* parent;
+        double requestedVel;
+        double requestedVelAtEnd;
+        double t;
+        double stepSize;
         PathObjectInterface::BendItem bendItem;
 
         friend class JointSpaceLinearPath;
@@ -234,9 +249,10 @@ private:
     virtual void setStart(const EigenVectord6& pos);
 
     JointSpaceCoordinate startPos;
+    JointSpaceCoordinate endPos;
     VelocityLimiter velocityLimiter;
     VelocityLimiter velocityLimiterAtEnd;
-    PathObjectInterface::BendItem bendItem;
+    std::shared_ptr<DeviationLimiter> deviationLimiter;
 };
 
 class CartesianSpaceLinearPath : public PathObjectInterface

@@ -8,7 +8,8 @@
 class SerialComOptimizer
 {
 public:
-    SerialComOptimizer(Stream* serial);
+    SerialComOptimizer(Stream* serial, Stream* secSerial = nullptr);
+    SerialComOptimizer(const SerialComOptimizer& in);
 
     ~SerialComOptimizer();
 
@@ -24,6 +25,7 @@ public:
 
 private:
     Stream* serial;
+    std::array<Stream*, 2> serialVec{{nullptr}};
 
     std::array<uint8_t, 32> readBuffer;
     std::array<uint8_t, 32>::iterator readBufferGetIt;

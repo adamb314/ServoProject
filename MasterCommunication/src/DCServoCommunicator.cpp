@@ -19,28 +19,49 @@ void DCServoCommunicator::setOffsetAndScaling(double scale, double offset, doubl
 {
 	this->scale = scale;
 	this->offset = offset;
+    this->startPosition = startPosition;
 
     if (isInitComplete())
     {
-        float pos = getPosition() / scale;
-        startPosition /= scale;
-
-        if (pos - startPosition > (2048 / 2))
-        {
-            this->offset -= (4096 / 2) * scale;
-        }
-        else if (pos - startPosition < -(2048 / 2))
-        {
-            this->offset += (4096 / 2) * scale;
-        }
+        updateOffset();
     }
 }
 
-void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed, unsigned char backlashCompensationSpeed)
+void DCServoCommunicator::updateOffset()
+{
+    float pos = getPosition() / scale;
+    startPosition /= scale;
+
+    if (pos - startPosition > (2048 / 2))
+    {
+        offset -= (4096 / 2) * scale;
+    }
+    else if (pos - startPosition < -(2048 / 2))
+    {
+        offset += (4096 / 2) * scale;
+    }
+}
+
+void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed)
 {
     this->controlSpeed = controlSpeed;
-    this->backlashCompensationSpeed = backlashCompensationSpeed;
 }
+
+void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
+            double backlashCompensationCutOffSpeed,
+            double backlashSize)
+{
+    this->backlashCompensationSpeed = backlashCompensationSpeed;
+    this->backlashCompensationSpeedVelDecrease = static_cast<unsigned char>(std::min(255.0,
+            255 * 10 / (backlashCompensationCutOffSpeed / std::abs(scale))));
+    this->backlashSize = static_cast<unsigned char>(backlashSize / std::abs(scale));
+}
+
+void DCServoCommunicator::setFrictionCompensation(double fricComp)
+{
+    this->frictionCompensation = fricComp;
+}
+
 
 void DCServoCommunicator::disableBacklashControl(bool b)
 {
@@ -63,7 +84,16 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     newOpenLoopControlSignal = false;
     refPos = (pos - offset) / scale * positionUpscaling;
     refVel = vel / scale;
-    this->feedforwardU = feedforwardU;
+
+    if (refVel > 4)
+    {
+        frictionCompensation = std::abs(frictionCompensation);
+    }
+    else if (refVel < -4)
+    {
+        frictionCompensation = -std::abs(frictionCompensation);
+    }
+    this->feedforwardU = feedforwardU + frictionCompensation;
 }
 
 void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)
@@ -231,6 +261,8 @@ void DCServoCommunicator::run()
 
         bus->write(3, static_cast<char>(controlSpeed));
         bus->write(4, static_cast<char>(backlashCompensationSpeed));
+        bus->write(5, static_cast<char>(backlashCompensationSpeedVelDecrease));
+        bus->write(6, static_cast<char>(backlashSize));
     }
 
     communicationIsOk = bus->execute();
@@ -278,7 +310,7 @@ void DCServoCommunicator::run()
         opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
         opticalEncoderChannelData.minCost = intReadBuffer[15];
 
-        if (initState < 10)
+        if (!isInitComplete())
         {
             ++initState;
 
@@ -297,6 +329,11 @@ void DCServoCommunicator::run()
             activeRefPos[2] = activeRefPos[1];
             activeRefPos[3] = activeRefPos[2];
             activeRefPos[4] = activeRefPos[3];
+
+            if (isInitComplete())
+            {
+                updateOffset();
+            }
         }
     }
 }

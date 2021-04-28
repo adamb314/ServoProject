@@ -1,22 +1,8 @@
 #include "Communication.h"
 
-Communication::Communication(Stream* serial,unsigned long baud) :
-        serial(SerialComOptimizer(serial)),
-        activeNodeIndex{0}
+Communication::Communication(SerialComOptimizer serial) :
+        serial(serial)
 {
-    Serial1.begin(baud);
-    waitForBytes = 1;
-    communicationState = 0;
-    messageLength = 0;
-    checksum = 0;
-    communicationError = false;
-    lastAvailableReadTimestamp = millis();
-
-    sendCommunicationState = 0;
-    currentSendCommandIndex = 0;
-    numberOfSendCommands = 0;
-
-    lastMessageNodeNr = 0;
 }
 
 void Communication::addCommunicationNode(std::unique_ptr<CommunicationNode> node)

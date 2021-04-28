@@ -4,25 +4,34 @@
 
 using namespace RobotParameters;
 
-VelocityLimiter::VelocityLimiter(const double& velocity, const EigenVectord6& selector)
+VelocityLimiter::VelocityLimiter(const double& velocity, const EigenVectord6& selector, const double& distFromBendAcc)
 {
-    add(velocity, selector);
+    add(velocity, selector, distFromBendAcc);
 }
 
-void VelocityLimiter::add(const double& velocity, const EigenVectord6& selector)
+void VelocityLimiter::add(const double& velocity, const EigenVectord6& selector, const double& distFromBendAcc)
 {
-    limits.push_back(Zip{velocity, selector});
+    limits.push_back(Zip{velocity, distFromBendAcc, selector});
 }
 
-double VelocityLimiter::getLimit(const EigenVectord6& moveDir) const
+void VelocityLimiter::setMoveDir(const EigenVectord6& moveDir)
 {
     const double& moveDirNorm = moveDir.norm();
 
-    return std::accumulate(std::cbegin(limits), std::cend(limits), std::numeric_limits<double>::max(),
-        [&moveDirNorm, &moveDir](const double& currentMin, const auto& z) {
+    std::for_each(std::begin(limits), std::end(limits),
+        [&moveDirNorm, &moveDir](auto& z) {
             const double& selectedMoveDirNorm = (z.selector.asDiagonal() * moveDir).norm();
 
-            return std::min(currentMin, z.velocity * moveDirNorm / selectedMoveDirNorm);
+            z.selectorScalingResult = moveDirNorm / selectedMoveDirNorm;
+        });
+}
+
+double VelocityLimiter::getLimit(const double& distFromBend) const
+{
+    return std::accumulate(std::cbegin(limits), std::cend(limits), std::numeric_limits<double>::max(),
+        [&distFromBend](const double& currentMin, const auto& z) {
+            return std::min(currentMin,
+                    (z.velocity + z.distFromBendAcc * distFromBend) * z.selectorScalingResult);
         });
 }
 
@@ -225,11 +234,15 @@ JointSpaceCoordinate::JointSpaceCoordinate(const CartesianCoordinate& cartesian)
     EigenVectord3 s4s5Vec = s5Rotation(cartesian.c[4]) * s5Translation;
     s4s5Vec = s1Rotation(cartesian.c[3]) * s4s5Vec;
 
-    EigenVectord3 s6Vec = s6Rotation(cartesian.c[5]) * s6ZeroRotationDir;
-    s6Vec = s5Rotation(cartesian.c[4]) * s6Vec;
-    s6Vec = s1Rotation(cartesian.c[3]) * s6Vec;
+    EigenVectord3 s6DirVec = s6Rotation(cartesian.c[5]) * s6ZeroRotationDir;
+    s6DirVec = s5Rotation(cartesian.c[4]) * s6DirVec;
+    s6DirVec = s1Rotation(cartesian.c[3]) * s6DirVec;
 
-    s1s2s3Vec -= s4s5Vec;
+    EigenVectord3 s6TransVec = s6Rotation(cartesian.c[5]) * s6Translation;
+    s6TransVec = s5Rotation(cartesian.c[4]) * s6TransVec;
+    s6TransVec = s1Rotation(cartesian.c[3]) * s6TransVec;
+
+    s1s2s3Vec -= s4s5Vec + s6TransVec;
 
     const double& x = s1s2s3Vec[0];
     const double& y = s1s2s3Vec[1];
@@ -289,9 +302,9 @@ JointSpaceCoordinate::JointSpaceCoordinate(const CartesianCoordinate& cartesian)
     EigenMatrixd3 r4M = s4Rotation(-angle4);
     EigenMatrixd3 r5M = s5Rotation(-angle5);
 
-    s6Vec = r5M * r4M * r3M * r2M * r1M * s6Vec;
+    s6DirVec = r5M * r4M * r3M * r2M * r1M * s6DirVec;
 
-    double sinAngle6 = ex.dot(s6Vec);
+    double sinAngle6 = ex.dot(s6DirVec);
     double angle6 = -asin(sinAngle6);
 
     c[3] = angle4;
@@ -309,6 +322,7 @@ CartesianCoordinate::CartesianCoordinate(const JointSpaceCoordinate& joint)
     EigenMatrixd3 r1M = s1Rotation(joint.c[0]);
 
     EigenVectord3 s6RotDir = r1M * r2M * r3M * r4M * r5M * r6M * s6ZeroRotationDir;
+    EigenVectord3 s6Vec = r1M * r2M * r3M * r4M * r5M * r6M * s6Translation;
     EigenVectord3 s4s5Vec = r1M * r2M * r3M * r4M * (s4Translation +  r5M * s5Translation);
     EigenVectord3 s1s2s3Vec = r1M * (s1Translation + r2M * (s2Translation + r3M * s3Translation));
 
@@ -329,24 +343,24 @@ CartesianCoordinate::CartesianCoordinate(const JointSpaceCoordinate& joint)
 
     double angle1 = atan2(s6sinProjectionVec[1], s6sinProjectionVec[0]);
 
-    EigenVectord3 xyzPos = s1s2s3Vec + s4s5Vec;
+    EigenVectord3 xyzPos = s1s2s3Vec + s4s5Vec + s6Vec;
 
     c << xyzPos[0], xyzPos[1], xyzPos[2], angle1, angle2, angle3;
 }
 
 std::unique_ptr<JointSpaceLinearPath> JointSpaceLinearPath::create(const JointSpaceCoordinate& pos,
-    VelocityLimiter velocityLimiter,
-    VelocityLimiter velocityLimiterAtEnd,
-    std::shared_ptr<DeviationLimiter> deviationLimiter)
+        VelocityLimiter velocityLimiter,
+        VelocityLimiter velocityLimiterAtEnd,
+        std::shared_ptr<DeviationLimiter> deviationLimiter)
 {
     return std::unique_ptr<JointSpaceLinearPath>(
             new JointSpaceLinearPath(pos.c, std::move(velocityLimiter), std::move(velocityLimiterAtEnd), std::move(deviationLimiter)));
 }
 
 std::unique_ptr<JointSpaceLinearPath> JointSpaceLinearPath::create(const EigenVectord6& pos,
-    VelocityLimiter velocityLimiter,
-    VelocityLimiter velocityLimiterAtEnd,
-    std::shared_ptr<DeviationLimiter> deviationLimiter)
+        VelocityLimiter velocityLimiter,
+        VelocityLimiter velocityLimiterAtEnd,
+        std::shared_ptr<DeviationLimiter> deviationLimiter)
 {
     return std::unique_ptr<JointSpaceLinearPath>(
             new JointSpaceLinearPath(pos, std::move(velocityLimiter), std::move(velocityLimiterAtEnd), std::move(deviationLimiter)));
@@ -357,21 +371,46 @@ JointSpaceLinearPath::JointSpaceLinearPath(const EigenVectord6& pos,
         VelocityLimiter velocityLimiterAtEnd,
         std::shared_ptr<DeviationLimiter> deviationLimiter) :
     startPos{},
+    endPos{pos},
     velocityLimiter{std::move(velocityLimiter)},
     velocityLimiterAtEnd{std::move(velocityLimiterAtEnd)},
-    bendItem{pos, 0, 0, std::move(deviationLimiter)}
+    deviationLimiter{std::move(deviationLimiter)}
 {
 }
 
-JointSpaceLinearPath::Iterator::Iterator(const void* id) :
-    PathObjectInterface::IteratorInterface{id}
+JointSpaceLinearPath::Iterator::Iterator(const JointSpaceLinearPath* parent) :
+    PathObjectInterface::IteratorInterface{parent},
+    parent{parent},
+    t{},
+    stepSize{},
+    bendItem{}
 {
+    init();
 }
 
 JointSpaceLinearPath::Iterator::Iterator(const Iterator& in) :
     PathObjectInterface::IteratorInterface{in},
+    parent{in.parent},
+    t{in.t},
+    stepSize{in.stepSize},
     bendItem{in.bendItem}
 {
+}
+
+void JointSpaceLinearPath::Iterator::init()
+{
+    const EigenVectord6&  a = parent->startPos.c;
+    const EigenVectord6&  b = parent->endPos.c;
+
+    const EigenVectord6 v = (b - a);
+    const double vNorm = v.norm(); 
+
+    stepSize = 0.002 / vNorm;
+
+    size_t nrOfSteps = static_cast<size_t>(ceil(1.0 / stepSize));
+    stepSize = 1.0 / nrOfSteps;
+
+    requestedVelAtEnd = parent->velocityLimiterAtEnd.getLimit();
 }
 
 PathObjectInterface::BendItem JointSpaceLinearPath::Iterator::getBendItem()
@@ -381,7 +420,45 @@ PathObjectInterface::BendItem JointSpaceLinearPath::Iterator::getBendItem()
 
 void JointSpaceLinearPath::Iterator::stepImp()
 {
-    PathObjectInterface::IteratorInterface::setEnd();
+    if (t == 1.0)
+    {
+        PathObjectInterface::IteratorInterface::setEnd();
+        return;
+    }
+
+    t += stepSize;
+
+    if (t >= 1.0 - stepSize * 0.5)
+    {
+        t = 1.0;
+    }
+
+    updateCurrentBendItem();
+}
+
+void JointSpaceLinearPath::Iterator::updateCurrentBendItem()
+{
+    const EigenVectord6&  a = parent->startPos.c;
+    const EigenVectord6&  b = parent->endPos.c;
+
+    const EigenVectord6 v = (b - a);
+    const double vNorm = v.norm(); 
+    JointSpaceCoordinate current{a + t * v};
+
+    bendItem.pos = current.c;
+    bendItem.requestedVelForLink = parent->velocityLimiter.getLimit(
+            (std::min(t, 1.0 - t) + stepSize) * vNorm);
+
+    if (t != 1.0)
+    {
+        bendItem.requestedVelAtBend = bendItem.requestedVelForLink;
+    }
+    else
+    {
+        bendItem.requestedVelAtBend = requestedVelAtEnd;
+    }
+
+    bendItem.deviationLimiter = parent->deviationLimiter;
 }
 
 std::unique_ptr<PathObjectInterface::IteratorInterface> JointSpaceLinearPath::Iterator::makeCopy()
@@ -392,11 +469,8 @@ std::unique_ptr<PathObjectInterface::IteratorInterface> JointSpaceLinearPath::It
 PathObjectInterface::Iterator JointSpaceLinearPath::begin() const
 {
     auto it = std::make_unique<Iterator>(this);
-
-    EigenVectord6 v = bendItem.pos - startPos.c;
-    it->bendItem = bendItem;
-    it->bendItem.requestedVelForLink = velocityLimiter.getLimit(v);
-    it->bendItem.requestedVelAtBend = velocityLimiterAtEnd.getLimit(v);
+    it->updateCurrentBendItem();
+    it->stepImp();
 
     auto out = std::unique_ptr<PathObjectInterface::IteratorInterface>(std::move(it));
 
@@ -407,12 +481,6 @@ PathObjectInterface::Iterator JointSpaceLinearPath::end() const
 {
     auto it = std::make_unique<Iterator>(this);
     it->setEnd();
-
-    EigenVectord6 v = bendItem.pos - startPos.c;
-    it->bendItem = bendItem;
-    it->bendItem.requestedVelForLink = velocityLimiter.getLimit(v);
-    it->bendItem.requestedVelAtBend = velocityLimiterAtEnd.getLimit(v);
-
     auto out = std::unique_ptr<PathObjectInterface::IteratorInterface>(std::move(it));
 
     return PathObjectInterface::Iterator(out);
@@ -420,10 +488,13 @@ PathObjectInterface::Iterator JointSpaceLinearPath::end() const
 
 void JointSpaceLinearPath::setStart(const EigenVectord6& pos)
 {
-    startPos = JointSpaceCoordinate{pos};
+    startPos = JointSpaceCoordinate(pos);
+
+    const EigenVectord6 v = (endPos.c - startPos.c);
+
+    velocityLimiter.setMoveDir(v);
+    velocityLimiterAtEnd.setMoveDir(v);
 }
-
-
 
 std::unique_ptr<CartesianSpaceLinearPath> CartesianSpaceLinearPath::create(const CartesianCoordinate& pos,
         VelocityLimiter velocityLimiter,
@@ -481,7 +552,7 @@ void CartesianSpaceLinearPath::Iterator::init()
 
     const EigenVectord6 v = (b - a);
     const EigenVectord6 angleScalingVec = EigenVectord6{1.0, 1.0, 1.0,
-                s5TranslationLength, s5TranslationLength, s5TranslationLength};
+                s5TranslationLength * 5.0, s5TranslationLength * 5.0, s5TranslationLength * 5.0};
     const double vNormAS = (angleScalingVec.asDiagonal() * v).norm(); 
 
     stepSize = 0.0004 / vNormAS;
@@ -489,8 +560,7 @@ void CartesianSpaceLinearPath::Iterator::init()
     size_t nrOfSteps = static_cast<size_t>(ceil(1.0 / stepSize));
     stepSize = 1.0 / nrOfSteps;
 
-    requestedVel = parent->velocityLimiter.getLimit(v);
-    requestedVelAtEnd = parent->velocityLimiterAtEnd.getLimit(v);
+    requestedVelAtEnd = parent->velocityLimiterAtEnd.getLimit();
 }
 
 PathObjectInterface::BendItem CartesianSpaceLinearPath::Iterator::getBendItem()
@@ -535,7 +605,8 @@ void CartesianSpaceLinearPath::Iterator::updateCurrentBendItem()
     double scaleChangeKoefficient = jointSpaceDiff.norm();
 
     bendItem.pos = currentJoint.c;
-    bendItem.requestedVelForLink = requestedVel * scaleChangeKoefficient;
+    bendItem.requestedVelForLink = parent->velocityLimiter.getLimit(
+            std::min(t, 1.0 - t) * vNorm) * scaleChangeKoefficient;
 
     if (t != 1.0)
     {
@@ -578,4 +649,9 @@ PathObjectInterface::Iterator CartesianSpaceLinearPath::end() const
 void CartesianSpaceLinearPath::setStart(const EigenVectord6& pos)
 {
     startPos = JointSpaceCoordinate(pos);
+
+    const EigenVectord6 v = (endPos.c - startPos.c);
+
+    velocityLimiter.setMoveDir(v);
+    velocityLimiterAtEnd.setMoveDir(v);
 }

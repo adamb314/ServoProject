@@ -153,7 +153,8 @@ private:
     };
 
 public:
-    DummyTrajectoryGenerator(RobotDynamics<6, double>* dynamics, double stub)
+    DummyTrajectoryGenerator(RobotDynamics<6, double>* dynamics, double filterTime) :
+            filterTime{filterTime}
     {
         changeRobotDynamics(dynamics);
     }
@@ -162,6 +163,7 @@ public:
     void changeRobotDynamics(RobotDynamics<6, double>* dynamics)
     {
         this->dynamics = dynamics;
+        filterCof = exp(-dynamics->getDt() / filterTime);
     }
 
     void setStart(const Eigen::Matrix<double, 6, 1>& pos, double velocity, double stub = std::numeric_limits<double>::max())
@@ -211,20 +213,82 @@ public:
         }
     }
 
+    class Iterator
+    {
+    public:
+        Iterator(std::vector<TrajectoryItem<6, double> >::const_iterator it, double filterCof) :
+                it{it},
+                filterCof{filterCof},
+                filteredDeref{*it}
+        {
+        }
+
+        Iterator(const Iterator& in) :
+                it{in.it},
+                filterCof{in.filterCof},
+                filteredDeref{in.filteredDeref}
+        {
+        }
+
+        auto operator*()
+        {
+            return filteredDeref;
+        }
+
+        Iterator& operator++()
+        {
+            ++it;
+            filteredDeref = 0.9 * filteredDeref + (1 - 0.9) * (*it);
+            return *this;
+        }
+
+        Iterator operator++(int)
+        {
+            auto out = *this;
+            this->operator++();
+            return out;
+        }
+
+        bool operator==(Iterator& in)
+        {
+            return it == in.it;
+        }
+
+        bool operator!=(Iterator& in)
+        {
+            return ! this->operator==(in);
+        }
+
+        Iterator& operator=(const Iterator& in)
+        {
+            it = in.it;
+            filterCof = in.filterCof;
+
+            return *this;
+        }
+
+    private:
+        std::vector<TrajectoryItem<6, double> >::const_iterator it;
+        double filterCof;
+        TrajectoryItem<6, double> filteredDeref;
+    };
+
     auto begin() const
     {
-        return std::cbegin(trajectoryItems);
+        return Iterator(std::cbegin(trajectoryItems), filterCof);
     }
 
     auto end() const
     {
-        return std::cend(trajectoryItems);
+        return Iterator(std::cend(trajectoryItems), filterCof);
     }
 
 private:
     RobotDynamics<6, double>* dynamics;
     std::vector<BendPoint> bendPoints;
     std::vector<TrajectoryItem<6, double> > trajectoryItems;
+    double filterTime;
+    double filterCof;
 
     void insertTrajItems(const Eigen::Matrix<double, 6, 1>& pos0, const Eigen::Matrix<double, 6, 1>& pos1,
             double v0, double& v1)

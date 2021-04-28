@@ -1,12 +1,25 @@
 #include "SerialComOptimizer.h"
 
-SerialComOptimizer::SerialComOptimizer(Stream* serial) :
+SerialComOptimizer::SerialComOptimizer(Stream* serial, Stream* secSerial) :
     serial(serial),
+    serialVec({serial, secSerial}),
     readBufferGetIt(readBuffer.end() - 1),
     readBufferPutIt(readBuffer.begin()),
     writeBufferPutIt(writeBuffer.begin())
 {
 }
+
+SerialComOptimizer::SerialComOptimizer(const SerialComOptimizer& in) :
+    serial(in.serial),
+    serialVec(in.serialVec),
+    readBuffer(in.readBuffer),
+    readBufferGetIt((in.readBufferGetIt - in.readBuffer.begin()) + readBuffer.begin()),
+    readBufferPutIt((in.readBufferPutIt - in.readBuffer.begin()) + readBuffer.begin()),
+    writeBuffer(in.writeBuffer),
+    writeBufferPutIt((in.writeBufferPutIt - in.writeBuffer.begin()) + writeBuffer.begin())
+{
+}
+
 
 SerialComOptimizer::~SerialComOptimizer()
 {
@@ -52,7 +65,22 @@ void SerialComOptimizer::collectReadData()
         return;
     }
 
-    int32_t availableInHardwarBuffer = serial->available();
+    int32_t availableInHardwarBuffer = 0;
+
+    for (auto s : serialVec)
+    {
+        if (s != nullptr)
+        {
+            availableInHardwarBuffer = s->available();
+        }
+
+        if (availableInHardwarBuffer != 0)
+        {
+            serial = s;
+            break;
+        }
+    }
+
     if (availableInHardwarBuffer < readAmount)
     {
         readAmount = availableInHardwarBuffer;

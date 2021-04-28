@@ -1,4 +1,4 @@
-arduino-cli = ~/go/bin/arduino-cli
+arduino-cli = arduino-cli
 board = adafruit:samd:adafruit_itsybitsy_m0
 port = /dev/ttyACM0
 

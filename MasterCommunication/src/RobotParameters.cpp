@@ -10,7 +10,7 @@ namespace RobotParameters
     const double scalarGravity = 9.81;
     const EigenVectord3 gravity{scalarGravity * ez};
 
-    const EigenVectord3 s1Translation{0.015 * ex};
+    const EigenVectord3 s1Translation{(0.015 - 0.014) * ex};
     const EigenVectord3 s1RotationAxis{ez};
     EigenMatrixd3 s1Rotation(double rad)
     {
@@ -32,7 +32,7 @@ namespace RobotParameters
         return out;
     }
 
-    const EigenVectord3 s3Translation{-(0.2 + 0.027 + 0.007) * ey};
+    const EigenVectord3 s3Translation{-(0.164 + 0.025) * ey};
     const EigenVectord3 s3RotationAxis{ex};
     EigenMatrixd3 s3Rotation(double rad)
     {
@@ -54,7 +54,7 @@ namespace RobotParameters
         return out;
     }
 
-    const double s5TranslationLength{0.029};
+    const double s5TranslationLength{0.020 + 0.055 - 0.0265};
     const EigenVectord3 s5Translation{-s5TranslationLength * ey};
     const EigenVectord3 s5RotationAxis{-ex};
     EigenMatrixd3 s5Rotation(double rad)
@@ -66,6 +66,7 @@ namespace RobotParameters
         return out;
     }
 
+    const EigenVectord3 s6Translation{-(0.029 / 2 + 0.020) * ez};
     const EigenVectord3 s6ZeroRotationDir{-ez};
     const EigenVectord3 s6RotationAxis{ey};
     EigenMatrixd3 s6Rotation(double rad)
@@ -128,9 +129,9 @@ namespace RobotParameters
     {
         DynamicRetType out{};
 
-        const double mass = 0.069;
-        const double mcDistLength = 0.154;
-        const double pendulumResFre = 30.0 / 27.54;
+        const double mass = 0.118;
+        const double mcDistLength = 0.174;
+        const double pendulumResFre = 35 / (32 + 22 / 30.0);
         const double pendulumResW = 2 * M_PI * pendulumResFre;
         const double inertia = (mass * scalarGravity * mcDistLength) / (pendulumResW  * pendulumResW) - mass * mcDistLength * mcDistLength;
         EigenVectord3 mcDist{0, -mcDistLength, 0};
@@ -279,8 +280,8 @@ namespace RobotParameters
     const double DynamicRobotDynamics::pwmLimit = 1023;
     const double DynamicRobotDynamics::currentToTorqueScale = 0.00056;
     const double DynamicRobotDynamics::gearBoxMomentOfInertia = 0.015064771031078847;
-    const double DynamicRobotDynamics::pwmToStallCurrent = 2.61598722;
-    const double DynamicRobotDynamics::backEmfCurrent = -0.70435649;
+    const double DynamicRobotDynamics::pwmToStallCurrent = 1.945991041784367;
+    const double DynamicRobotDynamics::backEmfCurrent = -0.00030467666381376284 * 4096 / 2.0 / M_PI;
 
     DynamicRobotDynamics::DynamicRobotDynamics(double dtTime)
     {

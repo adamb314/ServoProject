@@ -36,7 +36,7 @@ private:
 class Communication
 {
 public:
-    Communication(Stream* serial, unsigned long baud = 115200);
+    Communication(SerialComOptimizer serial);
 
     void addCommunicationNode(std::unique_ptr<CommunicationNode> node);
 
@@ -56,23 +56,23 @@ private:
     std::array<bool, 16> intArrayChangedBuffer;
     std::array<bool, 8> charArrayChangedBuffer;
 
-    int communicationState;
-    unsigned char waitForBytes;
-    unsigned char messageLength;
-    unsigned char command;
-    unsigned char checksum;
-    bool communicationError;
-    unsigned long lastAvailableReadTimestamp;
+    int communicationState{0};
+    unsigned char waitForBytes{1};
+    unsigned char messageLength{0};
+    unsigned char command{0};
+    unsigned char checksum{0};
+    bool communicationError{false};
+    unsigned long lastAvailableReadTimestamp{millis()};
 
-    int sendCommunicationState;
-    unsigned char numberOfSendCommands;
-    unsigned char currentSendCommandIndex;
+    int sendCommunicationState{0};
+    unsigned char numberOfSendCommands{0};
+    unsigned char currentSendCommandIndex{0};
     std::array<unsigned char, 100> sendCommandBuffer;
 
-    unsigned char lastMessageNodeNr;
+    unsigned char lastMessageNodeNr{0};
 
     std::vector<std::unique_ptr<CommunicationNode> > nodes;
-    size_t activeNodeIndex;
+    size_t activeNodeIndex{0};
 
     friend class CommunicationNode;
 };

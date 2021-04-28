@@ -55,7 +55,12 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
-    void setControlSpeed(unsigned char controlSpeed, unsigned char backlashCompensationSpeed);
+    void setControlSpeed(unsigned char controlSpeed);
+
+    void setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
+            double backlashCompensationCutOffSpeed, double backlashSize);
+
+    void setFrictionCompensation(double fricComp);
 
     void disableBacklashControl(bool b = true);
 
@@ -96,6 +101,8 @@ class DCServoCommunicator
     void run();
 
   private:
+    void updateOffset();
+
     Communication* bus{nullptr};
     unsigned char nodeNr{0};
 
@@ -109,6 +116,8 @@ class DCServoCommunicator
 
     unsigned char controlSpeed{50};
     unsigned char backlashCompensationSpeed{10};
+    unsigned char backlashCompensationSpeedVelDecrease{0};
+    unsigned char backlashSize{0};
 
     mutable std::array<bool, 16> activeIntReads{false};
     std::array<short int, 16> intReadBuffer{0};
@@ -133,8 +142,10 @@ class DCServoCommunicator
     short int refVel{0};
     short int feedforwardU{0};
     std::array<short int, 5> activeFeedforwardU{0};
+    double frictionCompensation{0.0};
 
     double offset{0.0};
+    double startPosition{0.0};
     double scale{1.0};
 
     static constexpr int positionUpscaling = 32;

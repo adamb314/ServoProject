@@ -1,15 +1,12 @@
 #include "CommunicationHandlers.h"
-#include "DCServo.h"
 
-static DCServo* dcServo = nullptr;
 static ThreadHandler* threadHandler = nullptr;
 
-DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr) :
-    CommunicationNode(nodeNr)
+DCServoCommunicationHandler::DCServoCommunicationHandler(unsigned char nodeNr, std::unique_ptr<DCServo> dcServo) :
+    CommunicationNode(nodeNr), dcServo(std::move(dcServo))
 {
-    dcServo = DCServo::getInstance();
     threadHandler = ThreadHandler::getInstance();
-    CommunicationNode::intArray[0] = dcServo->getPosition() * positionUpscaling;
+    CommunicationNode::intArray[0] = this->dcServo->getPosition() * positionUpscaling;
     CommunicationNode::intArray[1] = 0;
     CommunicationNode::intArray[2] = 0;
     CommunicationNode::charArray[1] = 0;
@@ -37,9 +34,13 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
         dcServo->setControlSpeed(CommunicationNode::charArray[3]);
     }
 
-    if (CommunicationNode::charArrayChanged[4])
+    if (CommunicationNode::charArrayChanged[4] ||
+        CommunicationNode::charArrayChanged[5] ||
+        CommunicationNode::charArrayChanged[6])
     {
-        dcServo->setBacklashControlSpeed(CommunicationNode::charArray[4]);
+        dcServo->setBacklashControlSpeed(CommunicationNode::charArray[4],
+                CommunicationNode::charArray[5],
+                CommunicationNode::charArray[6]);
     }
 
     if (CommunicationNode::intArrayChanged[0])
@@ -68,6 +69,8 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
     {
         dcServo->enable(false);
 
+        intArrayIndex0Upscaler.set(CommunicationNode::intArray[3]);
+
         statusLight.showDisabled();
     }
 }
@@ -81,7 +84,9 @@ void DCServoCommunicationHandler::onComCycleEvent()
     {
         ThreadInterruptBlocker blocker;
 
-        CommunicationNode::intArray[3] = dcServo->getPosition() * positionUpscaling;
+        long int pos = dcServo->getPosition() * positionUpscaling;
+        CommunicationNode::intArray[3] = pos;
+        CommunicationNode::charArray[7] = static_cast<char>(pos >> 16);
         CommunicationNode::intArray[4] = dcServo->getVelocity();
         CommunicationNode::intArray[5] = dcServo->getControlSignal();
         CommunicationNode::intArray[6] = dcServo->getCurrent();
@@ -91,11 +96,11 @@ void DCServoCommunicationHandler::onComCycleEvent()
         CommunicationNode::intArray[10] = dcServo->getMainEncoderPosition() * positionUpscaling;
         CommunicationNode::intArray[11] = dcServo->getBacklashCompensation() * positionUpscaling;
 
-        auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData<OpticalEncoderHandler::DiagnosticData>();
+        auto opticalEncoderChannelData = dcServo->getMainEncoderDiagnosticData();
         CommunicationNode::intArray[12] = opticalEncoderChannelData.a;
         CommunicationNode::intArray[13] = opticalEncoderChannelData.b;
-        CommunicationNode::intArray[14] = opticalEncoderChannelData.minCostIndex;
-        CommunicationNode::intArray[15] = opticalEncoderChannelData.minCost;
+        CommunicationNode::intArray[14] = opticalEncoderChannelData.c;
+        CommunicationNode::intArray[15] = opticalEncoderChannelData.d;
 
         if (dcServo->isEnabled())
         {

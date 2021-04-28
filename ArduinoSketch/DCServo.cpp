@@ -1,26 +1,24 @@
 #include "DCServo.h"
 
-DCServo* DCServo::getInstance()
+DCServo::DCServo(std::unique_ptr<CurrentController> currentController,
+            std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
+            std::unique_ptr<EncoderHandlerInterface> outputEncoderHandler,
+            std::unique_ptr<KalmanFilter> kalmanFilter,
+            std::unique_ptr<ControlConfigurationInterface> controlConfig):
+        currentController(std::move(currentController)),
+        mainEncoderHandler(std::move(mainEncoderHandler)),
+        outputEncoderHandler(std::move(outputEncoderHandler)),
+        kalmanFilter(std::move(kalmanFilter)),
+        controlConfig(std::move(controlConfig))
 {
-    static DCServo dcServo;
-    return &dcServo;
+    init();
 }
 
-DCServo::DCServo() :
-        controlEnabled(false),
-        onlyUseMainEncoderControl(false),
-        openLoopControlMode(false),
-        pwmOpenLoopMode(false),
-        loopNumber(0),
-        current(0),
-        controlSignal(0),
-        uLimitDiff(0),
-        Ivel(0),
-        mainEncoderHandler(ConfigHolder::createMainEncoderHandler()),
-        outputEncoderHandler(ConfigHolder::createOutputEncoderHandler()),
-        kalmanFilter(std::make_unique<KalmanFilter>())
+void DCServo::init()
 {
-    threads.push_back(createThread(2, 1200, 0,
+    uint32_t cycleTime = controlConfig->getCycleTimeUs();
+
+    threads.push_back(createThread(3, cycleTime, 0,
         [&]()
         {
             mainEncoderHandler->triggerSample();
@@ -30,10 +28,8 @@ DCServo::DCServo() :
             }
         }));
 
-    refInterpolator.setGetTimeInterval(1200);
-    refInterpolator.setLoadTimeInterval(12000);
-
-    currentController = ConfigHolder::createCurrentController();
+    refInterpolator.setGetTimeInterval(cycleTime);
+    refInterpolator.setLoadTimeInterval(18000);
 
     mainEncoderHandler->init();
     if (outputEncoderHandler)
@@ -51,7 +47,7 @@ DCServo::DCServo() :
         outputEncoderHandler->triggerSample();
     }
 
-    rawMainPos = mainEncoderHandler->getValue() * ConfigHolder::getMainEncoderGearRation();
+    rawMainPos = mainEncoderHandler->getValue();
     if (outputEncoderHandler)
     {
         rawOutputPos = outputEncoderHandler->getValue();
@@ -77,7 +73,7 @@ DCServo::DCServo() :
 
     loadNewReference(x[0], 0, 0);
 
-    threads.push_back(createThread(1, 1200, 0,
+    threads.push_back(createThread(1, cycleTime, 0,
         [&]()
         {
             controlLoop();
@@ -96,7 +92,7 @@ void DCServo::enable(bool b)
     ThreadInterruptBlocker blocker;
     if (!isEnabled() && b)
     {
-        L = ConfigHolder::ControlParameters::getLVector(controlSpeed, backlashControlSpeed);
+        calculateAndUpdateLVector();
     }
 
     controlEnabled = b;
@@ -125,9 +121,11 @@ void DCServo::setControlSpeed(uint8_t controlSpeed)
     this->controlSpeed = controlSpeed;
 }
 
-void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed)
+void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize)
 {
     this->backlashControlSpeed = backlashControlSpeed;
+    this->backlashControlSpeedVelGain = backlashControlSpeedVelGain;
+    this->backlashSize = backlashSize;
 }
 
 void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
@@ -194,34 +192,20 @@ float DCServo::getMainEncoderPosition()
     return rawMainPos + initialOutputPosOffset;
 }
 
-template <class T>
-OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(T& encoder)
-{
-    OpticalEncoderHandler::DiagnosticData out = {0};
-    return out;
-}
-
-template <>
-OpticalEncoderHandler::DiagnosticData getMainEncoderRawDiagnosticDataDispatch(std::unique_ptr<OpticalEncoderHandler>& encoder)
-{
-    return encoder->getDiagnosticData();
-}
-
-template <>
-OpticalEncoderHandler::DiagnosticData DCServo::getMainEncoderDiagnosticData()
+EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 {
     ThreadInterruptBlocker blocker;
-    return getMainEncoderRawDiagnosticDataDispatch(mainEncoderHandler);
+    return mainEncoderHandler->getDiagnosticData();
 }
 
 void DCServo::controlLoop()
 {
 #ifdef SIMULATE
-    xSim = kalmanFilter->getA() * xSim + kalmanFilter->getB() * controlSignal;
+    xSim = controlConfig->getA() * xSim + controlConfig->getB() * kalmanFilterCtrlSig;
     rawMainPos =xSim[0];
     rawOutputPos = rawMainPos;
 #else
-    rawMainPos = mainEncoderHandler->getValue() * ConfigHolder::getMainEncoderGearRation();
+    rawMainPos = mainEncoderHandler->getValue();
     if (outputEncoderHandler)
     {
         rawOutputPos = outputEncoderHandler->getValue();
@@ -232,7 +216,7 @@ void DCServo::controlLoop()
     }
 #endif
 
-    x = kalmanFilter->update(controlSignal, rawMainPos);
+    x = kalmanFilter->update(kalmanFilterCtrlSig, rawMainPos);
 
     if (controlEnabled)
     {
@@ -250,7 +234,26 @@ void DCServo::controlLoop()
 
             if (!onlyUseMainEncoderControl)
             {
-                outputPosOffset -= L[4] * 0.0012 * (posRef - rawOutputPos);
+                int newForceDir = forceDir;
+                if (feedForwardU > 1.0)
+                {
+                    newForceDir = 1;
+                }
+                else if (feedForwardU < -1.0)
+                {
+                    newForceDir = -1;
+                }
+
+                if (newForceDir != forceDir)
+                {
+                    outputPosOffset -= newForceDir * L[6];
+                }
+                forceDir = newForceDir;
+                
+                double gain = L[4] * (0.1 + 0.9 * std::max(0.0,
+                        1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
+                double backlashCompensationDiff = gain * 0.0012 * (posRef - rawOutputPos);
+                outputPosOffset -= backlashCompensationDiff;
             }
 
             posRef -= outputPosOffset;
@@ -259,7 +262,15 @@ void DCServo::controlLoop()
 
             float vControlRef = L[0] * posDiff + velRef;
 
+            controlConfig->limitVelocity(vControlRef);
+
             float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
+
+            kalmanFilterCtrlSig = u;
+
+            uint16_t rawEncPos = mainEncoderHandler->getDiagnosticData().c;
+
+            u += controlConfig->getCompensationForce(rawEncPos, vControlRef);
 
             controlSignal = u;
 
@@ -286,11 +297,13 @@ void DCServo::controlLoop()
             if (pwmOpenLoopMode)
             {
                 controlSignal = 0;
+                kalmanFilterCtrlSig = 0;
                 currentController->overidePwmDuty(feedForwardU);
             }
             else
             {
                 controlSignal = feedForwardU;
+                kalmanFilterCtrlSig = feedForwardU;
                 currentController->setReference(static_cast<int16_t>(controlSignal));
             }
             currentController->applyChanges();
@@ -305,12 +318,37 @@ void DCServo::controlLoop()
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
         controlSignal = 0;
+        kalmanFilterCtrlSig = 0;
         currentController->activateBrake();
         currentController->applyChanges();
         current = currentController->getCurrent();
         pwmControlSIgnal = currentController->getFilteredPwm();
     }
 
+}
+
+void DCServo::calculateAndUpdateLVector()
+{
+    kalmanFilter->setFilterSpeed(controlSpeed * 4 * 20);
+
+    const Eigen::Matrix3f& A = controlConfig->getA();
+    const Eigen::Vector3f& B = controlConfig->getB();
+
+    float dt = A(0, 1);
+    float a = A(1, 1);
+    float b = B(1);
+
+    float posControlPole = exp(-dt * controlSpeed);
+    float velControlPole[] = {exp(-1.0 * dt * 4 * controlSpeed), exp(-0.9 * dt * 4 * controlSpeed)};
+
+    L[0] = (1.0 - posControlPole) / dt;
+    L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
+    L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
+    L[3] = 10 * L[2];
+
+    L[4] = backlashControlSpeed;
+    L[5] = backlashControlSpeedVelGain;
+    L[6] = backlashSize;
 }
 
 ReferenceInterpolator::ReferenceInterpolator()

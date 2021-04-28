@@ -1,7 +1,10 @@
 #include "OpticalEncoderHandler.h"
 
-OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec) :
-    aVec(aVec), bVec(bVec), sensor1(A2), sensor2(A3), value(0), wrapAroundCorretion(0), newData(false)
+OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
+        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
+    EncoderHandlerInterface(unitsPerRev),
+    aVec(aVec), bVec(bVec), sensor1(sensor1Pin), sensor2(sensor2Pin),
+    scaling(unitsPerRev * (1.0 / 4096.0))
 {
 }
 
@@ -51,24 +54,27 @@ float OpticalEncoderHandler::getValue()
         updatePosition();
     }
 
-    return (value + wrapAroundCorretion);
+    return (value + wrapAroundCorretion) * scaling;
 }
 
 
-OpticalEncoderHandler::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
+EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
 {
     return diagnosticData;
 }
 
 void OpticalEncoderHandler::updatePosition()
 {
+    int16_t offset = sensorValueOffset;
     diagnosticData.a = sensor1Value;
     diagnosticData.b = sensor2Value;
+    sensor1Value -= offset;
+    sensor2Value -= offset;
 
     int stepSize = static_cast<int>(vecSize / 2.0 + 1);
 
     int i = predictNextPos;
-    uint32_t cost = calcCost(i, diagnosticData.a, diagnosticData.b);
+    uint32_t cost = calcCost(i, sensor1Value, sensor2Value);
 
     int bestI = i;
     uint32_t bestCost = cost;
@@ -76,7 +82,7 @@ void OpticalEncoderHandler::updatePosition()
     i += stepSize;
     while (i < vecSize)
     {
-        cost = calcCost(i, diagnosticData.a, diagnosticData.b);
+        cost = calcCost(i, sensor1Value, sensor2Value);
 
         if (cost < bestCost)
         {
@@ -101,7 +107,7 @@ void OpticalEncoderHandler::updatePosition()
 
         i += stepSize * checkDir;
 
-        cost = calcCost(i, diagnosticData.a, diagnosticData.b);
+        cost = calcCost(i, sensor1Value, sensor2Value);
 
         if (cost < bestCost)
         {
@@ -115,13 +121,24 @@ void OpticalEncoderHandler::updatePosition()
 
         i -= 2 * stepSize * checkDir;
 
-        cost = calcCost(i, diagnosticData.a, diagnosticData.b);
+        cost = calcCost(i, sensor1Value, sensor2Value);
 
         if (cost < bestCost)
         {
             bestI = i;
             bestCost = cost;
         }
+    }
+
+    if (std::abs(bestI - iAtLastOffsetUpdate) > (vecSize / 10))
+    {
+        iAtLastOffsetUpdate = bestI;
+
+        const uint16_t& a = aVec[bestI];
+        const uint16_t& b = bVec[bestI];
+        int16_t currentOffset = (diagnosticData.a - a + diagnosticData.b - b) / 2;
+
+        sensorValueOffset = 0.95 * sensorValueOffset + 0.05 * currentOffset;
     }
 
     int lastMinCostIndexChange = bestI - lastMinCostIndex;
@@ -136,8 +153,8 @@ void OpticalEncoderHandler::updatePosition()
         predictNextPos += vecSize;
     }
 
-    diagnosticData.minCostIndex = bestI;
-    diagnosticData.minCost = bestCost;
+    diagnosticData.c = bestI;
+    diagnosticData.d = bestCost;
 
     float newValue = bestI * (4096.0 / vecSize);
 
@@ -164,17 +181,6 @@ uint32_t OpticalEncoderHandler::calcCost(int& i, uint16_t a, uint16_t b)
         i += vecSize;
     }
 
-    int predictDiff = i - predictNextPos;
-
-    if (predictDiff > vecSize / 2)
-    {
-        predictDiff -= vecSize;
-    }
-    else if (predictDiff < -vecSize / 2)
-    {
-        predictDiff += vecSize;
-    }
-
     uint32_t tempA;
     tempA = aVec[i] - a;
     tempA = tempA * tempA;
@@ -183,5 +189,5 @@ uint32_t OpticalEncoderHandler::calcCost(int& i, uint16_t a, uint16_t b)
     tempB = bVec[i] - b;
     tempB = tempB * tempB;
 
-    return tempA + tempB + 20 * abs(predictDiff);
+    return tempA + tempB;
 }

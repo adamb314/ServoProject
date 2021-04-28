@@ -1,7 +1,10 @@
 #include "EncoderHandler.h"
 
-EncoderHandler::EncoderHandler(int chipSelectPin) :
-    chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0) 
+EncoderHandler::EncoderHandler(int chipSelectPin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
+    EncoderHandlerInterface(unitsPerRev),
+    chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0),
+    scaling(unitsPerRev * (1.0 / 4096.0)),
+    compVec(compVec)
 {
 }
 
@@ -43,12 +46,18 @@ void EncoderHandler::triggerSample()
         wrapAroundCorretion += 4096;
     }
     value = newValue;
+
+    float t = value * (vecSize / 4096.0);
+    int i = std::min(vecSize - 2, static_cast<int>(t));
+    t -= i;
+    value -= compVec[i] * (1.0 - t) + compVec[i + 1] * t;
+
     status = 0;
 }
 
 float EncoderHandler::getValue()
 {
-    return (value + wrapAroundCorretion);
+    return (value + wrapAroundCorretion) * scaling;
 }
 
 uint16_t EncoderHandler::getStatus()

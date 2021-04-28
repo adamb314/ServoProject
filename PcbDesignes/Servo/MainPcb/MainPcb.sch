@@ -35,17 +35,6 @@ F 3 "" H 8900 2200 50  0001 C CNN
 	1    8300 2150
 	-1   0    0    -1  
 $EndComp
-$Comp
-L New_Library:CurrentSensor-New_Library U3
-U 1 1 5D66AD20
-P 8150 3400
-F 0 "U3" H 8425 3565 50  0000 C CNN
-F 1 "CurrentSensor" H 8425 3474 50  0000 C CNN
-F 2 "Package_DIP:DIP-7_600_ELL" H 8800 3450 50  0001 C CNN
-F 3 "" H 8800 3450 50  0001 C CNN
-	1    8150 3400
-	-1   0    0    -1  
-$EndComp
 Wire Wire Line
 	8400 2450 8550 2450
 Wire Wire Line
@@ -62,11 +51,6 @@ Wire Wire Line
 	8450 2650 8450 2750
 Wire Wire Line
 	8450 2750 8400 2750
-Wire Wire Line
-	8450 2750 8450 3600
-Wire Wire Line
-	8450 3600 8250 3600
-Connection ~ 8450 2750
 Wire Wire Line
 	8450 1900 7200 1900
 Wire Wire Line
@@ -95,17 +79,7 @@ Wire Wire Line
 	7250 2350 7250 2750
 Wire Wire Line
 	7250 2750 7350 2750
-Wire Wire Line
-	7250 3800 7500 3800
-Wire Wire Line
-	7500 3900 7250 3900
-Wire Wire Line
-	7250 3900 7250 3800
 Connection ~ 7250 2350
-Wire Wire Line
-	7500 3600 7400 3600
-Wire Wire Line
-	7400 3600 7400 3350
 $Comp
 L Diode:1N4001 D1
 U 1 1 5D66F4E1
@@ -119,17 +93,6 @@ F 3 "http://www.vishay.com/docs/88503/1n4001.pdf" H 6200 1100 50  0001 C CNN
 $EndComp
 Wire Wire Line
 	2200 2250 2350 2250
-$Comp
-L power:+3.3V #PWR0103
-U 1 1 5D686FC5
-P 6850 3700
-F 0 "#PWR0103" H 6850 3550 50  0001 C CNN
-F 1 "+3.3V" H 6865 3873 50  0000 C CNN
-F 2 "" H 6850 3700 50  0001 C CNN
-F 3 "" H 6850 3700 50  0001 C CNN
-	1    6850 3700
-	-1   0    0    -1  
-$EndComp
 $Comp
 L power:+BATT #PWR0107
 U 1 1 5D69F0B1
@@ -249,23 +212,11 @@ Wire Wire Line
 Wire Wire Line
 	2200 3550 3750 3550
 Wire Wire Line
-	4150 1900 4150 2850
-Wire Wire Line
-	4150 2850 3600 2850
-Wire Wire Line
-	4100 2350 4100 2950
-Wire Wire Line
-	4100 2950 3600 2950
-Connection ~ 3600 2350
-Wire Wire Line
 	3750 2000 3750 2150
 Wire Wire Line
 	3750 2150 3600 2150
 Wire Wire Line
-	2950 1900 4150 1900
-Wire Wire Line
 	1000 1900 2950 1900
-Connection ~ 2950 1900
 Wire Wire Line
 	2950 1900 2950 2150
 Wire Wire Line
@@ -286,10 +237,10 @@ Wire Wire Line
 	8650 1550 8650 2250
 Connection ~ 6850 1550
 $Comp
-L Connector_Generic:Conn_01x01 J6
+L Connector_Generic:Conn_01x01 SO1
 U 1 1 5D80CB38
 P 5350 3700
-F 0 "J6" H 5430 3742 50  0000 L CNN
+F 0 "SO1" H 5430 3742 50  0000 L CNN
 F 1 "Conn_01x01" H 5430 3651 50  0000 L CNN
 F 2 "Connector_Wire:SolderWirePad_1x01_Pad1.5mm_Drill1mm" H 5350 3700 50  0001 C CNN
 F 3 "~" H 5350 3700 50  0001 C CNN
@@ -297,10 +248,10 @@ F 3 "~" H 5350 3700 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L Connector_Generic:Conn_01x01 J7
+L Connector_Generic:Conn_01x01 SI1
 U 1 1 5D80CBAF
 P 5350 4000
-F 0 "J7" H 5430 4042 50  0000 L CNN
+F 0 "SI1" H 5430 4042 50  0000 L CNN
 F 1 "Conn_01x01" H 5430 3951 50  0000 L CNN
 F 2 "Connector_Wire:SolderWirePad_1x01_Pad1.5mm_Drill1mm" H 5350 4000 50  0001 C CNN
 F 3 "~" H 5350 4000 50  0001 C CNN
@@ -308,10 +259,10 @@ F 3 "~" H 5350 4000 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L Connector_Generic:Conn_01x01 J8
+L Connector_Generic:Conn_01x01 SCK1
 U 1 1 5D81111A
 P 5350 4350
-F 0 "J8" H 5430 4392 50  0000 L CNN
+F 0 "SCK1" H 5430 4392 50  0000 L CNN
 F 1 "Conn_01x01" H 5430 4301 50  0000 L CNN
 F 2 "Connector_Wire:SolderWirePad_1x01_Pad1.5mm_Drill1mm" H 5350 4350 50  0001 C CNN
 F 3 "~" H 5350 4350 50  0001 C CNN
@@ -319,10 +270,10 @@ F 3 "~" H 5350 4350 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L Connector_Generic:Conn_01x01 J9
+L Connector_Generic:Conn_01x01 SC1
 U 1 1 5D815687
 P 5350 4700
-F 0 "J9" H 5430 4742 50  0000 L CNN
+F 0 "SC1" H 5430 4742 50  0000 L CNN
 F 1 "Conn_01x01" H 5430 4651 50  0000 L CNN
 F 2 "Connector_Wire:SolderWirePad_1x01_Pad1.5mm_Drill1mm" H 5350 4700 50  0001 C CNN
 F 3 "~" H 5350 4700 50  0001 C CNN
@@ -379,21 +330,6 @@ F 3 "~" H 5450 2750 50  0001 C CNN
 	1    5450 2750
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	3600 2350 4100 2350
-Wire Wire Line
-	6500 2850 6500 3700
-Wire Wire Line
-	6500 3700 6850 3700
-Wire Wire Line
-	5750 2850 6500 2850
-Wire Wire Line
-	5750 2950 6400 2950
-Wire Wire Line
-	6400 2950 6400 3800
-Wire Wire Line
-	6400 3800 7250 3800
-Connection ~ 7250 3800
 $Comp
 L power:GNDPWR #PWR0101
 U 1 1 5D896D06
@@ -409,18 +345,6 @@ Connection ~ 7800 1650
 Wire Wire Line
 	6650 1650 7800 1650
 $Comp
-L power:GND #PWR0102
-U 1 1 5D8A0F70
-P 6400 3800
-F 0 "#PWR0102" H 6400 3550 50  0001 C CNN
-F 1 "GND" H 6405 3627 50  0000 C CNN
-F 2 "" H 6400 3800 50  0001 C CNN
-F 3 "" H 6400 3800 50  0001 C CNN
-	1    6400 3800
-	1    0    0    -1  
-$EndComp
-Connection ~ 6400 3800
-$Comp
 L power:+3.3VP #PWR0104
 U 1 1 5D8A0FB4
 P 7200 1900
@@ -431,9 +355,6 @@ F 3 "" H 7200 1900 50  0001 C CNN
 	1    7200 1900
 	1    0    0    -1  
 $EndComp
-Connection ~ 6850 3700
-Wire Wire Line
-	6850 3700 7500 3700
 Wire Wire Line
 	5250 1900 7200 1900
 Wire Wire Line
@@ -464,14 +385,6 @@ Wire Wire Line
 Wire Wire Line
 	2950 2850 3100 2850
 Wire Wire Line
-	1200 2750 600  2750
-Wire Wire Line
-	600  2750 600  4350
-Wire Wire Line
-	600  4350 3050 4350
-Wire Wire Line
-	3050 4350 3050 2950
-Wire Wire Line
 	3050 2950 3100 2950
 Wire Wire Line
 	7300 2450 5250 2450
@@ -496,8 +409,60 @@ Wire Wire Line
 	5100 2850 5250 2850
 Wire Wire Line
 	5100 3700 5150 3700
+Text GLabel 8800 2650 2    50   Output ~ 0
+M+
+Text GLabel 8800 2850 2    50   Output ~ 0
+M-
 Wire Wire Line
-	5250 3350 5250 2950
+	8550 2850 8800 2850
+Connection ~ 8550 2850
 Wire Wire Line
-	5250 3350 7400 3350
+	8800 2650 8450 2650
+Connection ~ 8450 2650
+Wire Wire Line
+	3600 2950 3700 2950
+Wire Wire Line
+	3700 2950 3700 2350
+Wire Wire Line
+	3700 2350 3600 2350
+Connection ~ 3600 2350
+Wire Wire Line
+	3600 2850 3900 2850
+Wire Wire Line
+	3900 2850 3900 1900
+Wire Wire Line
+	3900 1900 2950 1900
+Connection ~ 2950 1900
+$Comp
+L Connector_Generic:Conn_01x01 3.3v1
+U 1 1 60828583
+P 6350 3700
+F 0 "3.3v1" H 6430 3742 50  0000 L CNN
+F 1 "Conn_01x01" H 6430 3651 50  0000 L CNN
+F 2 "Connector_Wire:SolderWirePad_1x01_Pad1.5mm_Drill1mm" H 6350 3700 50  0001 C CNN
+F 3 "~" H 6350 3700 50  0001 C CNN
+	1    6350 3700
+	1    0    0    -1  
+$EndComp
+$Comp
+L Connector_Generic:Conn_01x01 GND1
+U 1 1 60828589
+P 6350 4000
+F 0 "GND1" H 6430 4042 50  0000 L CNN
+F 1 "Conn_01x01" H 6430 3951 50  0000 L CNN
+F 2 "Connector_Wire:SolderWirePad_1x01_Pad1.5mm_Drill1mm" H 6350 4000 50  0001 C CNN
+F 3 "~" H 6350 4000 50  0001 C CNN
+	1    6350 4000
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5750 2850 6150 2850
+Wire Wire Line
+	6150 2850 6150 3700
+Wire Wire Line
+	5750 2950 6050 2950
+Wire Wire Line
+	6050 2950 6050 4000
+Wire Wire Line
+	6050 4000 6150 4000
 $EndSCHEMATC

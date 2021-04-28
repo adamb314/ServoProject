@@ -280,8 +280,6 @@ bool SimulateCommunication::execute()
         }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
     commandArray.clear();
 
     std::vector<unsigned char> receiveArrayCopy = receiveArray;
