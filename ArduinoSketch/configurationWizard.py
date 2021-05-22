@@ -840,7 +840,7 @@ def findWorstFitt(aVec, bVec):
     return maxIndex + 1
 
 class OpticalEncoderDataVectorGenerator:
-    def __init__(self, data, segment = 3000,
+    def __init__(self, data, classString = '', segment = 3000,
             constVelIndex = 10000, noiseDepresMemLenght = 5,
             shouldAbort=None, updateProgress=None):
 
@@ -856,7 +856,7 @@ class OpticalEncoderDataVectorGenerator:
         armed = False
         startOfFirstRotation = None
         endOfFirstRotation = None
-        for i, d in enumerate(self.data[0:1000, 0:2]):
+        for i, d in enumerate(self.data[0:constVelIndex, 0:2]):
             c = (d[0] - a0)**2 + (d[1] -b0)**2
 
             if startOfFirstRotation == None:
@@ -871,6 +871,9 @@ class OpticalEncoderDataVectorGenerator:
                         endOfFirstRotation = i
 
             lastCost = c
+
+        if startOfFirstRotation == None or endOfFirstRotation == None:
+            raise Exception('No movement detected')
 
         startIndex = startOfFirstRotation
         firstRotationLenght = endOfFirstRotation - startOfFirstRotation
@@ -919,8 +922,8 @@ class OpticalEncoderDataVectorGenerator:
                 self.aVec += aVecShrunk
                 self.bVec += bVecShrunk
 
-                self.aVecList.append(aVec)
-                self.bVecList.append(bVec)
+                self.aVecList.append(aVecShrunk)
+                self.bVecList.append(bVecShrunk)
 
                 actNr += 1
                 time.sleep(0.1)
@@ -932,6 +935,69 @@ class OpticalEncoderDataVectorGenerator:
 
         self.aVec = self.aVec / actNr
         self.bVec = self.bVec / actNr
+
+        self.oldAVec = None
+        self.oldBVec = None
+
+        if classString != '':
+            aVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*aVec\s*=\s*)\{([\d\s,]*)\};')
+            bVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*bVec\s*=\s*)\{([\d\s,]*)\};')
+            
+            temp1 = aVecPattern.search(classString)
+            temp2 = bVecPattern.search(classString)
+
+            if temp1 != None and temp2 != None:
+                oldAVecStr = temp1.group(3)
+                oldBVecStr = temp2.group(3)
+                oldAVecStr = '[' + oldAVecStr + ']'
+                oldBVecStr = '[' + oldBVecStr + ']'
+
+                self.oldAVec = eval(oldAVecStr)
+                self.oldBVec = eval(oldBVecStr)
+
+                if len(self.oldAVec) <= 1:
+                    self.oldAVec = None
+                if len(self.oldBVec) <= 1:
+                    self.oldBVec = None
+
+        def aligneTo(aVec, bVec, refAVec, refBVec):
+            def calcCost(aVec, bVec, refAVec, refBVec):
+                cost = 0
+                for d in zip(aVec, bVec, refAVec, refBVec):
+                    cost += (d[0] - d[2])**2 + (d[1] - d[3])**2
+                return cost
+
+            tempA = []
+            tempB = []
+            for d in zip(aVec, bVec):
+                tempA.append(d[0])
+                tempB.append(d[1])
+
+            aVec = tempA
+            bVec = tempB
+
+            bestFittShift = 0
+            bestFittCost = float('inf')
+            for shift in range(0, 512):
+                tempA = aVec[-shift:] + aVec[0:-shift]
+                tempB = bVec[-shift:] + bVec[0:-shift]
+
+                cost = calcCost(tempA, tempB, refAVec, refBVec)
+
+                if cost < bestFittCost:
+                    bestFittCost = cost
+                    bestFittShift = shift
+
+            tempA = aVec[-bestFittShift:] + aVec[0:-bestFittShift]
+            tempB = bVec[-bestFittShift:] + bVec[0:-bestFittShift]
+
+            return tempA, tempB
+
+        if self.oldAVec != None and self.oldBVec != None:
+            for i, d in enumerate(zip(self.aVecList, self.bVecList)):
+                self.aVecList[i], self.bVecList[i] = aligneTo(d[0], d[1], self.oldAVec, self.oldBVec)
+
+            self.aVec, self.bVec = aligneTo(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
 
     def genVec(self, beginIndex, endIndex):
         aVec = numba.typed.List()
@@ -1004,54 +1070,7 @@ class OpticalEncoderDataVectorGenerator:
 
         return (np.array(aVecShrunk), np.array(bVecShrunk), aVec, bVec)
 
-    def plotGeneratedVectors(self, box, classString = ''):
-        oldAVec = None
-        oldBVec = None
-
-        if classString != '':
-            aVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*aVec\s*=\s*)\{([\d\s,]*)\};')
-            bVecPattern = re.compile(r'(.*createMainEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*512\s*>\s*bVec\s*=\s*)\{([\d\s,]*)\};')
-            
-            temp1 = aVecPattern.search(classString)
-            temp2 = bVecPattern.search(classString)
-
-            if temp1 != None and temp2 != None:
-                oldAVecStr = temp1.group(3)
-                oldBVecStr = temp2.group(3)
-                oldAVecStr = '[' + oldAVecStr + ']'
-                oldBVecStr = '[' + oldBVecStr + ']'
-
-                oldAVec = eval(oldAVecStr)
-                oldBVec = eval(oldBVecStr)
-
-                if len(oldAVec) <= 1:
-                    oldAVec = None
-                if len(oldBVec) <= 1:
-                    oldBVec = None
-
-            def aligneTo(aVec, bVec, refAVec, refBVec):
-                def calcCost(aVec, bVec, refAVec, refBVec):
-                    cost = 0
-                    for d in zip(aVec, bVec, refAVec, refBVec):
-                        cost += (d[0] - d[2])**2 + (d[1] - d[3])**2
-                    return cost
-
-                bestFittShift = 0
-                bestFittCost = float('inf')
-                for shift in range(0, 512):
-                    tempA = aVec[-shift:] + aVec[0:-shift]
-                    tempB = bVec[-shift:] + bVec[0:-shift]
-
-                    cost = calcCost(tempA, tempB, refAVec, refBVec)
-
-                    if cost < bestFittCost:
-                        bestFittCost = cost
-                        bestFittShift = shift
-
-                tempA = aVec[-bestFittShift:] + aVec[0:-bestFittShift]
-                tempB = bVec[-bestFittShift:] + bVec[0:-bestFittShift]
-                return tempA, tempB
-
+    def plotGeneratedVectors(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
@@ -1065,18 +1084,15 @@ class OpticalEncoderDataVectorGenerator:
         ax.plot(self.aVec, 'r-')
         ax.plot(self.bVec, 'g-')
 
-        if oldAVec != None and oldBVec != None:
-            oldAVec, oldBVec = aligneTo(oldAVec, oldBVec, self.aVec, self.bVec)
-
-            ax.plot(oldAVec, 'm-')
-            ax.plot(oldBVec, 'c-')
+        if self.oldAVec != None and self.oldBVec != None:
+            ax.plot(self.oldAVec, 'm-')
+            ax.plot(self.oldBVec, 'c-')
 
             labelStr += '\nMagenta and cyan curves are old channel A and channel B.'
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
         box.add(canvas)
-
 
         label = Gtk.Label(label=labelStr)
         label.set_use_markup(True)
@@ -3444,22 +3460,22 @@ class GuiWindow(Gtk.Window):
                                 nonlocal pwmValue
                                 nonlocal threadMutex
 
+                                configClassString = ''
+
+                                with open("config/" + configName, "r") as configFile:
+                                    configFileAsString = configFile.read()
+
+                                    classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+                                    temp = classPattern.search(configFileAsString)
+                                    if temp != None:
+                                        configClassString = temp.group(0)
+
                                 try:
                                     robot = createRobot(nodeNr, port)
 
                                     def handleResults(opticalEncoderDataVectorGenerator):
                                         nonlocal configName
-                                        nonlocal configClassName
-
-                                        classString = ''
-
-                                        with open("config/" + configName, "r") as configFile:
-                                            configFileAsString = configFile.read()
-
-                                            classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
-                                            temp = classPattern.search(configFileAsString)
-                                            if temp != None:
-                                                classString = temp.group(0)
+                                        nonlocal configClassString
 
                                         dialog = Gtk.MessageDialog(
                                                 transient_for=self,
@@ -3471,14 +3487,14 @@ class GuiWindow(Gtk.Window):
                                         dialog.format_secondary_text(
                                             "Should the configuration be updated with the new data?"
                                         )
-                                        opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area(), classString)
+                                        opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area())
                                         response = dialog.run()
                                         dialog.destroy()
 
                                         if response == Gtk.ResponseType.YES:
-                                            classString = opticalEncoderDataVectorGenerator.writeVectorsToConfigClassString(classString)
-                                            if classString != '':
-                                                configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                                            configClassString = opticalEncoderDataVectorGenerator.writeVectorsToConfigClassString(configClassString)
+                                            if configClassString != '':
+                                                configFileAsString = re.sub(classPattern, configClassString, configFileAsString)
                                                 with open("config/" + configName, "w") as configFile:
                                                     configFile.write(configFileAsString)
                                                     transferToTargetMessage()
@@ -3599,7 +3615,7 @@ class GuiWindow(Gtk.Window):
                                     if not shouldAbort():
                                         try:
                                             opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                                    data[:, 1:3], constVelIndex=1000, noiseDepresMemLenght=8,
+                                                    data[:, 1:3], configClassString, constVelIndex=1000, noiseDepresMemLenght=8,
                                                     shouldAbort=shouldAbort,
                                                     updateProgress=updateProgress)
 
