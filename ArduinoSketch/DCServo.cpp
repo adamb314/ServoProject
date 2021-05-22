@@ -71,7 +71,7 @@ void DCServo::init()
 
     kalmanFilter->reset(x);
 
-    loadNewReference(x[0], 0, 0);
+    loadNewReference(rawOutputPos, 0, 0);
 
     threads.push_back(createThread(1, cycleTime, 0,
         [&]()
@@ -96,11 +96,6 @@ void DCServo::enable(bool b)
     }
 
     controlEnabled = b;
-
-    if (!b)
-    {
-        refInterpolator.resetTiming();
-    }
 }
 
 void DCServo::openLoopMode(bool enable, bool pwmMode)
@@ -137,7 +132,11 @@ void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
 void DCServo::triggerReferenceTiming()
 {
     ThreadInterruptBlocker blocker;
-    refInterpolator.updateTiming();
+
+    if (controlEnabled)
+    {
+        refInterpolator.updateTiming();
+    }
 }
 
 float DCServo::getPosition()
@@ -313,7 +312,8 @@ void DCServo::controlLoop()
     }
     else
     {
-        loadNewReference(x[0], 0, 0);
+        refInterpolator.resetTiming();
+        loadNewReference(rawOutputPos, 0, 0);
         Ivel = 0;
         uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
@@ -357,9 +357,12 @@ ReferenceInterpolator::ReferenceInterpolator()
 
 void ReferenceInterpolator::loadNew(float position, float velocity, float feedForward)
 {
-    if (timingInvalid)
+    if (refInvalid)
     {
-        midPointTimeOffset = 0;
+        if (!timingInvalid)
+        {
+            refInvalid = false;
+        }
 
         pos[2] = position;
         vel[2] = velocity;
@@ -423,11 +426,21 @@ void ReferenceInterpolator::updateTiming()
 void ReferenceInterpolator::resetTiming()
 {
     timingInvalid = true;
+    refInvalid = true;
 }
 
 void ReferenceInterpolator::getNext(float& position, float& velocity, float& feedForward)
 {
     lastGetTimestamp = micros();
+
+    if (refInvalid)
+    {
+        position = pos[2];
+        velocity = vel[2];
+        feedForward = feed[2];
+
+        return;
+    }
 
     if (midPointTimeOffset < 2 * loadTimeInterval)
     {
@@ -462,16 +475,14 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
 
 void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
 {
-    timingInvalid = true;
+    resetTiming();
 
-    midPointTimeOffset = 0;
     getTimeInterval = interval;
 }
 
 void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
 {
-    timingInvalid = true;
-    midPointTimeOffset = 0;
+    resetTiming();
 
     loadTimeInterval = interval;
     invertedLoadInterval = 1.0 / loadTimeInterval;

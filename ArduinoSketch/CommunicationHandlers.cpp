@@ -56,8 +56,8 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
     }
     else if (CommunicationNode::intArrayChanged[2])
     {
-        intArrayIndex0Upscaler.update(CommunicationNode::intArray[0]);
-        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), CommunicationNode::intArray[1], CommunicationNode::intArray[2]);
+        intArrayIndex0Upscaler.set(CommunicationNode::intArray[3]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), 0.0, CommunicationNode::intArray[2]);
 
         CommunicationNode::intArrayChanged[2] = false;
         dcServo->openLoopMode(true, CommunicationNode::charArray[1] == 1);
@@ -102,10 +102,7 @@ void DCServoCommunicationHandler::onComCycleEvent()
         CommunicationNode::intArray[14] = opticalEncoderChannelData.c;
         CommunicationNode::intArray[15] = opticalEncoderChannelData.d;
 
-        if (dcServo->isEnabled())
-        {
-            dcServo->triggerReferenceTiming();
-        }
+        dcServo->triggerReferenceTiming();
     }
 
     statusLight.showCommunicationActive();

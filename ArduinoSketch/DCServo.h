@@ -38,6 +38,7 @@ class ReferenceInterpolator
     uint16_t lastGetTimestamp{0};
 
     bool timingInvalid{true};
+    bool refInvalid{true};
     uint16_t loadTimeInterval{12000};
     float invertedLoadInterval{1.0 / 12000};
     uint16_t getTimeInterval{1200};
