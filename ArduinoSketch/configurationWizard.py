@@ -1294,7 +1294,7 @@ class KalmanFilter(object):
         AT = np.transpose(Aex)
         CT = np.transpose(Cex)
 
-        x = range(1 * 4 * 4, 101 * 4 * 4, 4 * 4)
+        x = range(10 * 4 * 20, 50 * 4 * 20, 4 * 20)
         vec1 = []
         vec2 = []
         vec3 = []
