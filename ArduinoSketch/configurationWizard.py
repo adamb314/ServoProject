@@ -3543,6 +3543,8 @@ class GuiWindow(Gtk.Window):
 
                                         servo = robot.dcServoArray[nodeNr - 1]
 
+                                        if manualMovement:
+                                            return
                                         pwm = 0
                                         with threadMutex:
                                             pwm = pwmValue
