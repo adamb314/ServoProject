@@ -3545,6 +3545,7 @@ class GuiWindow(Gtk.Window):
 
                                         if manualMovement:
                                             return
+
                                         pwm = 0
                                         with threadMutex:
                                             pwm = pwmValue
@@ -4811,11 +4812,11 @@ class GuiWindow(Gtk.Window):
 
                             testVel = 0
 
-                            testVelScale = creatHScale(0.0, -1.000, 1.000, 0.010, getLowLev=True)
+                            testVelScale = creatHScale(0.0, -1.000, 1.000, 0.001, getLowLev=True)
                             testVelScale = addTopLabelTo('<b>Velocity</b>\n in radians per second', testVelScale[0]), testVelScale[1]
                             startButton = createButton('Start test', getLowLev=True)
 
-                            positionOffsetScale = creatHScale(0.0, -1.0, 1.0, 0.010, getLowLev=True)
+                            positionOffsetScale = creatHScale(0.0, -1.0, 1.0, 0.001, getLowLev=True)
                             positionOffsetScale = addTopLabelTo('<b>Position offset</b>\n in radians', positionOffsetScale[0]), positionOffsetScale[1]
                             calibrationBox.pack_start(positionOffsetScale[0], False, False, 0)
 
@@ -4852,6 +4853,9 @@ class GuiWindow(Gtk.Window):
 
                                 plt.figure(3)
                                 plt.plot(data[:, 0], data[:, 3])
+
+                                plt.figure(4)
+                                plt.plot(data[:, 4], data[:, 5], '+')
                                 plt.show()
 
                             def startTestRun(nodeNr, port):
@@ -4914,10 +4918,13 @@ class GuiWindow(Gtk.Window):
                                             return
 
                                         servo = robot.dcServoArray[nodeNr - 1]
+                                        optData = servo.getOpticalEncoderChannelData()
                                         out.append([t,
                                                 servo.getControlError(True),
                                                 servo.getVelocity(),
-                                                servo.getControlError(False)])
+                                                servo.getControlError(False),
+                                                optData.minCostIndex,
+                                                servo.getControlSignal()])
 
                                     robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
