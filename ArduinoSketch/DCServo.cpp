@@ -221,10 +221,6 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentController->getLimitedRef());
-
-            Ivel += L[3] * uLimitDiff;
-
             float posRef;
             float velRef;
             float feedForwardU;
@@ -249,9 +245,17 @@ void DCServo::controlLoop()
                 }
                 forceDir = newForceDir;
                 
-                double gain = L[4] * (0.1 + 0.9 * std::max(0.0,
-                        1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
-                double backlashCompensationDiff = gain * 0.0012 * (posRef - rawOutputPos);
+                const uint8_t backlashControlGainCycleDelay = 8;
+                if (backlashControlGainDelayCounter == 0)
+                {
+                    backlashControlGainDelayCounter = backlashControlGainCycleDelay;
+                    backlashControlGain = controlConfig->getCycleTime()
+                            * L[4] * (0.1 + 0.9 *
+                                std::max(0.0,
+                                    1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
+                }
+                backlashControlGainDelayCounter--;
+                double backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
                 outputPosOffset -= backlashCompensationDiff;
             }
 
@@ -273,19 +277,22 @@ void DCServo::controlLoop()
 
             controlSignal = u;
 
+            pwm = u;
+
             currentController->updateVelocity(x[1]);
-            currentController->setReference(static_cast<int16_t>(controlSignal));
+            currentController->setReference(static_cast<int16_t>(pwm));
             currentController->applyChanges();
             current = currentController->getCurrent();
             pwmControlSIgnal = currentController->getFilteredPwm();
 
             Ivel -= L[2] * (vControlRef - x[1]);
+            Ivel += L[3] * (pwm - currentController->getLimitedRef());
         }
         else
         {
             Ivel = 0;
-            uLimitDiff = 0;
             outputPosOffset = rawOutputPos - rawMainPos;
+            backlashControlGainDelayCounter = 0;
 
             float posRef;
             float velRef;
@@ -315,8 +322,8 @@ void DCServo::controlLoop()
         refInterpolator.resetTiming();
         loadNewReference(rawOutputPos, 0, 0);
         Ivel = 0;
-        uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
+        backlashControlGainDelayCounter = 0;
         controlSignal = 0;
         kalmanFilterCtrlSig = 0;
         currentController->activateBrake();

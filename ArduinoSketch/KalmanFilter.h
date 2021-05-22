@@ -6,7 +6,7 @@
 
 class KalmanFilter
 {
-  private:
+protected:
     const Eigen::Matrix3f A;
     const Eigen::Vector3f B;
     const Eigen::Matrix3f AInv;
@@ -14,22 +14,22 @@ class KalmanFilter
     Eigen::Vector3f AInvXK;
     Eigen::Vector3f xhat{Eigen::Vector3f::Zero()};
 
-  public:
+public:
     KalmanFilter(const Eigen::Matrix3f& A,
             const Eigen::Vector3f& B,
             const Eigen::Matrix3f& AInv,
             const Eigen::Matrix<float, 3, 4>& polyK);
 
     template<typename T>
-    static std::unique_ptr<KalmanFilter> create();
+    static std::unique_ptr<KalmanFilter> create(bool approximation = false);
 
     void setFilterSpeed(float speed);
 
     void reset(const Eigen::Vector3f& xhat0);
 
-    auto update(float u, float y) -> decltype(xhat);
+    virtual auto update(float u, float y) -> decltype(xhat);
 
-private:
+protected:
     static Eigen::Matrix<float, 3, 4> translateKVecToPolyK(const Eigen::Matrix<float, 3, 4>& in)
     {
         return in;
@@ -45,14 +45,33 @@ private:
     }
 };
 
+class KalmanFilterApproximation : public KalmanFilter
+{
+public:
+    KalmanFilterApproximation(const Eigen::Matrix3f& A,
+            const Eigen::Vector3f& B,
+            const Eigen::Matrix3f& AInv,
+            const Eigen::Matrix<float, 3, 4>& polyK) :
+        KalmanFilter(A, B, AInv, polyK)
+    {
+    }
+
+    virtual auto update(float u, float y) -> decltype(KalmanFilter::update(u, y)) override;
+};
 
 template<typename T>
-std::unique_ptr<KalmanFilter> KalmanFilter::create()
+std::unique_ptr<KalmanFilter> KalmanFilter::create(bool approximation)
 {
-    return std::make_unique<KalmanFilter>(T::getAMatrix(),
-        T::getBVector(),
-        T::getAInvMatrix(),
-        translateKVecToPolyK(T::getKVector()));
+    auto A = T::getAMatrix();
+    auto B = T::getBVector();
+    auto AInv = T::getAInvMatrix();
+    auto polyK = translateKVecToPolyK(T::getKVector());
+    if (approximation)
+    {
+        return std::make_unique<KalmanFilterApproximation>(A, B, AInv, polyK);
+    }
+
+    return std::make_unique<KalmanFilter>(A, B, AInv, polyK);
 }
 
 #endif

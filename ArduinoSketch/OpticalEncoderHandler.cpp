@@ -28,7 +28,7 @@ void OpticalEncoderHandler::triggerSample()
     sensor1.triggerSample();
     sensor2.triggerSample();
 
-    const int n = 4;
+    const int n = 1;
     for (int i = 0; i != n - 1; ++i)
     {
         sensor1Value += sensor1.getValue();

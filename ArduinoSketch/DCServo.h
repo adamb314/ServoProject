@@ -52,9 +52,14 @@ public:
     virtual void limitVelocity(float& vel) = 0;
     virtual float getCompensationForce(float rawEncPos, float velRef) = 0;
 
+    virtual float getCycleTime()
+    {
+        return getA()(0, 1);
+    }
+
     virtual uint32_t getCycleTimeUs()
     {
-        return static_cast<uint32_t>(getA()(0, 1) * 1000000ul);
+        return static_cast<uint32_t>(getCycleTime() * 1000000ul);
     }
 };
 
@@ -181,6 +186,9 @@ class DCServo
     uint8_t backlashControlSpeedVelGain{0};
     uint8_t backlashSize{0};
 
+    uint8_t backlashControlGainDelayCounter{0};
+    float backlashControlGain{0.0};
+
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop
     //L[2]: Integral action gain of velocity control loop
@@ -207,10 +215,10 @@ class DCServo
 #endif
 
     int16_t current{0};
+    int16_t pwm{0};
     int16_t pwmControlSIgnal{0};
     float controlSignal{0.0};
     float kalmanFilterCtrlSig{0.0};
-    float uLimitDiff{0.0};
 
     ReferenceInterpolator refInterpolator;
 

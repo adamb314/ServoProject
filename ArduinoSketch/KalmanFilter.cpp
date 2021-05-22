@@ -18,9 +18,6 @@ void KalmanFilter::setFilterSpeed(float speed)
     K << polyK(0, 0) * speed3 + polyK(0, 1) * speed2 + polyK(0, 2) * speed + polyK(0, 3),
     	polyK(1, 0) * speed3 + polyK(1, 1) * speed2 + polyK(1, 2) * speed + polyK(1, 3),
     	polyK(2, 0) * speed3 + polyK(2, 1) * speed2 + polyK(2, 2) * speed + polyK(2, 3);
-    //K << 1.5726759396590624,
-    //            309.89943109579195,
-    //            26.07883940224739;
 
     AInvXK = AInv * K;
 }
@@ -35,5 +32,14 @@ auto KalmanFilter::update(float u, float y) -> decltype(xhat)
     xhat += AInvXK * (y - xhat[0]);
     Eigen::Vector3f out = xhat;
     xhat = A * xhat + B * u;
+    return out;
+}
+
+auto KalmanFilterApproximation::update(float u, float y) -> decltype(KalmanFilter::update(u, y))
+{
+    xhat[1] += AInvXK[1] * (y - xhat[0]);
+    xhat[0] = y;
+    Eigen::Vector3f out = xhat;
+    xhat[0] += A(0, 1) * xhat[1];
     return out;
 }

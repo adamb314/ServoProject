@@ -24,7 +24,7 @@ void ResistiveEncoderHandler::triggerSample()
 {
     sensorValue = 0;
 
-    const int n = 4;
+    const int n = 1;
     for (int i = 0; i != n; ++i)
     {
         sensor.triggerSample();
