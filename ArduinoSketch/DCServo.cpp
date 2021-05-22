@@ -200,7 +200,7 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 void DCServo::controlLoop()
 {
 #ifdef SIMULATE
-    xSim = controlConfig->getA() * xSim + controlConfig->getB() * kalmanFilterCtrlSig;
+    xSim = controlConfig->getA() * xSim + controlConfig->getB() * controlSignal;
     rawMainPos =xSim[0];
     rawOutputPos = rawMainPos;
 #else
@@ -215,7 +215,7 @@ void DCServo::controlLoop()
     }
 #endif
 
-    x = kalmanFilter->update(kalmanFilterCtrlSig, rawMainPos);
+    x = kalmanFilter->update(controlSignal, rawMainPos);
 
     if (controlEnabled)
     {
@@ -269,15 +269,10 @@ void DCServo::controlLoop()
 
             float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
 
-            kalmanFilterCtrlSig = u;
-
-            uint16_t rawEncPos = mainEncoderHandler->getDiagnosticData().c;
-
-            u += controlConfig->getCompensationForce(rawEncPos, vControlRef);
-
             controlSignal = u;
 
-            pwm = u;
+            uint16_t rawEncPos = mainEncoderHandler->getDiagnosticData().c;
+            int16_t pwm = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef);
 
             currentController->updateVelocity(x[1]);
             currentController->setReference(static_cast<int16_t>(pwm));
@@ -303,13 +298,11 @@ void DCServo::controlLoop()
             if (pwmOpenLoopMode)
             {
                 controlSignal = 0;
-                kalmanFilterCtrlSig = 0;
                 currentController->overidePwmDuty(feedForwardU);
             }
             else
             {
                 controlSignal = feedForwardU;
-                kalmanFilterCtrlSig = feedForwardU;
                 currentController->setReference(static_cast<int16_t>(controlSignal));
             }
             currentController->applyChanges();
@@ -325,7 +318,6 @@ void DCServo::controlLoop()
         outputPosOffset = rawOutputPos - rawMainPos;
         backlashControlGainDelayCounter = 0;
         controlSignal = 0;
-        kalmanFilterCtrlSig = 0;
         currentController->activateBrake();
         currentController->applyChanges();
         current = currentController->getCurrent();

@@ -50,7 +50,7 @@ public:
     virtual const Eigen::Matrix3f& getA() = 0;
     virtual const Eigen::Vector3f& getB() = 0;
     virtual void limitVelocity(float& vel) = 0;
-    virtual float getCompensationForce(float rawEncPos, float velRef) = 0;
+    virtual float applyForceCompensations(float u, float rawEncPos, float velRef) = 0;
 
     virtual float getCycleTime()
     {
@@ -67,11 +67,13 @@ class DefaultControlConfiguration : public ControlConfigurationInterface
 {
 public:
     DefaultControlConfiguration(const Eigen::Matrix3f& A, const Eigen::Vector3f& B,
-        const float& maxVel, const float& frictionComp, const EncoderHandlerInterface* encoder) :
+        const float& maxVel, const float& frictionComp, const std::array<uint8_t, 512>& posDepForceCompVec,
+        const EncoderHandlerInterface* encoder) :
             A(A),
             B(B),
             maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
-            frictionComp(frictionComp)
+            frictionComp(frictionComp),
+            posDepForceCompVec(posDepForceCompVec)
     {}
 
     template<typename T>
@@ -93,9 +95,10 @@ public:
         vel = std::max(-maxVel, vel);
     }
 
-    virtual float getCompensationForce(float rawEncPos, float velRef) override
+    virtual float applyForceCompensations(float u, float rawEncPos, float velRef) override
     {
-        float out = 0;
+        float out = u;
+
         if (velRef > 0)
         {
             out += frictionComp;
@@ -105,6 +108,8 @@ public:
             out -= frictionComp;
         }
 
+        out = (out * static_cast<int32_t>(posDepForceCompVec[rawEncPos])) / 128;
+
         return out;
     }
 
@@ -113,6 +118,7 @@ private:
     Eigen::Vector3f B;
     float frictionComp;
     float maxVel;
+    std::array<uint8_t, 512> posDepForceCompVec;
 };
 
 template<typename T>
@@ -123,6 +129,7 @@ std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create
             T::getBVector(),
             T::getMaxVelocity(),
             T::getFrictionComp(),
+            T::getPosDepForceCompVec(),
             encoder);
 }
 
@@ -215,10 +222,8 @@ class DCServo
 #endif
 
     int16_t current{0};
-    int16_t pwm{0};
     int16_t pwmControlSIgnal{0};
     float controlSignal{0.0};
-    float kalmanFilterCtrlSig{0.0};
 
     ReferenceInterpolator refInterpolator;
 
