@@ -3468,6 +3468,7 @@ class GuiWindow(Gtk.Window):
                                     def handleResults(opticalEncoderDataVectorGenerator):
                                         nonlocal configName
                                         nonlocal configClassString
+                                        nonlocal configFileAsString
 
                                         dialog = Gtk.MessageDialog(
                                                 transient_for=self,
@@ -3610,7 +3611,7 @@ class GuiWindow(Gtk.Window):
                                     if not shouldAbort():
                                         try:
                                             opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                                    data[:, 1:3], configClassString, constVelIndex=1000, noiseDepresMemLenght=8,
+                                                    data[:, 1:3], configClassString, constVelIndex=1000, segment = 2 * 512, noiseDepresMemLenght=8,
                                                     shouldAbort=shouldAbort,
                                                     updateProgress=updateProgress)
 
