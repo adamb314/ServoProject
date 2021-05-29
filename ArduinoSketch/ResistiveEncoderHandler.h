@@ -21,7 +21,7 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
 
   private:
     AnalogSampler sensor;
-    float sensorValue{0};
+    uint32_t sensorValue{0};
     const float scaling;
     std::array<int16_t, vecSize> compVec;
 };
