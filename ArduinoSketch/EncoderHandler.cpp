@@ -22,7 +22,7 @@ void EncoderHandler::init()
 
 void EncoderHandler::triggerSample()
 {
-    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE1));
+    SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE1));
 
     digitalWrite(chipSelectPin, LOW);
 
