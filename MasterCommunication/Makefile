@@ -10,8 +10,8 @@ CXX = g++
 
 Includes = -Iinclude
 CFLAGS   = -c -O2 -std=c98 -g -Wall $(Includes) 
-CXXFLAGS = -c -O2 -std=c++17 -g -Wall $(Includes) 
-LIBS     = -L. -lrt -lpthread -lboost_system -lboost_program_options
+CXXFLAGS = -c -O2 -std=c++17 -g -Wall $(Includes) `pkg-config gtkmm-3.0 --cflags`
+LIBS     = -L. -lrt -lpthread -lboost_system -lboost_program_options `pkg-config gtkmm-3.0 --cflags --libs`
 LDFLAGS  = -g
 
 ######################
