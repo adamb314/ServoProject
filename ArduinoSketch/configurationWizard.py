@@ -1294,7 +1294,7 @@ class KalmanFilter(object):
         AT = np.transpose(Aex)
         CT = np.transpose(Cex)
 
-        x = range(10 * 4 * 20, 50 * 4 * 20, 4 * 20)
+        x = range(1 * 4 * 20, 100 * 4 * 20, 4 * 20)
         vec1 = []
         vec2 = []
         vec3 = []
@@ -1307,20 +1307,12 @@ class KalmanFilter(object):
             vec2.append(plaseResult.gain_matrix[0, 1])
             vec3.append(plaseResult.gain_matrix[0, 2])
 
-        p1 = np.polyfit(x, vec1, 3)
-        p2 = np.polyfit(x, vec2, 3)
-        p3 = np.polyfit(x, vec3, 3)
+        p1 = np.polyfit(x, vec1, 6)
+        p2 = np.polyfit(x, vec2, 6)
+        p3 = np.polyfit(x, vec3, 6)
 
 
         self.polyK = np.vstack((p1, p2, p3))
-
-        speed = 20 * 4 * 4
-        speed2 = speed * speed
-        speed3 = speed * speed * speed
-
-        K = [self.polyK[0, 0] * speed3 + self.polyK[0, 1] * speed2 + self.polyK[0, 2] * speed + self.polyK[0, 3],
-            self.polyK[1, 0] * speed3 + self.polyK[1, 1] * speed2 + self.polyK[1, 2] * speed + self.polyK[1, 3],
-            self.polyK[2, 0] * speed3 + self.polyK[2, 1] * speed2 + self.polyK[2, 2] * speed + self.polyK[2, 3]]
 
 class ServoModel(object):
     """docstring for ServoModel"""
@@ -1360,9 +1352,9 @@ class ServoModel(object):
             out = r'\1\n'
             out += r'\2  public:\n'
             out += r'\2    //kalman filter observer vector\n'
-            out += r'\2    static Eigen::Matrix<float, 3, 4> getKVector()\n'
+            out += r'\2    static Eigen::Matrix<float, 3, 7> getKVector()\n'
             out += r'\2    {\n'
-            out += r'\2        Eigen::Matrix<float, 3, 4> K;\n'
+            out += r'\2        Eigen::Matrix<float, 3, 7> K;\n'
             out += r'\2        K << ' + printAsEigenInit(self.kalmanFilter.polyK, r'\2            ')
             out += r'\n'
             out += r'\2        return K;\n'
@@ -1420,9 +1412,9 @@ class ServoModel(object):
         out += '    {\n'
         out += '      public:\n'
         out += '        //kalman filter observer vector\n'
-        out += '        static Eigen::Matrix<float, 3, 4> getKVector()\n'
+        out += '        static Eigen::Matrix<float, 3, 7> getKVector()\n'
         out += '        {\n'
-        out += '            Eigen::Matrix<float, 3, 4> K;\n'
+        out += '            Eigen::Matrix<float, 3, 7> K;\n'
         out += '            K << ' + printAsEigenInit(self.kalmanFilter.polyK , '                ')
         out += '\n'
         out += '            return K;\n'
