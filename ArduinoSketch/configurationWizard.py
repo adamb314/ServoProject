@@ -4667,8 +4667,6 @@ class GuiWindow(Gtk.Window):
 
                                         servo = robot.dcServoArray[nodeNr - 1]
 
-                                        servo.setOpenLoopControlSignal(0, True)
-
                                     out = []
 
                                     def readResultHandlerFunction(dt, robot):
