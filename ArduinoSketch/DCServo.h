@@ -41,6 +41,7 @@ class ReferenceInterpolator
     bool refInvalid{true};
     uint16_t loadTimeInterval{12000};
     float invertedLoadInterval{1.0 / 12000};
+    float dtDiv2{12000 * 0.000001 * 0.5};
     uint16_t getTimeInterval{1200};
 };
 

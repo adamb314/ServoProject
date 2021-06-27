@@ -460,15 +460,17 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
     if (t < 0.0)
     {
         t += 1.0;
-        position = pos[0] + t * (pos[1] - pos[0]);
-        velocity = vel[0] + t * (vel[1] - vel[0]);
         feedForward = feed[0] + t * (feed[1] - feed[0]);
+        float velDiff = vel[1] - vel[0];
+        velocity = vel[0] + t * velDiff;
+        position = pos[0] + t * (pos[1] - pos[0] + dtDiv2 * (t * velDiff - velDiff));
     }
     else
     {
-        position = pos[1] + t * (pos[2] - pos[1]);
-        velocity = vel[1] + t * (vel[2] - vel[1]);
         feedForward = feed[1] + t * (feed[2] - feed[1]);
+        float velDiff = vel[2] - vel[1];
+        velocity = vel[1] + t * velDiff;
+        position = pos[1] + t * (pos[2] - pos[1] + dtDiv2 * (t * velDiff - velDiff));
     }
 }
 
@@ -485,4 +487,5 @@ void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
 
     loadTimeInterval = interval;
     invertedLoadInterval = 1.0 / loadTimeInterval;
+    dtDiv2 = loadTimeInterval * 0.000001 * 0.5;
 }
