@@ -39,8 +39,18 @@ RobotJogging::RobotJogging(Robot& r) :
               &RobotJogging::onGripperChanged));
     vBox->add(*gripperScale);
 
-    entry = Gtk::make_managed<Gtk::Entry>();
-    vBox->add(*entry);
+    moveToPositionScale = Gtk::make_managed<JoggingScale>();
+    vBox->add(*moveToPositionScale);
+
+    moveToPositionEntry = Gtk::make_managed<Gtk::ComboBoxText>(true);
+    moveToPositionEntry->append("");
+    moveToPositionEntry->set_active(0);
+    moveToPositionEntry->signal_changed().connect(sigc::mem_fun(*this,
+              &RobotJogging::onMoveToPositionEntryChanged));
+    vBox->add(*moveToPositionEntry);
+
+    currentPosEntry = Gtk::make_managed<Gtk::Entry>();
+    vBox->add(*currentPosEntry);
 
     vBox->show_all();
 
@@ -65,9 +75,13 @@ RobotJogging::RobotJogging(Robot& r) :
 
         if (cartesian)
         {
+            robotThreadMutex.lock();
             JointSpaceCoordinate currentInJ{currentPosition};
             CartesianCoordinate currentInC(currentInJ);
             CartesianCoordinate newPosInC(currentInC);
+
+            JointSpaceCoordinate moveToPositionPosInJ{moveToPositionPos};
+            CartesianCoordinate moveToPositionPosInC(moveToPositionPosInJ);
 
             for (int i = 0; i != 3; ++i)
             {
@@ -81,6 +95,23 @@ RobotJogging::RobotJogging(Robot& r) :
                 double v = joggingScales[i]->getValue();
 
                 newPosInC.c[i] += dt * v;
+            }
+
+            double moveToPositionScaleValue =
+                    moveToPositionScale->getValue();
+            if (moveToPositionScaleValue != 0.0)
+            {
+                auto moveToPosVel = moveToPositionPosInC.c;
+                moveToPosVel -= newPosInC.c;
+                auto temp = moveToPosVel;
+                temp[0] *= 10.0;
+                temp[1] *= 10.0;
+                temp[2] *= 10.0;
+                moveToPosVel /= std::max(0.1, temp.norm());
+
+                moveToPosVel *= moveToPositionScaleValue;
+
+                newPosInC.c += moveToPosVel * dt;
             }
 
             JointSpaceCoordinate newPosInJ{newPosInC};
@@ -99,7 +130,6 @@ RobotJogging::RobotJogging(Robot& r) :
                 velInJ /= t;
             }
 
-            robotThreadMutex.lock();
             currentPosition = currentInJ.c + velInJ * dt;
             robotThreadMutex.unlock();
         }
@@ -109,8 +139,16 @@ RobotJogging::RobotJogging(Robot& r) :
             for (int i = 0; i != currentPosition.size(); ++i)
             {
                 velInJ[i] = joggingScales[i]->getValue();
-                currentPosition[i] += dt * velInJ[i];
             }
+
+            auto moveToPosVel = moveToPositionPos;
+            moveToPosVel -= currentPosition;
+            moveToPosVel /= std::max(0.1, moveToPosVel.norm());
+
+            moveToPosVel *= moveToPositionScale->getValue();
+
+            velInJ += moveToPosVel;
+            currentPosition += velInJ * dt;
             robotThreadMutex.unlock();
         }
 
@@ -202,13 +240,117 @@ void RobotJogging::onGripperChanged()
     robotThreadMutex.unlock();
 }
 
+void RobotJogging::onMoveToPositionEntryChanged()
+{
+    static int last = 0;
+    static bool block = false;
+
+    if (block)
+    {
+        return;
+    }
+
+    std::string text = moveToPositionEntry->get_active_text();
+
+    if (moveToPositionEntry->get_active_row_number() == -1 &&
+        last != -1)
+    {
+        block = true;
+        std::cout << last << "\n";
+        if (text[text.size() - 1] == '+')
+        {
+            last += 1;
+            moveToPositionEntry->insert(last, " ");
+            moveToPositionEntry->set_active(last);
+        }
+        else if (text.size() == 0 &&
+                last != 0)
+        {
+            moveToPositionEntry->remove_text(last);
+            last = -1;
+            moveToPositionEntry->set_active(-1);
+        }
+        else
+        {
+            moveToPositionEntry->remove_text(last);
+            moveToPositionEntry->insert(last, text);
+        }
+        block = false;
+    }
+    else
+    {
+        last = moveToPositionEntry->get_active_row_number();
+    }
+
+    setMoveToPositionPosFromString(text);
+}
+
+void RobotJogging::setMoveToPositionPosFromString(const std::string& str)
+{
+    bool cartesian = str.find("CartesianCoordinate") != std::string::npos;
+    auto b = str.find("{{");
+    auto e = str.find("}};");
+
+    if (b != std::string::npos && e != std::string::npos)
+    {
+        b += 2;
+        std::stringstream ss(str.substr(b, e - b));
+
+        if (cartesian)
+        {
+            bool error = false;
+            CartesianCoordinate c;
+            for (auto& v : c.c)
+            {
+                ss >> v;
+                error |= ss.fail();
+                ss.ignore(std::numeric_limits<streamsize>::max(), ',');
+            }
+
+            error |= !ss.eof();
+
+            if (error)
+            {
+                return;
+            }
+
+            JointSpaceCoordinate newPosInJ(c);
+            robotThreadMutex.lock();
+            moveToPositionPos = newPosInJ.c;
+            robotThreadMutex.unlock();
+        }
+        else
+        {
+            bool error = false;
+            JointSpaceCoordinate j;
+            for (auto& v : j.c)
+            {
+                ss >> v;
+                error |= ss.fail();
+                ss.ignore(std::numeric_limits<streamsize>::max(), ',');
+            }
+
+            error |= !ss.eof();
+
+            if (error)
+            {
+                return;
+            }
+
+            robotThreadMutex.lock();
+            moveToPositionPos = j.c;
+            robotThreadMutex.unlock();
+        }
+    }
+}
+
 bool RobotJogging::onTimeout()
 {
     int temp1;
     int temp2;
-    if (entry->get_selection_bounds(temp1, temp2) && entry->has_focus())
+    if (currentPosEntry->get_selection_bounds(temp1, temp2) && currentPosEntry->has_focus())
     {
-        entry->select_region(0, -1);
+        currentPosEntry->select_region(0, -1);
         return true;
     }
 
@@ -242,7 +384,7 @@ bool RobotJogging::onTimeout()
         ss << "}};";
     }
 
-    entry->set_text(ss.str());
+    currentPosEntry->set_text(ss.str());
 
     return true;
 }

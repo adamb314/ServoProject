@@ -25,9 +25,9 @@ class JoggingScale : public Gtk::Scale
 {
 public:
     JoggingScale() :
-        Gtk::Scale(Gtk::Adjustment::create(0.0, -1.0, 1.0, 0.01, 0.1, 0.0), Gtk::ORIENTATION_HORIZONTAL)
+        Gtk::Scale(Gtk::Adjustment::create(0.0, -1.0, 1.0, 0.001, 0.01, 0.0), Gtk::ORIENTATION_HORIZONTAL)
     {
-        set_digits(2);
+        set_digits(3);
         signal_button_press_event().connect(sigc::mem_fun(*this,
               &JoggingScale::onButtonPressed), false);
         signal_button_release_event().connect(sigc::mem_fun(*this,
@@ -86,7 +86,9 @@ private:
 
     void onValueChanged()
     {
+        mutex.lock();
         value = get_value();
+        mutex.unlock();
     }
 
     bool pressed{false};
@@ -105,13 +107,18 @@ protected:
     void onButtonClicked();
     void onComboChanged();
     void onGripperChanged();
+    void onMoveToPositionEntryChanged();
     bool onTimeout();
+
+    void setMoveToPositionPosFromString(const std::string& str);
 
     Gtk::Button* button{nullptr};
     Gtk::ComboBoxText* combo;
     std::array<JoggingScale*, 6> joggingScales{nullptr};
     Gtk::Scale* gripperScale{nullptr};
-    Gtk::Entry* entry{nullptr};
+    JoggingScale* moveToPositionScale{nullptr};
+    Gtk::ComboBoxText* moveToPositionEntry{nullptr};
+    Gtk::Entry* currentPosEntry{nullptr};
     bool controlEnabled{false};
     bool cartesian{false};
     bool shutdown{false};
@@ -120,6 +127,7 @@ protected:
 
     std::mutex robotThreadMutex;
     Eigen::Matrix<double, 6, 1> currentPosition;
+    Eigen::Matrix<double, 6, 1> moveToPositionPos;
     double gripperPos{1.0};
 };
 
