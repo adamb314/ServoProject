@@ -21,7 +21,7 @@ namespace RobotParameters
         return out;
     }
 
-    const EigenVectord3 s2Translation{-0.2 * ey};
+    const EigenVectord3 s2Translation{-(0.123 + 2 * 0.0375) * ey};
     const EigenVectord3 s2RotationAxis{-ex};
     EigenMatrixd3 s2Rotation(double rad)
     {
@@ -32,7 +32,7 @@ namespace RobotParameters
         return out;
     }
 
-    const EigenVectord3 s3Translation{-(0.164 + 0.025) * ey};
+    const EigenVectord3 s3Translation{-(0.0275 + 0.115 + 0.015 + 0.0085 + 0.019) * ey};
     const EigenVectord3 s3RotationAxis{ex};
     EigenMatrixd3 s3Rotation(double rad)
     {
@@ -66,7 +66,7 @@ namespace RobotParameters
         return out;
     }
 
-    const EigenVectord3 s6Translation{-(0.029 / 2 + 0.020) * ez};
+    const EigenVectord3 s6Translation{-(0.029 / 2 + 0.020) * ez + 0.0 * ey};
     const EigenVectord3 s6ZeroRotationDir{-ez};
     const EigenVectord3 s6RotationAxis{ey};
     EigenMatrixd3 s6Rotation(double rad)
