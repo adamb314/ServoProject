@@ -187,8 +187,8 @@ class SimulateCommunication(SerialCommunication):
 
                 self.pos += dt * self.vel
 
-                self.intArray[12] = (1 + math.sin(self.pos)) * 1000 + 1000 + random.random() * 15
-                self.intArray[13] = (1 + math.cos(self.pos)) * 1000 + 1000 + random.random() * 15
+                self.intArray[12] = (1 + math.sin(self.pos)) * 400 + 1000 + random.random() * 30
+                self.intArray[13] = (1 + math.cos(self.pos)) * 700 + 1000 + random.random() * 30
 
                 self.intArray[3] = self.pos
                 self.intArray[10] = self.pos
@@ -853,24 +853,28 @@ class OpticalEncoderDataVectorGenerator:
 
         a0 = self.data[0, 0]
         b0 = self.data[0, 1]
-        armed = False
+        armed = 0
         startOfFirstRotation = None
         endOfFirstRotation = None
+        meanCost = sum(((d[0] - a0)**2 + (d[1] -b0)**2 for d in self.data[0:constVelIndex, 0:2])) / constVelIndex
+
         for i, d in enumerate(self.data[0:constVelIndex, 0:2]):
             c = (d[0] - a0)**2 + (d[1] -b0)**2
 
             if startOfFirstRotation == None:
-                if c > 50000:
+                if c > meanCost:
                     startOfFirstRotation = i
             elif endOfFirstRotation == None:
-                if not armed:
-                    if lastCost > c:
-                        armed = True
+                if armed == 0:
+                    if c > meanCost * 1.5:
+                        armed = 1
+                elif armed == 1:
+                    if c < meanCost * 0.5:
+                        armed = 2
                 else:
-                    if lastCost < c:
+                    if c > meanCost:
                         endOfFirstRotation = i
-
-            lastCost = c
+                        break
 
         if startOfFirstRotation == None or endOfFirstRotation == None:
             raise Exception('No movement detected')
@@ -960,7 +964,7 @@ class OpticalEncoderDataVectorGenerator:
                 if len(self.oldBVec) <= 1:
                     self.oldBVec = None
 
-        def aligneTo(aVec, bVec, refAVec, refBVec):
+        def getShift(aVec, bVec, refAVec, refBVec):
             def calcCost(aVec, bVec, refAVec, refBVec):
                 cost = 0
                 for d in zip(aVec, bVec, refAVec, refBVec):
@@ -988,16 +992,22 @@ class OpticalEncoderDataVectorGenerator:
                     bestFittCost = cost
                     bestFittShift = shift
 
-            tempA = aVec[-bestFittShift:] + aVec[0:-bestFittShift]
-            tempB = bVec[-bestFittShift:] + bVec[0:-bestFittShift]
+            return bestFittShift
 
-            return tempA, tempB
+        def shiftVec(vec, shift):
+            temp = []
+            for d in vec:
+                temp.append(d)
+            return temp[-shift:] + temp[0:-shift]
 
         if self.oldAVec != None and self.oldBVec != None:
-            for i, d in enumerate(zip(self.aVecList, self.bVecList)):
-                self.aVecList[i], self.bVecList[i] = aligneTo(d[0], d[1], self.oldAVec, self.oldBVec)
+            bestFittShift = getShift(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
+            self.aVec = shiftVec(self.aVec, bestFittShift)
+            self.bVec = shiftVec(self.bVec, bestFittShift)
 
-            self.aVec, self.bVec = aligneTo(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
+            for i, d in enumerate(zip(self.aVecList, self.bVecList)):
+                self.aVecList[i] = shiftVec(d[0], bestFittShift)
+                self.bVecList[i] = shiftVec(d[1], bestFittShift)
 
     def genVec(self, beginIndex, endIndex):
         aVec = numba.typed.List()
@@ -1050,7 +1060,7 @@ class OpticalEncoderDataVectorGenerator:
 
             modData = np.delete(modData, 0, 0)
 
-        dirNoiseDepresMemLenght = int(len(data) / 50)
+        dirNoiseDepresMemLenght = int(len(aVec) / 10)
 
         if abs(self.a1 - self.a0) < 2 and abs(self.b1 - self.b0) < 2:
             raise Exception('No movement detected')
