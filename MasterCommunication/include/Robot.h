@@ -1,5 +1,6 @@
 #include "MasterCommunication.h"
 #include "DCServoCommunicator.h"
+#include "DummyTrajectoryGenerator.h"
 #include <Eigen/Dense>
 
 #include <numeric>
