@@ -12,78 +12,79 @@
 #include <cmath>
 
 void playPath(Robot& robot,
-        PathAndMoveBuilder& pathBuilder,
+        const std::vector<Robot::Reference> trajectory,
         const double playbackSpeed = 1.0,
-        const std::array<bool, 6> activeMove = {true, true, true, true, true, true}, std::ostream& outStream = std::cout)
+        const std::array<bool, 7> activeMove = {true, true, true, true, true, true, true}, std::ostream& outStream = std::cout)
 {
     if (playbackSpeed > 1.0)
     {
         throw -1;
     }
 
-    double dt{0.001};
+    double dt = 0.001;
 
     RobotParameters::DynamicRobotDynamics dynamics{dt};
-
-    DummyTrajectoryGenerator trajGen{&dynamics, 0.012 * 2};
-
-    auto startPos = robot.getPosition();
-    trajGen.setStart(startPos, 0.1);
-    pathBuilder.renderTo(trajGen, startPos);
-
-    trajGen.calculateTrajectory();
 
     bool doneRunning = false;
     bool reachedEndOfTrajectory = false;
 
-    auto iter = std::cbegin(trajGen);
-    auto endIter = std::cend(trajGen);
-    auto outK = *iter;
+    auto iter = std::cbegin(trajectory);
+    auto endIter = std::cend(trajectory);
+    auto outK = iter->trajItem;
     ++iter;
-    auto outKp1 = *iter;
+    auto outKp1 = iter->trajItem;
     auto pwm = outK.u;
     double playbackSpeedT = 0;
-    SamplingHandler<TrajectoryItem<6, double> > sampler([&]()
+    SamplingHandler<Robot::Reference > sampler([&]()
             {
                 auto outJ = interpolate(outK, outKp1, playbackSpeedT);
+                double gripperPosKp1 = iter->gripperPos;
                 playbackSpeedT += playbackSpeed;
                 if (playbackSpeedT >= 1.0)
                 {
                     playbackSpeedT -= 1.0;
-                    outK = outKp1;
+                    ++iter;
                     if (iter == endIter)
                     {
                         reachedEndOfTrajectory = true;
                     }
-                    ++iter;
-                    outKp1 = *iter;
+                    else
+                    {
+                        outK = outKp1;
+                        outKp1 = iter->trajItem;
+                        gripperPosKp1 = iter->gripperPos;
+                    }
                 }
                 auto outJp1 = interpolate(outK, outKp1, playbackSpeedT);
                 outJ.v *= playbackSpeed;
                 outJp1.v *= playbackSpeed;
                 dynamics.recalculateFreedForward(outJ, outJp1);
 
-                outJ.u[3] = 0;
-                outJ.u[4] = 0;
-                outJ.u[5] = 0;
+                outJ.u = EigenVectord6::Zero();
 
                 pwm = dynamics.recalcPwm(outJ.u, outJ.v);
-                return outJ;
+                return Robot::Reference(outJ, gripperPosKp1);
             }, dt);
 
     auto sendCommandHandlerFunction = [&sampler, &activeMove](double dt, Robot* robot)
         {
             auto& servos = robot->dcServoArray;
 
-            auto trajItem = sampler.getSample();
+            auto refObj = sampler.getSample();
             sampler.increment(dt);
 
             for (size_t i = 0; i != servos.size(); ++i)
             {
                 if (activeMove[i])
                 {
-                    servos[i].setReference(trajItem.p[i], trajItem.v[i], trajItem.u[i]);
+                    servos[i].setReference(refObj.trajItem.p[i], refObj.trajItem.v[i], refObj.trajItem.u[i]);
                 }
+            }
+
+            if (activeMove[6])
+            {
+                double pos = asin(1.998 * refObj.gripperPos - 0.999);
+                robot->gripperServo.setReference(pos, 0.0, 0.0);
             }
         };
 
@@ -166,336 +167,426 @@ void playPath(Robot& robot,
     }
 }
 
-void moveGripper(Robot& robot, double pos, double time = 1.0)
+std::vector<Robot::Reference> moveGripper(double pos, double time, Robot::Reference& startRef)
 {
-    pos = asin(2.0 * pos - 1.0);
-
-    bool doneRunning = false;
-
+    double dt = 0.001;
     double t = 0;
-    double startPos = robot.gripperServo.getPosition();
+    double startPos = startRef.gripperPos;
     double amp = pos - startPos;
-    auto sendCommandHandlerFunction = [&](double dt, Robot* robotPointer)
-        {
-            t = std::min(t + dt / time, 1.0);
 
-            double pRef = startPos + amp * (1.0 - cos(pi * t)) / 2.0;
-            robotPointer->gripperServo.setReference(pRef, 0.0, 0.0);
-        };
+    std::vector<Robot::Reference> out;
 
-    auto readResultHandlerFunction = [&](double dt, Robot* robotPointer)
-        {
-            if (t >= 1.0)
-            {
-                robotPointer->removeHandlerFunctions();
-                doneRunning = true;
-            }
-        };
-
-    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
-
-    while(!doneRunning)
+    while (t < 1.0)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+        t = std::min(t + dt / time, 1.0);
+
+        double pRef = startPos + amp * (1.0 - cos(pi * t)) / 2.0;
+        out.push_back(Robot::Reference(startRef.trajItem, pRef));
+    };
+
+    return out;
 }
 
-void recordeOpticalEncoderData(Robot& robot, size_t i, float pwm, float time, std::ostream& outStream = std::cout)
+std::vector<Robot::Reference> wait(double time, Robot::Reference& startRef)
 {
-    bool doneRunning = false;
-
+    double dt = 0.001;
     double t = 0;
 
-    auto sendCommandHandlerFunction = [&i, &pwm, &t](double dt, Robot* robot)
-        {
-            auto& servos = robot->dcServoArray;
+    std::vector<Robot::Reference> out;
 
-            if (pwm != 0.0)
-            {
-                servos[i].setOpenLoopControlSignal(std::min(pwm, static_cast<float>(t * pwm)), true);
-            }
-        };
-
-    auto readResultHandlerFunction = [&t, &doneRunning, &i, time, &outStream](double dt, Robot* robot)
-        {
-            t += dt;
-            auto& servos = robot->dcServoArray;
-            auto opticalEncoderData = servos[i].getOpticalEncoderChannelData();
-            outStream << opticalEncoderData.a << ", " 
-                      << opticalEncoderData.b << ", "
-                      << opticalEncoderData.minCostIndex << ", "
-                      << opticalEncoderData.minCost << ", "
-                      << servos[i].getVelocity() / servos[i].getScaling() << "\n";
-
-            if (true)
-            {
-                std::cout << static_cast<int>(100 * t / time) << "%\r";
-            }
-
-            if (t >= time)
-            {
-                robot->removeHandlerFunctions();
-                doneRunning = true;
-            }
-        };
-
-    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
-
-    while(!doneRunning)
+    while (t < time)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+        t = t + dt;
+
+        out.push_back(startRef);
+    };
+
+    return out;
 }
 
-void recordeMomentOfInertia(Robot& robot, size_t i, float amp, float freq, std::ostream& outStream = std::cout)
+std::vector<Robot::Reference> renderPath(
+        DummyTrajectoryGenerator& trajGen,
+        PathAndMoveBuilder& builder,
+        Robot::Reference& startRef)
 {
-    std::for_each(std::begin(robot.dcServoArray), std::end(robot.dcServoArray), [](auto& d)
-        {
-            d.disableBacklashControl();
-        });
+    const EigenVectord6& startPos = startRef.trajItem.p;
 
-    bool doneRunning = false;
+    trajGen.clear();
+    trajGen.setStart(startPos, 0.1);
+    builder.renderTo(trajGen, startPos);
+
+    trajGen.calculateTrajectory();
+
+    std::vector<Robot::Reference> out;
+
+    auto endIt = std::cend(trajGen);
+    auto it = std::cbegin(trajGen);
+    ++it;
+    for (; it != endIt; ++it)
+    {
+        out.push_back(Robot::Reference(*it, startRef.gripperPos));
+    }
+
+    return out;
+}
+
+void concatenate(std::vector<Robot::Reference>& a, const std::vector<Robot::Reference>& b)
+{
+    a.insert(std::end(a), std::cbegin(b), std::cend(b));
+}
+
+std::vector<Robot::Reference> rescaleToTimeMultiple(const std::vector<Robot::Reference>& a, double timeSlot)
+{
+    std::vector<Robot::Reference> out;
+    double dt = 0.001;
+
+    double trajLength = a.size() * dt;
+    double playbackSpeed = trajLength / (std::ceil(trajLength / timeSlot) * timeSlot);
+
+    auto it = std::cbegin(a);
+    auto endIt = std::cend(a);
 
     double t = 0;
-    float pos = 0;
-    float vel = 0;
-    float acc = 0;
-
-    auto startPos = robot.getPosition();
-
-    auto sendCommandHandlerFunction = [&](double dt, Robot* robotPointer)
-        {
-            t += dt;
-
-            const double freqScaling = freq * (2.0 * pi);
-            pos = startPos[i] + amp * (1 - cos(t * freqScaling));
-            vel = amp * sin(t * freqScaling) * freqScaling;
-            acc = amp * cos(t * freqScaling) * freqScaling * freqScaling;
-
-            auto& servos = robotPointer->dcServoArray;
-
-            for (size_t j = 0; j != servos.size(); ++j)
-            {
-                if (i == j)
-                {
-                    servos[j].setReference(pos, vel, 0);
-                }
-                else
-                {
-                    servos[j].setReference(startPos[j], 0, 0);
-                }
-            }
-        };
-
-    const double runTime = std::ceil(15 * freq) / freq;
-
-    auto readResultHandlerFunction = [&](double dt, Robot* robotPointer)
-        {
-            auto& servo = robotPointer->dcServoArray[i];
-
-            outStream << "t: " << t << ", "
-                        << "p: " << servo.getPosition() << ", "
-                        << "v: " << servo.getVelocity() << ", "
-                        << "u: " << servo.getControlSignal() << ", "
-                        << "acc: " << acc << "\n";
-
-            if (t >= runTime)
-            {
-                robotPointer->removeHandlerFunctions();
-                doneRunning = true;
-            }
-        };
-
-    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
-
-    while(!doneRunning)
+    auto outK = *it;
+    ++it;
+    auto outKp1 = *it;
+    while (true)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        auto inter = interpolate(outK, outKp1, t);
+        inter.trajItem.v *= playbackSpeed;
+        inter.trajItem.u *= 0;
+        out.push_back(inter);
+
+        t += playbackSpeed;
+        if (t >= 1.0)
+        {
+            t -= 1.0;
+            ++it;
+            if (it == endIt)
+            {
+                break;
+            }
+            outK = outKp1;
+            outKp1 = *it;
+        }
     }
+
+    return out;
 }
 
-void recordeSystemIdentData(Robot& robot, size_t i, double pwmAmp, double frictionPwm,
-        std::ostream& outStream = std::cout)
+std::vector<Robot::Reference> createTrajectory(Robot::Reference& startRef)
 {
-    std::for_each(std::begin(robot.dcServoArray), std::end(robot.dcServoArray), [](auto& d)
-        {
-            d.disableBacklashControl();
-        });
+    double dt{0.001};
 
-    bool doneRunning = false;
+    RobotParameters::DynamicRobotDynamics dynamics{dt};
 
-    auto pwmTestVec = std::vector<double>();
+    DummyTrajectoryGenerator trajGen{&dynamics, 0.012 * 2};
 
-    int nr = 10;
-    for (int i = 4; i != nr + 1; ++i)
-    {
-        pwmTestVec.push_back(i * pwmAmp / nr + frictionPwm);
-        pwmTestVec.push_back(frictionPwm);
-        pwmTestVec.push_back(-(i * pwmAmp / nr + frictionPwm));
-        pwmTestVec.push_back(-frictionPwm);
-    }
-
-    double t = 0;
-    double pwm = 0;
-    auto sendCommandHandlerFunction = [&](double dt, Robot* robotPointer)
-        {
-            auto& servo = robotPointer->dcServoArray[i];
-
-            if (t < pwmTestVec.size())
-            {
-                pwm = pwmTestVec.at(static_cast<size_t>(t));
-            }
-            servo.setOpenLoopControlSignal(pwm, true);
-        };
-
-    double runTime = pwmTestVec.size();
-    auto readResultHandlerFunction = [&](double dt, Robot* robotPointer)
-        {
-            t += dt;
-            auto& servo = robotPointer->dcServoArray[i];
-
-            outStream << "t: " << t << ", "
-                        << "p: " << servo.getPosition(false) / servo.getScaling() << ", "
-                        << "c: " << servo.getCurrent() << ", "
-                        << "pwm: " << pwm << "\n";
-
-            if (t >= runTime)
-            {
-                robotPointer->removeHandlerFunctions();
-                doneRunning = true;
-            }
-        };
-
-    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
-
-    while(!doneRunning)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
-
-PathAndMoveBuilder createPath()
-{
     PathAndMoveBuilder pathBuilder;
 
-    VelocityLimiter jointVelocityLimiter(0.1, EigenVectord6{1, 1, 1, 1, 1, 1}, 3.0 / 0.5);
-    VelocityLimiter cartesianVelocityLimiter(0.025, EigenVectord6{1, 1, 1, 0, 0, 0}, 0.2 / 0.02);
-    cartesianVelocityLimiter.add(0.1, EigenVectord6{1, 1, 1, 0, 0, 0});
-    cartesianVelocityLimiter.add(0.01, EigenVectord6{0, 0, 0, 1, 1, 1}, 1.0 / 0.1);
-    cartesianVelocityLimiter.add(0.4, EigenVectord6{0, 0, 0, 1, 1, 1});
-    std::shared_ptr<JointSpaceDeviationLimiter> noDeviationLimiterJoint = 
+    // velocities
+    VelocityLimiter jVel(0.1, EigenVectord6{1, 1, 1, 1, 1, 1}, 3.0 / 0.10);
+    jVel.add(3.0, EigenVectord6{1, 1, 1, 1, 1, 1});
+
+    VelocityLimiter jLowVel(0.01, EigenVectord6{1, 1, 1, 1, 1, 1}, 0.3 / 0.25);
+    jLowVel.add(0.3, EigenVectord6{1, 1, 1, 1, 1, 1});
+
+    VelocityLimiter cVel(0.005, EigenVectord6{1, 1, 1, 0, 0, 0}, 0.2 / 0.01);
+    cVel.add(0.2, EigenVectord6{1, 1, 1, 0, 0, 0});
+    cVel.add(0.157, EigenVectord6{0, 0, 0, 1, 1, 1}, 15.7 / 1.0);
+    cVel.add(15.7, EigenVectord6{0, 0, 0, 1, 1, 1});
+
+    VelocityLimiter cLowVel(0.001, EigenVectord6{1, 1, 1, 0, 0, 0}, 0.06 / 0.02);
+    cLowVel.add(0.06, EigenVectord6{1, 1, 1, 0, 0, 0});
+    cLowVel.add(0.0157, EigenVectord6{0, 0, 0, 1, 1, 1}, 1.57 / 2.0);
+    cVel.add(1.57, EigenVectord6{0, 0, 0, 1, 1, 1});
+
+    VelocityLimiter zVel(0.0);
+
+    std::shared_ptr<JointSpaceDeviationLimiter> divLimNo = 
             std::make_shared<JointSpaceDeviationLimiter>(std::numeric_limits<double>::max());
-    std::shared_ptr<JointSpaceDeviationLimiter> deviationLimiterJoint =
+    std::shared_ptr<JointSpaceDeviationLimiter> divLimJ =
             std::make_shared<JointSpaceDeviationLimiter>(0.0001);
-    std::shared_ptr<CartesianSpaceDeviationLimiter> deviationLimiterCartesian =
+    std::shared_ptr<CartesianSpaceDeviationLimiter> divLimC =
             std::make_shared<CartesianSpaceDeviationLimiter>(0.0001);
-    deviationLimiterCartesian->add(0.0001, EigenVectord6{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
+    divLimC->add(0.0001, EigenVectord6{0.0, 0.0, 0.0, 1.0, 1.0, 1.0});
 
-    EigenVectord6 xV{0.1, 0.0, 0.0, 0, 0, 0};
-    EigenVectord6 yV{0.0, 0.08, 0.0, 0, 0, 0};
-    EigenVectord6 zV{0.0, 0.0, 0.08, 0, 0, 0};
-    EigenVectord6 raV{0, 0, 0, 0.9, 0.0, 0.0};
-    EigenVectord6 rbV{0, 0, 0, 0.0, 0.8, 0.0};
+    // positions
+    auto core1Top = CartesianCoordinate{{0.055751, -0.168444, 0.0247518, -0.115982, -0.0510046, 0.0477579}};
+    auto core2Top = CartesianCoordinate{{0.0285, -0.166948, 0.024749, -0.115985, -0.0328628, 0.043177}};
+    auto core3Top = CartesianCoordinate{{0.00061186, -0.165291, 0.025019, -0.115985, -0.0100289, 0.04327963}};
+    auto core4Top = CartesianCoordinate{{-0.0263315, -0.164802, 0.0265809, -0.115985, -0.0126924, 0.0466}};
 
-    JointSpaceCoordinate jointSpaceHome{{0.0, pi / 2, pi / 2, 0, 0, 0}};
-    CartesianCoordinate tempCartCoord(jointSpaceHome);
+    auto core1Buttom = CartesianCoordinate{{0.053802, -0.167856, -0.012256, -0.115982, -0.0510046, 0.0477579}};
+    auto core2Buttom = CartesianCoordinate{{0.02667, -0.167064, -0.0118657, -0.115985, -0.0328628, 0.043177}};
+    auto core3Buttom = CartesianCoordinate{{-0.000185868, -0.16577, -0.0118581, -0.115985, -0.0100289, 0.0432796}};
+    auto core4Buttom = CartesianCoordinate{{-0.0269217, -0.164659, -0.0117051, -0.115985, -0.0126924, 0.0466}};
 
-    EigenVectord6 crossCenter{0.0, 0.1, -0.1, 0, 0, 0};
-    crossCenter += tempCartCoord.c;
+    auto core1Above = CartesianCoordinate{core1Top.c + EigenVectord6{0, 0, 0.03, 0, 0, 0}};
 
-    CartesianCoordinate tempCartCoord2(crossCenter);
-    JointSpaceCoordinate crossCenterJointSpace{tempCartCoord2};
+    auto core1Up = CartesianCoordinate{0.7 * core1Top.c + 0.3 * core1Buttom.c};
+    auto core2Up = CartesianCoordinate{0.7 * core2Top.c + 0.3 * core2Buttom.c};
+    auto core3Up = CartesianCoordinate{0.7 * core3Top.c + 0.3 * core3Buttom.c};
 
-    pathBuilder.append(JointSpaceLinearPath::create(crossCenterJointSpace,
-        jointVelocityLimiter, jointVelocityLimiter, deviationLimiterJoint));
+    auto core1UpSide = CartesianCoordinate{core1Up.c + EigenVectord6{-0.006, 0, 0.004, 0, 0, 0}};
+    auto core2UpSide = CartesianCoordinate{core2Up.c + EigenVectord6{-0.006, 0, 0.004, 0, 0, 0}};
+    auto core3UpSide = CartesianCoordinate{core3Up.c + EigenVectord6{-0.006, 0, 0.004, 0, 0, 0}};
 
-    if (true)
-    {
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + xV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + xV + 0.05 * zV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - xV + 0.05 * zV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - xV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
+    auto core2Angled = CartesianCoordinate{core2Top.c + EigenVectord6{0, 0, 0, 0, 0, 0.5}};
+    auto core3Angled = CartesianCoordinate{core3Top.c + EigenVectord6{0, 0, 0, 0, 0, 0.5}};
+    auto core4Angled = CartesianCoordinate{core4Top.c + EigenVectord6{0, 0, 0, 0, 0, 0.5}};
 
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + yV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + yV + 0.05 * zV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - yV + 0.05 * zV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - yV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
+    auto core1Down = CartesianCoordinate{core1Buttom.c + EigenVectord6{-0.006, 0, -0.003, 0, 0, 0}};
+    auto core2Down = CartesianCoordinate{core2Buttom.c + EigenVectord6{-0.006, 0, -0.003, 0, 0, 0}};
+    auto core3Down = CartesianCoordinate{core3Buttom.c + EigenVectord6{-0.006, 0, -0.003, 0, 0, 0}};
 
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + zV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + zV + 0.05 * yV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - zV + 0.05 * yV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - zV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
+    auto core1ToCore4Half = CartesianCoordinate{(core1Top.c + core4Top.c) / 2};
+    auto core4Half = CartesianCoordinate{(core4Top.c + core4Buttom.c) / 2};
+    auto core4HalfAngled = CartesianCoordinate{core4Half.c + EigenVectord6{0, 0, 0, 0, 0, -0.8}};
 
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + raV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - raV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
+    auto what1Position = JointSpaceCoordinate{{-0.314849, 1.67089, 2.23175, -0.00517668, 0.392985, -0.0108841}};
+    auto what2Position = JointSpaceCoordinate{{-0.311014, 1.67013, 2.2339, 0.0164429, 0.394759, 0.355737}};
+    auto yes1Position = JointSpaceCoordinate{{-0.311014, 1.67013, 2.2339, 0.0164429, 0.294653, 0.355737}};
+    auto yes2Position = what2Position;
 
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter + rbV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter - rbV},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
-        pathBuilder.append(CartesianSpaceLinearPath::create(
-                CartesianCoordinate{crossCenter},
-                cartesianVelocityLimiter, cartesianVelocityLimiter, deviationLimiterCartesian));
+    auto pencilAbove = CartesianCoordinate{{0.111542, 0.00123832, 0.0343832, 1.55741, -0.542409, -0.0473626}};
+    auto pencilUp = CartesianCoordinate{{0.117947, 0.00189401, -0.00601399, 1.55416, -0.832172, -0.0170461}};
+    auto pencilDown = CartesianCoordinate{{0.095577, 2.61736e-05, -0.0282569, 1.4828, -0.808071, 0.0287696}};
 
-        pathBuilder.append(JointSpaceLinearPath::create(jointSpaceHome,
-            jointVelocityLimiter, jointVelocityLimiter, deviationLimiterJoint));
-    }
+    auto robotStartEnd = JointSpaceCoordinate{{0.508515, 1.82928, 2.81677, -0.209915, 0.198936, 0.137097}};
 
-    pathBuilder.append(JointSpaceLinearPath::create({-0.5, 0.9, 0.9, 1.4, 0, 0},
-            jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
+#define SYNC(timeSlot) concatenate(out, rescaleToTimeMultiple(renderPath(trajGen, pathBuilder, out.back()), (timeSlot))); pathBuilder.clear();
 
-    pathBuilder.append(JointSpaceLinearPath::create({0.5, pi / 2 + 0, pi / 2 + 0, 0, 1.4, 0},
-            jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
+    // path
+    std::vector<Robot::Reference> out;
+    out.push_back(startRef);
 
-    pathBuilder.append(JointSpaceLinearPath::create({-0.5, 0.9, 0.9, 0, 0, 1.4},
-            jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
+    concatenate(out, moveGripper(0.8, 2 * 60.0 / 100, out.back()));
 
-    pathBuilder.append(JointSpaceLinearPath::create({0, pi / 2 + 0, pi / 2 + 0, 0, 0, 0},
-            jointVelocityLimiter, VelocityLimiter{0.1}, deviationLimiterJoint));
+    pathBuilder.append(JointSpaceLinearPath::create(
+        robotStartEnd, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
 
-    return pathBuilder;
+    pathBuilder.append(JointSpaceLinearPath::create(
+        pencilAbove, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        pencilUp, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        pencilDown, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    concatenate(out, moveGripper(0.22, 2 * 60.0 / 100, out.back()));
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        pencilUp, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(JointSpaceLinearPath::create(
+        pencilAbove, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(JointSpaceLinearPath::create(
+        core1Above, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Angled, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Angled, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Angled, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Angled, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Buttom, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Up, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3UpSide, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Down, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core3Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1ToCore4Half, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Buttom, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Up, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2UpSide, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Down, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core2Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Above, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Buttom, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Up, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1UpSide, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Down, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core1ToCore4Half, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Half, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Top, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(JointSpaceLinearPath::create(
+        what1Position, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+    pathBuilder.append(JointSpaceLinearPath::create(
+        what2Position, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+
+    concatenate(out, wait(3 * 60.0 / 100, out.back()));
+
+    pathBuilder.append(JointSpaceLinearPath::create(
+        yes1Position, jVel, jVel, divLimJ));
+    pathBuilder.append(JointSpaceLinearPath::create(
+        yes2Position, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+    pathBuilder.append(JointSpaceLinearPath::create(
+        yes1Position, jVel, jVel, divLimJ));
+    pathBuilder.append(JointSpaceLinearPath::create(
+        yes2Position, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Half, cLowVel, cLowVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4HalfAngled, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        core4Top, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(JointSpaceLinearPath::create(
+        pencilAbove, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        pencilUp, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        pencilDown, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    concatenate(out, moveGripper(0.8, 2 * 60.0 / 100, out.back()));
+    pathBuilder.append(CartesianSpaceLinearPath::create(
+        pencilUp, cVel, cVel, divLimC));
+    SYNC(60.0 / 100)
+    pathBuilder.append(JointSpaceLinearPath::create(
+        pencilAbove, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+
+    pathBuilder.append(JointSpaceLinearPath::create(
+        robotStartEnd, jVel, jVel, divLimJ));
+    SYNC(60.0 / 100)
+
+    return out;
 }
 
 #include <fstream>
@@ -507,16 +598,8 @@ int main(int argc, char* argv[])
     // Declare the supported options.
     po::options_description options("Allowed options");
     options.add_options()
-        ("servoNr", po::value<int>(), "servo nr")
-        ("amp", po::value<double>(), "amplitude for recMomentOfInertia")
-        ("frq", po::value<double>(), "frequency for recMomentOfInertia")
-        ("pwmAmp", po::value<int>(), "pwm amplitude for recOpticalEncoder and recSystemIdentData")
-        ("fricPwmAmp", po::value<int>(), "pwm amplitude to overcome friction")
-        ("recOpticalEncoder", "record optical encoder data of given servo")
-        ("recSystemIdentData", "record system ident data of given servo")
-        ("recMomentOfInertia", "record moment of inertia data of given servo")
+        ("playPath", "play the path defined in createTrajectory()")
         ("gui", "jogging gui")
-        ("playPath", "play the path defined in createPath()")
         ("output", po::value<std::string>(), "data output file")
         ("simulate", "simulate servos");
 
@@ -530,36 +613,6 @@ int main(int argc, char* argv[])
     {
         std::cout << options;
         return 0;
-    }
-
-    int servoNr = -1;
-    if (vm.count("servoNr"))
-    {
-        servoNr = vm["servoNr"].as<int>();
-    }
-
-    double amp = -1.0;
-    if (vm.count("amp"))
-    {
-        amp = vm["amp"].as<double>();
-    }
-
-    double frq = -1.0;
-    if (vm.count("frq"))
-    {
-        frq = vm["frq"].as<double>();
-    }
-
-    int pwmAmp = -1;
-    if (vm.count("pwmAmp"))
-    {
-        pwmAmp = vm["pwmAmp"].as<int>();
-    }
-
-    int fricPwmAmp = -1;
-    if (vm.count("fricPwmAmp"))
-    {
-        fricPwmAmp = vm["fricPwmAmp"].as<int>();
     }
 
     std::unique_ptr<std::ofstream> outFileStream{nullptr};
@@ -593,80 +646,12 @@ int main(int argc, char* argv[])
 
     double comCycleTime = 0.018;
     std::array<bool, 7> servoSimulated{{false, false, false, false, false, false, false}};
-    if (servoNr != -1)
-    {
-        if (vm.count("recSystemIdentData") == false)
-        {
-            comCycleTime = 0.004;
-        }
-        servoSimulated.fill(true);
-        servoSimulated[servoNr - 1] = false;
-    }
     Robot robot(communication.get(), servoSimulated, comCycleTime);
 
-    if (vm.count("recOpticalEncoder"))
-    {
-        if (servoNr != -1)
-        {
-            if (pwmAmp == -1)
-            {
-                std::cout << "pwmAmp = ?\n";
-                std::cin >> pwmAmp;
-            }
-            recordeOpticalEncoderData(robot, std::max(servoNr - 1, 0), pwmAmp, 200, *outStream);
-        }
-        else
-        {
-            std::cout << "no servo selected\n";
-        }
-    }
-    else if (vm.count("recSystemIdentData"))
-    {
-        if (servoNr != -1)
-        {
-            if (pwmAmp == -1)
-            {
-                std::cout << "pwmAmp = ?\n";
-                std::cin >> pwmAmp;
-            }
-            if (fricPwmAmp == -1)
-            {
-                std::cout << "fricPwmAmp = ?\n";
-                std::cin >> fricPwmAmp;
-            }
-            recordeSystemIdentData(robot, std::max(servoNr - 1, 0), pwmAmp, fricPwmAmp, *outStream);
-        }
-        else
-        {
-            std::cout << "no servo selected\n";
-        }
-    }
-    else if (vm.count("recMomentOfInertia"))
-    {
-        if (servoNr != -1)
-        {
-            if (amp == -1.0)
-            {
-                std::cout << "amp = ?\n";
-                std::cin >> amp;
-            }
-            if (frq < 0.0)
-            {
-                std::cout << "frq = ?\n";
-                std::cin >> frq;
-            }
-            recordeMomentOfInertia(robot, std::max(servoNr - 1, 0), amp, frq, *outStream);
-        }
-        else
-        {
-            std::cout << "no servo selected\n";
-        }
-    }
-    else if (vm.count("gui"))
+    if (vm.count("gui"))
     {
         auto app = Gtk::Application::create("org.gtkmm.example");
 
-        //Shows the window and returns when it is closed.
         RobotJogging win(robot);
         app->run(win);
     }
@@ -674,8 +659,9 @@ int main(int argc, char* argv[])
     {
         try
         {
-            PathAndMoveBuilder pathBuilder{createPath()};
-            playPath(robot, pathBuilder, 1.0, {true, true, true, true, true, true}, *outStream);
+            Robot::Reference startRef(robot.getPosition(), 1.0);
+
+            playPath(robot, createTrajectory(startRef), 1.0, {true, true, true, true, true, true, true}, *outStream);
         }
         catch (std::exception& e)
         {
