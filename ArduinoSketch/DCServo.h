@@ -152,6 +152,7 @@ class DCServo
     void onlyUseMainEncoder(bool b = true);
 
     void setControlSpeed(uint8_t controlSpeed);
+    void setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed);
 
     void setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize);
 
@@ -190,6 +191,8 @@ class DCServo
     bool pwmOpenLoopMode{false};
 
     uint8_t controlSpeed{50};
+    uint16_t velControlSpeed{50 * 4};
+    uint16_t filterSpeed{50 * 4 * 8};
     uint8_t backlashControlSpeed{10};
     uint8_t backlashControlSpeedVelGain{0};
     uint8_t backlashSize{0};

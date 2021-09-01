@@ -113,7 +113,14 @@ void DCServo::onlyUseMainEncoder(bool b)
 
 void DCServo::setControlSpeed(uint8_t controlSpeed)
 {
+    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 4 * 8);
+}
+
+void DCServo::setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed)
+{
     this->controlSpeed = controlSpeed;
+    this->velControlSpeed = velControlSpeed;
+    this->filterSpeed = filterSpeed;
 }
 
 void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize)
@@ -328,7 +335,7 @@ void DCServo::controlLoop()
 
 void DCServo::calculateAndUpdateLVector()
 {
-    kalmanFilter->setFilterSpeed(controlSpeed * 4 * 8);
+    kalmanFilter->setFilterSpeed(filterSpeed);
 
     const Eigen::Matrix3f& A = controlConfig->getA();
     const Eigen::Vector3f& B = controlConfig->getB();
@@ -338,7 +345,7 @@ void DCServo::calculateAndUpdateLVector()
     float b = B(1);
 
     float posControlPole = exp(-dt * controlSpeed);
-    float velControlPole[] = {exp(-1.0 * dt * 4 * controlSpeed), exp(-0.9 * dt * 4 * controlSpeed)};
+    float velControlPole[] = {exp(-1.0 * dt * velControlSpeed), exp(-0.9 * dt * velControlSpeed)};
 
     L[0] = (1.0 - posControlPole) / dt;
     L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
