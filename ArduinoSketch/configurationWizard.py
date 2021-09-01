@@ -839,6 +839,42 @@ def findWorstFitt(aVec, bVec):
 
     return maxIndex + 1
 
+def getShift(aVec, bVec, refAVec, refBVec):
+    def calcCost(aVec, bVec, refAVec, refBVec):
+        cost = 0
+        for d in zip(aVec, bVec, refAVec, refBVec):
+            cost += (d[0] - d[2])**2 + (d[1] - d[3])**2
+        return cost
+
+    tempA = []
+    tempB = []
+    for d in zip(aVec, bVec):
+        tempA.append(d[0])
+        tempB.append(d[1])
+
+    aVec = tempA
+    bVec = tempB
+
+    bestFittShift = 0
+    bestFittCost = float('inf')
+    for shift in range(0, 512):
+        tempA = aVec[-shift:] + aVec[0:-shift]
+        tempB = bVec[-shift:] + bVec[0:-shift]
+
+        cost = calcCost(tempA, tempB, refAVec, refBVec)
+
+        if cost < bestFittCost:
+            bestFittCost = cost
+            bestFittShift = shift
+
+    return bestFittShift
+
+def shiftVec(vec, shift):
+    temp = []
+    for d in vec:
+        temp.append(d)
+    return temp[-shift:] + temp[0:-shift]
+
 class OpticalEncoderDataVectorGenerator:
     def __init__(self, data, classString = '', segment = 3000,
             constVelIndex = 10000, noiseDepresMemLenght = 5,
@@ -923,11 +959,17 @@ class OpticalEncoderDataVectorGenerator:
 
             try:
                 aVecShrunk, bVecShrunk, aVec, bVec = self.genVec(constVelIndex + segment * i, constVelIndex + segment * (i + 1))
-                self.aVec += aVecShrunk
-                self.bVec += bVecShrunk
 
+                if len(self.aVecList) > 0:
+                    bestFittShift = getShift(aVecShrunk, bVecShrunk, self.aVecList[0], self.bVecList[0])
+                    aVecShrunk = shiftVec(aVecShrunk, bestFittShift)
+                    bVecShrunk = shiftVec(bVecShrunk, bestFittShift)
+                
                 self.aVecList.append(aVecShrunk)
                 self.bVecList.append(bVecShrunk)
+
+                self.aVec += aVecShrunk
+                self.bVec += bVecShrunk
 
                 actNr += 1
                 time.sleep(0.1)
@@ -963,42 +1005,6 @@ class OpticalEncoderDataVectorGenerator:
                     self.oldAVec = None
                 if len(self.oldBVec) <= 1:
                     self.oldBVec = None
-
-        def getShift(aVec, bVec, refAVec, refBVec):
-            def calcCost(aVec, bVec, refAVec, refBVec):
-                cost = 0
-                for d in zip(aVec, bVec, refAVec, refBVec):
-                    cost += (d[0] - d[2])**2 + (d[1] - d[3])**2
-                return cost
-
-            tempA = []
-            tempB = []
-            for d in zip(aVec, bVec):
-                tempA.append(d[0])
-                tempB.append(d[1])
-
-            aVec = tempA
-            bVec = tempB
-
-            bestFittShift = 0
-            bestFittCost = float('inf')
-            for shift in range(0, 512):
-                tempA = aVec[-shift:] + aVec[0:-shift]
-                tempB = bVec[-shift:] + bVec[0:-shift]
-
-                cost = calcCost(tempA, tempB, refAVec, refBVec)
-
-                if cost < bestFittCost:
-                    bestFittCost = cost
-                    bestFittShift = shift
-
-            return bestFittShift
-
-        def shiftVec(vec, shift):
-            temp = []
-            for d in vec:
-                temp.append(d)
-            return temp[-shift:] + temp[0:-shift]
 
         if self.oldAVec != None and self.oldBVec != None:
             bestFittShift = getShift(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
@@ -1063,7 +1069,7 @@ class OpticalEncoderDataVectorGenerator:
         dirNoiseDepresMemLenght = int(len(aVec) / 10)
 
         if abs(self.a1 - self.a0) < 2 and abs(self.b1 - self.b0) < 2:
-            raise Exception('No movement detected')
+            raise Exception('No movement detected 2')
 
         dirSign = 0
         if abs(self.a1 - self.a0) > abs(self.b1 - self.b0):
@@ -3621,7 +3627,7 @@ class GuiWindow(Gtk.Window):
                                     if not shouldAbort():
                                         try:
                                             opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                                    data[:, 1:3], configClassString, constVelIndex=1000, segment = 2 * 512, noiseDepresMemLenght=8,
+                                                    data[:, 1:3], configClassString, constVelIndex=4000, segment = 3 * 512, noiseDepresMemLenght=8,
                                                     shouldAbort=shouldAbort,
                                                     updateProgress=updateProgress)
 
