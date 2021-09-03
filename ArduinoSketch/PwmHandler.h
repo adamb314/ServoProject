@@ -50,7 +50,8 @@ class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSync
   public:
     typedef uint16_t (*LinearizeFunctionType)(uint16_t);
 
-    HBridgeHighResPin11And12Pwm(bool invert = false, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;});
+    HBridgeHighResPin11And12Pwm(bool invert = false, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;},
+            uint16_t frq = 20000);
     HBridgeHighResPin11And12Pwm(HBridgeHighResPin11And12Pwm&&);
 
     virtual ~HBridgeHighResPin11And12Pwm();
@@ -70,7 +71,8 @@ class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSync
     virtual bool willSwitchWithIn(uint16_t period) const override;
 
 protected:
-    HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction);
+    HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction,
+          uint16_t frq);
 
     void configTimer();
 
@@ -83,7 +85,7 @@ protected:
     const bool invert;
     const LinearizeFunctionType linearizeFunction;
 
-    const uint16_t tickPerUs{48};
+    const uint16_t tickPerUs{F_CPU / 1000000ul};
     const uint16_t switchTransientTime{2 * tickPerUs};
     const uint8_t freqDiv{2};
 };
@@ -91,7 +93,8 @@ protected:
 class HBridgeHighResPin3And4Pwm : public HBridgeHighResPin11And12Pwm
 {
   public:
-    HBridgeHighResPin3And4Pwm(bool invert = false, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;});
+    HBridgeHighResPin3And4Pwm(bool invert = false, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;},
+            uint16_t frq = 20000);
     HBridgeHighResPin3And4Pwm(HBridgeHighResPin3And4Pwm&& in);
 
     virtual ~HBridgeHighResPin3And4Pwm() {};

@@ -1,17 +1,19 @@
 #include "PwmHandler.h"
 
-HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction) :
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
     timer(TCC0),
     invert(invert),
-    linearizeFunction(linearizeFunction)
+    linearizeFunction(linearizeFunction),
+    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0 / frq + 0.5))
 {
     connectOutput();
 }
 
-HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction) :
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
     timer(timer),
     invert(invert),
-    linearizeFunction(linearizeFunction)
+    linearizeFunction(linearizeFunction),
+    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0 / frq + 0.5))
 {
 }
 
@@ -22,7 +24,6 @@ HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(HBridgeHighResPin11And1
     outputConnected(in.outputConnected),
     invert(in.invert),
     linearizeFunction(in.linearizeFunction)
-
 {
     in.outputConnected = false;
 }
@@ -229,8 +230,8 @@ void HBridgeHighResPin11And12Pwm::configTimer()
     timer->CTRLA.bit.ENABLE = true;
 }
 
-HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, LinearizeFunctionType linearizeFunction) :
-    HBridgeHighResPin11And12Pwm(TCC1, invert, linearizeFunction)
+HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
+    HBridgeHighResPin11And12Pwm(TCC1, invert, linearizeFunction, frq)
 {
     connectOutput();
 }
