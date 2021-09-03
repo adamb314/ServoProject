@@ -1,10 +1,12 @@
 #include "OpticalEncoderHandler.h"
 
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
-        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
+        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev,
+        std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer) :
     EncoderHandlerInterface(unitsPerRev),
     aVec(aVec), bVec(bVec), sensor1(sensor1Pin), sensor2(sensor2Pin),
-    scaling(unitsPerRev * (1.0 / 4096.0))
+    scaling(unitsPerRev * (1.0 / 4096.0)),
+    synchronizer(synchronizer)
 {
 }
 
@@ -25,20 +27,27 @@ void OpticalEncoderHandler::triggerSample()
     sensor1Value = 0;
     sensor2Value = 0;
 
-    sensor1.triggerSample();
-    sensor2.triggerSample();
-
     const int n = 1;
-    for (int i = 0; i != n - 1; ++i)
+    for (int i = 0; i != n; ++i)
     {
-        sensor1Value += sensor1.getValue();
+        if (synchronizer)
+        {
+            while (synchronizer->willSwitchWithIn(16))
+            {
+            }
+        }
         sensor1.triggerSample();
-        sensor2Value += sensor2.getValue();
-        sensor2.triggerSample();
-    }
+        sensor1Value += sensor1.getValue();
 
-    sensor1Value += sensor1.getValue();
-    sensor2Value += sensor2.getValue();
+        if (synchronizer)
+        {
+            while (synchronizer->willSwitchWithIn(16))
+            {
+            }
+        }
+        sensor2.triggerSample();
+        sensor2Value += sensor2.getValue();
+    }
 
     sensor1Value /= n;
     sensor2Value /= n;

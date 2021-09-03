@@ -3,6 +3,7 @@
 
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
+#include "PwmHandler.h"
 #include <array>
 
 class OpticalEncoderHandler : public EncoderHandlerInterface
@@ -10,7 +11,8 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
   public:
     static constexpr int vecSize = 512;
     OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
-            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
+            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev,
+            std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer = std::shared_ptr<SwitchAvoidingSynchronizer>());
 
     ~OpticalEncoderHandler();
 
@@ -45,6 +47,8 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     float value{0.0};
     float wrapAroundCorretion{0.0};
     bool newData{false};
+
+    std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer;
 
     const float scaling;
 };

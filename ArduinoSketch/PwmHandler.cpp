@@ -53,11 +53,11 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
     if (output >= 0)
     {
         pin11WriteValue = 0;
-        pin12WriteValue = 2 * linearizeFunction(output);
+        pin12WriteValue = freqDiv * linearizeFunction(output);
     }
     else
     {
-        pin11WriteValue = 2 * linearizeFunction(-output);
+        pin11WriteValue = freqDiv * linearizeFunction(-output);
         pin12WriteValue = 0;
     }
 
@@ -83,8 +83,8 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
 
 void HBridgeHighResPin11And12Pwm::activateBrake()
 {
-    pin11WriteValue = 2 * 1023;
-    pin12WriteValue = 2 * 1023;
+    pin11WriteValue = freqDiv * 1023;
+    pin12WriteValue = freqDiv * 1023;
 
     if (outputConnected)
     {
@@ -148,6 +148,32 @@ void HBridgeHighResPin11And12Pwm::connectOutput()
     outputConnected = true;
 }
 
+bool HBridgeHighResPin11And12Pwm::willSwitchWithIn(uint16_t period) const
+{
+    if (timer->CTRLA.bit.ENABLE == false)
+    {
+        return false;
+    }
+
+    period *= tickPerUs;
+
+    timer->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
+    while (timer->CTRLBSET.bit.CMD)
+    {
+    }
+    auto count = timer->COUNT.bit.COUNT;
+    auto maxCC = timer->CC[0].bit.CC;
+    if (maxCC < timer->CC[1].bit.CC)
+    {
+        maxCC = timer->CC[1].bit.CC;
+    }
+
+    bool switchInPeriod = count + period > freqDiv * 1024 || count < switchTransientTime;
+    switchInPeriod |= count + period > maxCC && count < maxCC + switchTransientTime;
+
+    return switchInPeriod;
+}
+
 void HBridgeHighResPin11And12Pwm::configTimer()
 {
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
@@ -186,7 +212,7 @@ void HBridgeHighResPin11And12Pwm::configTimer()
 
     timer->PATT.reg = TCC_PATT_RESETVALUE;
 
-    timer->PER.bit.PER = 2 * 1024;
+    timer->PER.bit.PER = freqDiv * 1024;
 
     timer->CC[0].bit.CC = pin11WriteValue;
     timer->CC[1].bit.CC = pin12WriteValue;
@@ -356,4 +382,67 @@ void HBridge2WirePwm::connectOutput()
     }
 
     outputConnected = true;
+}
+
+SwitchAvoidingSynchronizer::Switcher::~Switcher()
+{
+    while(synchronizers.size() != 0)
+    {
+        bool removeCompleted = synchronizers.back()->removeSwitcher(this);
+        if (removeCompleted == false)
+        {
+            removeSynchronizer(synchronizers.back());
+        }
+    }
+}
+
+void SwitchAvoidingSynchronizer::Switcher::addSynchronizer(SwitchAvoidingSynchronizer* synchronizer)
+{
+    synchronizers.push_back(synchronizer);
+}
+
+void SwitchAvoidingSynchronizer::Switcher::removeSynchronizer(SwitchAvoidingSynchronizer* synchronizer)
+{
+    synchronizers.erase(std::remove(std::begin(synchronizers), std::end(synchronizers), synchronizer),
+        std::end(synchronizers));
+}
+
+SwitchAvoidingSynchronizer::~SwitchAvoidingSynchronizer()
+{
+    std::for_each(std::begin(switchers), std::end(switchers), [this](Switcher* switcher)
+            {
+                switcher->removeSynchronizer(this);
+            });
+    switchers.clear();
+}
+
+void SwitchAvoidingSynchronizer::addSwitcher(SwitchAvoidingSynchronizer::Switcher* switcher)
+{
+    if (std::count(std::begin(switchers), std::end(switchers), switcher) != 0)
+    {
+        return;
+    }
+
+    switchers.push_back(switcher);
+    switcher->addSynchronizer(this);
+}
+
+bool SwitchAvoidingSynchronizer::removeSwitcher(SwitchAvoidingSynchronizer::Switcher* switcher)
+{
+    auto it = std::find(std::begin(switchers), std::end(switchers), switcher);
+    if (it != std::end(switchers))
+    {
+        switchers.erase(it);
+        switcher->removeSynchronizer(this);
+        return true;
+    }
+    return false;
+}
+
+bool SwitchAvoidingSynchronizer::willSwitchWithIn(uint16_t period)
+{
+    return std::any_of(std::begin(switchers), std::end(switchers), [period](Switcher* switcher)
+            {
+                return switcher->willSwitchWithIn(period);
+            });
 }

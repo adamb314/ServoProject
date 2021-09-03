@@ -5,6 +5,35 @@
 #include "ArduinoC++BugFixes.h"
 #include <sam.h>
 #include <ctype.h>
+#include <vector>
+#include <algorithm>
+
+class SwitchAvoidingSynchronizer
+{
+public:
+    class Switcher
+    {
+    public:
+        virtual ~Switcher();
+        virtual bool willSwitchWithIn(uint16_t period) const = 0;
+    
+    private:
+        void addSynchronizer(SwitchAvoidingSynchronizer* synchronizer);
+        void removeSynchronizer(SwitchAvoidingSynchronizer* synchronizer);
+
+        std::vector<SwitchAvoidingSynchronizer*> synchronizers;
+
+        friend class SwitchAvoidingSynchronizer;
+    };
+
+    ~SwitchAvoidingSynchronizer();
+    void addSwitcher(Switcher* switcher);
+    bool removeSwitcher(Switcher* switcher);
+    bool willSwitchWithIn(uint16_t period);
+
+private:
+    std::vector<Switcher*> switchers;
+};
 
 class PwmHandler
 {
@@ -16,7 +45,7 @@ class PwmHandler
     virtual void connectOutput() = 0;
 };
 
-class HBridgeHighResPin11And12Pwm : public PwmHandler
+class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSynchronizer::Switcher
 {
   public:
     typedef uint16_t (*LinearizeFunctionType)(uint16_t);
@@ -38,6 +67,8 @@ class HBridgeHighResPin11And12Pwm : public PwmHandler
 
     virtual void connectOutput() override;
 
+    virtual bool willSwitchWithIn(uint16_t period) const override;
+
 protected:
     HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction);
 
@@ -51,6 +82,10 @@ protected:
     bool outputConnected{false};
     const bool invert;
     const LinearizeFunctionType linearizeFunction;
+
+    const uint16_t tickPerUs{48};
+    const uint16_t switchTransientTime{2 * tickPerUs};
+    const uint8_t freqDiv{2};
 };
 
 class HBridgeHighResPin3And4Pwm : public HBridgeHighResPin11And12Pwm
