@@ -3706,8 +3706,13 @@ class GuiWindow(Gtk.Window):
                             maxFrqScale = addTopLabelTo('<b>Max oscillation frequency</b>', maxFrqScale[0]), maxFrqScale[1]
                             calibrationBox.pack_start(maxFrqScale[0], False, False, 0)
 
+                            minPwmValue = 0
                             midPwmValue = 500
                             maxPwmValue = 605
+                            minPwmScale = creatHScale(minPwmValue, 0, 1023, 10, getLowLev=True)
+                            minPwmScale = addTopLabelTo('<b>Pwm value to start calibration at</b>\n This should be just under the pwm value that makes the motor start moving', minPwmScale[0]), minPwmScale[1]
+                            calibrationBox.pack_start(minPwmScale[0], False, False, 0)
+
                             midPwmScale = creatHScale(midPwmValue, 0, 1023, 10, getLowLev=True)
                             midPwmScale = addTopLabelTo('<b>Pwm value for switching to sparse sample points</b>\n Lower value limits motor heat up at the cost of calibration resolution', midPwmScale[0]), midPwmScale[1]
                             calibrationBox.pack_start(midPwmScale[0], False, False, 0)
@@ -3731,15 +3736,36 @@ class GuiWindow(Gtk.Window):
                                 with threadMutex:
                                     maxOscillationFrq = widget.get_value()
 
+                            def minPwmValueChanged(widget):
+                                nonlocal maxPwmScale
+                                nonlocal midPwmValue
+                                nonlocal minPwmValue
+                                nonlocal testPwmValue
+                                nonlocal threadMutex
+
+                                with threadMutex:
+                                    minPwmValue = widget.get_value()
+                                    testPwmValue = minPwmValue
+
+                                if minPwmValue > midPwmScale[1].get_value():
+                                    midPwmScale[1].set_value(minPwmValue)
+
+                                if minPwmValue > maxPwmScale[1].get_value():
+                                    maxPwmScale[1].set_value(minPwmValue)
+
                             def midPwmValueChanged(widget):
                                 nonlocal maxPwmScale
                                 nonlocal midPwmValue
+                                nonlocal minPwmValue
                                 nonlocal testPwmValue
                                 nonlocal threadMutex
 
                                 with threadMutex:
                                     midPwmValue = widget.get_value()
                                     testPwmValue = midPwmValue
+
+                                if midPwmValue < minPwmScale[1].get_value():
+                                    minPwmScale[1].set_value(midPwmValue)
 
                                 if midPwmValue > maxPwmScale[1].get_value():
                                     maxPwmScale[1].set_value(midPwmValue)
@@ -3754,10 +3780,14 @@ class GuiWindow(Gtk.Window):
                                     maxPwmValue = widget.get_value()
                                     testPwmValue = maxPwmValue
 
+                                if maxPwmValue < minPwmScale[1].get_value():
+                                    minPwmScale[1].set_value(maxPwmValue)
+
                                 if maxPwmValue < midPwmScale[1].get_value():
                                     midPwmScale[1].set_value(maxPwmValue)
 
                             maxFrqScale[1].connect('value-changed', maxFrqValueChanged)
+                            minPwmScale[1].connect('value-changed', minPwmValueChanged)
                             midPwmScale[1].connect('value-changed', midPwmValueChanged)
                             maxPwmScale[1].connect('value-changed', maxPwmValueChanged)
 
@@ -3767,6 +3797,7 @@ class GuiWindow(Gtk.Window):
                                 nonlocal calibrationBox
                                 nonlocal recordingProgressBar
                                 nonlocal maxFrqScale
+                                nonlocal minPwmScale
                                 nonlocal midPwmScale
                                 nonlocal maxPwmScale
 
@@ -3776,6 +3807,7 @@ class GuiWindow(Gtk.Window):
                                 testButton[1].set_sensitive(True)
                                 calibrationBox.remove(recordingProgressBar[0])
                                 maxFrqScale[1].set_sensitive(True)
+                                minPwmScale[1].set_sensitive(True)
                                 midPwmScale[1].set_sensitive(True)
                                 maxPwmScale[1].set_sensitive(True)
 
@@ -3977,8 +4009,8 @@ class GuiWindow(Gtk.Window):
                                     robot = createRobot(nodeNr, port)
 
                                     with threadMutex:
-                                        highResStep = min(25, int(midPwmValue / 10.0))
-                                        temp = [v for v in range(0, int(midPwmValue), highResStep)]
+                                        highResStep = min(25, int(midPwmValue - minPwmValue / 10.0))
+                                        temp = [v for v in range(int(minPwmValue), int(midPwmValue), highResStep)]
                                         print(temp)
                                         temp = np.array(temp)
                                         temp += highResStep
@@ -4091,6 +4123,7 @@ class GuiWindow(Gtk.Window):
 
                                 nonlocal calibrationBox
                                 nonlocal maxFrqScale
+                                nonlocal minPwmScale
                                 nonlocal midPwmScale
                                 nonlocal maxPwmScale
                                 nonlocal recordingProgressBar
@@ -4138,6 +4171,7 @@ class GuiWindow(Gtk.Window):
                                     testButton[1].set_sensitive(False)
                                     calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
                                     maxFrqScale[1].set_sensitive(False)
+                                    minPwmScale[1].set_sensitive(False)
                                     midPwmScale[1].set_sensitive(False)
                                     maxPwmScale[1].set_sensitive(False)
 
