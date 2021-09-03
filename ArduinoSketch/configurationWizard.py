@@ -3291,7 +3291,7 @@ class GuiWindow(Gtk.Window):
                             pwmValue = 0
                             if not manualMovement:
                                 pwmValue = 1
-                            pwmScale = creatHScale(pwmValue, 1, 1023, 10, getLowLev=True)
+                            pwmScale = creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
                             pwmScale = addTopLabelTo('<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]), pwmScale[1]
                             if not manualMovement:
                                 calibrationBox.pack_start(pwmScale[0], False, False, 0)
@@ -3411,9 +3411,11 @@ class GuiWindow(Gtk.Window):
                                             plt.figure(3)
                                             plt.plot(data[:, 0], data[:, 4])
                                             plt.figure(4)
-                                            plt.plot(data[:, 3], data[:, 4], '+')
+                                            plt.plot(data[:, 3], data[:, 4], 'r-')
+                                            plt.plot(data[:, 3], data[:, 4], 'g+')
                                             plt.figure(5)
-                                            plt.plot(data[:, 3], data[:, 5], '+')
+                                            plt.plot(data[:, 3], data[:, 5], 'r-')
+                                            plt.plot(data[:, 3], data[:, 5], 'g+')
                                             plt.show()
 
                                     GLib.idle_add(plotData, data)
@@ -3551,11 +3553,16 @@ class GuiWindow(Gtk.Window):
                                     t = 0.0
                                     doneRunning = False
 
+                                    runTime = 110.0
+                                    if manualMovement:
+                                        runTime = 40.0
+
                                     def sendCommandHandlerFunction(dt, robot):
                                         nonlocal nodeNr
                                         nonlocal t
                                         nonlocal pwmValue
                                         nonlocal threadMutex
+                                        nonlocal runTime
 
                                         servo = robot.dcServoArray[nodeNr - 1]
 
@@ -3565,7 +3572,7 @@ class GuiWindow(Gtk.Window):
                                         pwm = 0
                                         with threadMutex:
                                             pwm = pwmValue
-                                        if t < 100.0:
+                                        if t < (runTime - 10.0) * 0.5:
                                             servo.setOpenLoopControlSignal(min(pwm, 0.25 * t * pwm), True)
                                         else:
                                             servo.setOpenLoopControlSignal(-pwm, True)
@@ -3578,14 +3585,11 @@ class GuiWindow(Gtk.Window):
                                         nonlocal t
                                         nonlocal runThread
                                         nonlocal doneRunning
-
-                                        runTime = 210.0
-                                        if manualMovement:
-                                            runTime = 200.0
+                                        nonlocal runTime
 
                                         servo = robot.dcServoArray[nodeNr - 1]
                                         opticalEncoderData = servo.getOpticalEncoderChannelData()
-                                        if t > 0.1 and (t < 100.0 or t > 110.0 or manualMovement):
+                                        if t > 0.1 and (t < (runTime - 10.0) * 0.5 or t > (runTime - 10.0) * 0.5 + 10.0 or manualMovement):
                                             out.append([t,
                                                     opticalEncoderData.a,
                                                     opticalEncoderData.b,
