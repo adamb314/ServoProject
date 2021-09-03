@@ -4209,11 +4209,11 @@ class GuiWindow(Gtk.Window):
                             motorSettleTimeScale = addTopLabelTo('<b>Motor settle time</b>', motorSettleTimeScale[0]), motorSettleTimeScale[1]
                             calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
 
-                            minPwmScale = creatHScale(minPwmValue, 0, 200, 1, getLowLev=True)
+                            minPwmScale = creatHScale(minPwmValue, 0, 1023, 1, getLowLev=True)
                             minPwmScale = addTopLabelTo('<b>Min motor pwm value</b>', minPwmScale[0]), minPwmScale[1]
                             calibrationBox.pack_start(minPwmScale[0], False, False, 0)
 
-                            maxPwmScale = creatHScale(maxPwmValue, 0, 200, 1, getLowLev=True)
+                            maxPwmScale = creatHScale(maxPwmValue, 0, 1023, 1, getLowLev=True)
                             maxPwmScale = addTopLabelTo('<b>Max motor pwm value</b>', maxPwmScale[0]), maxPwmScale[1]
                             calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
 
