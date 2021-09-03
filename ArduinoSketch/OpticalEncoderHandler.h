@@ -20,7 +20,9 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
 
     virtual float getValue() override;
 
-    virtual DiagnosticData getDiagnosticData();
+    virtual uint16_t getUnscaledRawValue() override;
+
+    virtual DiagnosticData getDiagnosticData() override;
 
   private:
     void updatePosition();

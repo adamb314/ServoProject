@@ -57,10 +57,16 @@ float OpticalEncoderHandler::getValue()
     return (value + wrapAroundCorretion) * scaling;
 }
 
+uint16_t OpticalEncoderHandler::getUnscaledRawValue()
+{
+    return diagnosticData.c;
+}
 
 EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
 {
-    return diagnosticData;
+    auto out = diagnosticData;
+    diagnosticData.d = 0;
+    return out;
 }
 
 void OpticalEncoderHandler::updatePosition()
@@ -154,7 +160,10 @@ void OpticalEncoderHandler::updatePosition()
     }
 
     diagnosticData.c = bestI;
-    diagnosticData.d = bestCost;
+    if (bestCost > diagnosticData.d)
+    {
+        diagnosticData.d = bestCost;
+    }
 
     float newValue = bestI * (4096.0 / vecSize);
 

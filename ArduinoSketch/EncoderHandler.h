@@ -15,6 +15,11 @@ class EncoderHandlerInterface
 
     virtual float getValue() = 0;
 
+    virtual uint16_t getUnscaledRawValue()
+    {
+        return 0;
+    }
+
     class DiagnosticData
     {
       public:
