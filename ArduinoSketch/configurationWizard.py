@@ -25,7 +25,7 @@ class SerialCommunication(object):
         self.sendBuffer = []
 
         self.nodeNr = 1
-        self.charArray = [0] * 8
+        self.charArray = [0] * 16
         self.intArray = [0] * 16
 
     def setNodeNr(self, nr):
@@ -166,7 +166,7 @@ class SimulateCommunication(SerialCommunication):
         def __init__(self):
             self.pos = 40240
             self.vel = 0
-            self.charArray = [0] * 8
+            self.charArray = [0] * 16
             self.intArray = [0] * 16
             self.intArray[3] = self.pos
 
@@ -298,12 +298,14 @@ class DCServoCommunicator(object):
         self.pwmOpenLoopMode = False
 
         self.controlSpeed = 50
+        self.velControlSpeed = 50 * 4
+        self.filterSpeed = 50 * 4 * 8
         self.backlashCompensationSpeed = 10
         self.backlashCompensationSpeedVelDecrease = 0
         self.backlashSize = 0
 
         self.intReadBuffer = [0] * 16
-        self.charReadBuffer = [0] * 8
+        self.charReadBuffer = [0] * 16
 
         self.intReadBufferIndex3Upscaling = ContinuousValueUpCaster(16)
         self.intReadBufferIndex10Upscaling = ContinuousValueUpCaster(16)
@@ -341,8 +343,10 @@ class DCServoCommunicator(object):
         if self.isInitComplete():
             self.updateOffset()
 
-    def setControlSpeed(self, controlSpeed):
+    def setControlSpeed(self, controlSpeed, velControlSpeed, filterSpeed):
         self.controlSpeed = controlSpeed
+        self.velControlSpeed = velControlSpeed
+        self.filterSpeed = filterSpeed
 
     def setBacklashControlSpeed(self, backlashCompensationSpeed, backlashCompensationCutOffSpeed, backlashSize):
         self.backlashCompensationSpeed = backlashCompensationSpeed
@@ -489,9 +493,11 @@ class DCServoCommunicator(object):
             self.bus.writeChar(2, self.backlashControlDisabled)
 
             self.bus.writeChar(3, self.controlSpeed)
-            self.bus.writeChar(4, self.backlashCompensationSpeed)
-            self.bus.writeChar(5, self.backlashCompensationSpeedVelDecrease)
-            self.bus.writeChar(6, self.backlashSize)
+            self.bus.writeChar(4, int(round(self.velControlSpeed / 4.0)))
+            self.bus.writeChar(5, int(round(self.filterSpeed / 32.0)))
+            self.bus.writeChar(6, self.backlashCompensationSpeed)
+            self.bus.writeChar(7, self.backlashCompensationSpeedVelDecrease)
+            self.bus.writeChar(8, self.backlashSize)
 
         self.communicationIsOk = self.bus.execute()
 
@@ -513,7 +519,7 @@ class DCServoCommunicator(object):
                 self.intReadBufferIndex10Upscaling.update(self.intReadBuffer[10])
                 self.intReadBufferIndex11Upscaling.update(self.intReadBuffer[11])
             else:
-                upscaledPos = (self.intReadBuffer[3] % (256 * 256)) + (self.charReadBuffer[7] % 256) * 256 * 256
+                upscaledPos = (self.intReadBuffer[3] % (256 * 256)) + (self.charReadBuffer[9] % 256) * 256 * 256
                 if upscaledPos >= 256**3 / 2:
                     upscaledPos -= 256**3
 
@@ -3227,7 +3233,8 @@ class GuiWindow(Gtk.Window):
                             'Pwm nonlinearity',
                             'System identification',
                             'Output encoder calibration',
-                            'Test control loop']
+                            'Test control loop',
+                            'Test control loop (Advanced)']
 
                     def getNodeNrFromCombo(nodeNrCombo):
                         nodeNr = nodeNrCombo.get_model()[nodeNrCombo.get_active()][0]
@@ -4803,8 +4810,11 @@ class GuiWindow(Gtk.Window):
                             calibrationBox.pack_start(startButton[0], False, False, 0)
                             calibrationBox.show_all()
 
-                        elif calibrationType == 'Test control loop':
+                        elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
 ############################# Test control loop ################################################################
+                            advancedMode = False
+                            if calibrationType == 'Test control loop (Advanced)':
+                                advancedMode = True
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
 
@@ -4813,13 +4823,22 @@ class GuiWindow(Gtk.Window):
                             controlSpeedScale = addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]
                             calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
+                            if advancedMode == True:
+                                velControlSpeedScale = creatHScale(14 * 4, 0, 100 * 4, 4, getLowLev=True)
+                                velControlSpeedScale = addTopLabelTo('<b>Velocity control speed</b>', velControlSpeedScale[0]), velControlSpeedScale[1]
+                                calibrationBox.pack_start(velControlSpeedScale[0], False, False, 0)
+
+                                filterSpeedScale = creatHScale(14 * 32, 0, 100 * 32, 32, getLowLev=True)
+                                filterSpeedScale = addTopLabelTo('<b>Filter speed</b>', filterSpeedScale[0]), filterSpeedScale[1]
+                                calibrationBox.pack_start(filterSpeedScale[0], False, False, 0)
+
                             backlashControlSpeedScale = creatHScale(0, 0, 50, 1, getLowLev=True)
                             backlashControlSpeedScale = addTopLabelTo('<b>Backlash control speed</b>', backlashControlSpeedScale[0]), backlashControlSpeedScale[1]
                             calibrationBox.pack_start(backlashControlSpeedScale[0], False, False, 0)
 
                             testVel = 0
 
-                            testVelScale = creatHScale(0.0, -1.000, 1.000, 0.001, getLowLev=True)
+                            testVelScale = creatHScale(0.0, -1.000, 1.000, 0.0001, getLowLev=True)
                             testVelScale = addTopLabelTo('<b>Velocity</b>\n in radians per second', testVelScale[0]), testVelScale[1]
                             startButton = createButton('Start test', getLowLev=True)
 
@@ -4840,14 +4859,21 @@ class GuiWindow(Gtk.Window):
 
                             def resetGuiAfterCalibration():
                                 nonlocal startButton
-                                nonlocal testButton
-                                nonlocal calibrationBox
-                                nonlocal recordingProgressBar
-                                nonlocal minPwmScale
-                                nonlocal maxPwmScale
+                                nonlocal controlSpeedScale
+                                nonlocal velControlSpeedScale
+                                nonlocal filterSpeedScale
+                                nonlocal backlashControlSpeedScale
+                                nonlocal positionOffsetScale
 
                                 startButton[1].set_label('Start test')
                                 startButton[1].set_sensitive(True)
+                                controlSpeedScale[1].set_sensitive(True)
+                                if advancedMode == True:
+                                    velControlSpeedScale[1].set_sensitive(True)
+                                    filterSpeedScale[1].set_sensitive(True)
+
+                                backlashControlSpeedScale[1].set_sensitive(True)
+                                positionOffsetScale[1].set_sensitive(True)
 
                             runThread = False
 
@@ -4862,7 +4888,16 @@ class GuiWindow(Gtk.Window):
                                 plt.plot(data[:, 0], data[:, 3])
 
                                 plt.figure(4)
-                                plt.plot(data[:, 4], data[:, 5], '+')
+                                plt.plot(data[:, 4], data[:, 5], 'g-')
+                                plt.plot(data[:, 4], data[:, 5], 'r+')
+
+                                plt.figure(5)
+                                plt.plot(data[:, 4], data[:, 3], 'g-')
+                                plt.plot(data[:, 4], data[:, 3], 'r+')
+
+                                plt.figure(6)
+                                plt.plot(data[:, 4], data[:, 6], 'g-')
+                                plt.plot(data[:, 4], data[:, 6], 'r+')
                                 plt.show()
 
                             def startTestRun(nodeNr, port):
@@ -4871,13 +4906,20 @@ class GuiWindow(Gtk.Window):
                                 nonlocal testVel
 
                                 controlSpeed = int(controlSpeedScale[1].get_value())
+                                velControlSpeed = controlSpeed * 4
+                                filterSpeed = controlSpeed * 32
+                                if advancedMode == True:
+                                    velControlSpeed = int(round(velControlSpeedScale[1].get_value() / 4.0)) * 4
+                                    velControlSpeedScale[1].set_value(velControlSpeed)
+                                    filterSpeed = int(round(filterSpeedScale[1].get_value() / 32.0)) * 32
+                                    filterSpeedScale[1].set_value(filterSpeed)
                                 backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
                                 positionOffset = positionOffsetScale[1].get_value()
 
                                 try:
                                     def initFun(robot):
-                                        robot.dcServoArray[nodeNr - 1].setControlSpeed(controlSpeed)
+                                        robot.dcServoArray[nodeNr - 1].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
                                         robot.dcServoArray[nodeNr - 1].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
 
                                     robot = createRobot(nodeNr, port, dt=0.018, initFunction=initFun)
@@ -4931,7 +4973,8 @@ class GuiWindow(Gtk.Window):
                                                 servo.getVelocity(),
                                                 servo.getControlError(False),
                                                 optData.minCostIndex,
-                                                servo.getControlSignal()])
+                                                servo.getControlSignal(),
+                                                optData.minCost])
 
                                     robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
@@ -4956,13 +4999,21 @@ class GuiWindow(Gtk.Window):
                                 nonlocal runThread
 
                                 nonlocal calibrationBox
-                                nonlocal minPwmScale
-                                nonlocal maxPwmScale
-                                nonlocal recordingProgressBar
-                                nonlocal testButton
+                                nonlocal controlSpeedScale
+                                nonlocal velControlSpeedScale
+                                nonlocal filterSpeedScale
+                                nonlocal backlashControlSpeedScale
+                                nonlocal positionOffsetScale
 
                                 if widget.get_label() == 'Start test':
                                     widget.set_label('Stop test')
+
+                                    controlSpeedScale[1].set_sensitive(False)
+                                    if advancedMode == True:
+                                        velControlSpeedScale[1].set_sensitive(False)
+                                        filterSpeedScale[1].set_sensitive(False)
+                                    backlashControlSpeedScale[1].set_sensitive(False)
+                                    positionOffsetScale[1].set_sensitive(False)
 
                                     calibrationBox.show_all()
 

@@ -23,10 +23,10 @@ public:
 
 protected:
     std::array<int, 16> intArray{{0}};
-    std::array<char, 8> charArray{{0}};
+    std::array<char, 16> charArray{{0}};
 
     std::array<bool, 16> intArrayChanged{{false}};
-    std::array<bool, 8> charArrayChanged{{false}};
+    std::array<bool, 16> charArrayChanged{{false}};
 
 private:
     unsigned char nodeNr;
@@ -51,10 +51,10 @@ private:
 
     SerialComOptimizer serial;
     std::array<int, 16> intArrayBuffer;
-    std::array<char, 8> charArrayBuffer;
+    std::array<char, 16> charArrayBuffer;
 
     std::array<bool, 16> intArrayChangedBuffer;
-    std::array<bool, 8> charArrayChangedBuffer;
+    std::array<bool, 16> charArrayChangedBuffer;
 
     int communicationState{0};
     unsigned char waitForBytes{1};

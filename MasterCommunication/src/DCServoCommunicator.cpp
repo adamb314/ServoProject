@@ -44,7 +44,15 @@ void DCServoCommunicator::updateOffset()
 
 void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed)
 {
+    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 32);
+}
+
+void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed,
+        unsigned short int velControlSpeed, unsigned short int filterSpeed)
+{
     this->controlSpeed = controlSpeed;
+    this->velControlSpeed = velControlSpeed;
+    this->filterSpeed = filterSpeed;
 }
 
 void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
@@ -260,9 +268,11 @@ void DCServoCommunicator::run()
         bus->write(2, static_cast<char>(backlashControlDisabled));
 
         bus->write(3, static_cast<char>(controlSpeed));
-        bus->write(4, static_cast<char>(backlashCompensationSpeed));
-        bus->write(5, static_cast<char>(backlashCompensationSpeedVelDecrease));
-        bus->write(6, static_cast<char>(backlashSize));
+        bus->write(4, static_cast<char>(std::round(velControlSpeed / 4.0)));
+        bus->write(5, static_cast<char>(std::round(filterSpeed / 32.0)));
+        bus->write(6, static_cast<char>(backlashCompensationSpeed));
+        bus->write(7, static_cast<char>(backlashCompensationSpeedVelDecrease));
+        bus->write(8, static_cast<char>(backlashSize));
     }
 
     communicationIsOk = bus->execute();

@@ -91,7 +91,7 @@ protected:
     std::vector<unsigned char> sendBuffer;
 
     unsigned char nodeNr;
-    std::array<char, 8> charArray{0};
+    std::array<char, 16> charArray{0};
     std::array<short int, 16> intArray{0};
 
     boost::asio::io_service io;
@@ -120,7 +120,7 @@ public:
             intArray.at(5) = intArray.at(2);
         }
 
-        std::array<char, 8> charArray{0};
+        std::array<char, 16> charArray{0};
         std::array<short int, 16> intArray{0};
     };
 
