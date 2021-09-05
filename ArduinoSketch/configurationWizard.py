@@ -343,7 +343,12 @@ class DCServoCommunicator(object):
         if self.isInitComplete():
             self.updateOffset()
 
-    def setControlSpeed(self, controlSpeed, velControlSpeed, filterSpeed):
+    def setControlSpeed(self, controlSpeed, velControlSpeed = None, filterSpeed = None):
+        if velControlSpeed == None:
+            velControlSpeed = controlSpeed * 4
+        if filterSpeed == None:
+            filterSpeed = velControlSpeed * 8
+
         self.controlSpeed = controlSpeed
         self.velControlSpeed = velControlSpeed
         self.filterSpeed = filterSpeed
