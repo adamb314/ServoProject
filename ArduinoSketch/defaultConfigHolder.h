@@ -82,10 +82,9 @@ public:
             return 0.0;
         }
 
-        static std::array<uint8_t, 512> getPosDepForceCompVec()
+        static std::array<int16_t, 512> getPosDepForceCompVec()
         {
-            std::array<uint8_t, 512> posDepForceCompVec;
-            posDepForceCompVec.fill(128);
+            std::array<int16_t, 512> posDepForceCompVec{0};
 
             return posDepForceCompVec;
         }

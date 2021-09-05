@@ -68,7 +68,7 @@ class DefaultControlConfiguration : public ControlConfigurationInterface
 {
 public:
     DefaultControlConfiguration(const Eigen::Matrix3f& A, const Eigen::Vector3f& B,
-        const float& maxVel, const float& frictionComp, const std::array<uint8_t, 512>& posDepForceCompVec,
+        const float& maxVel, const float& frictionComp, const std::array<int16_t, 512>& posDepForceCompVec,
         const EncoderHandlerInterface* encoder) :
             A(A),
             B(B),
@@ -109,7 +109,7 @@ public:
             out -= frictionComp;
         }
 
-        out = (out * static_cast<int32_t>(posDepForceCompVec[rawEncPos])) / 128;
+        out += posDepForceCompVec[rawEncPos];
 
         return out;
     }
@@ -119,7 +119,7 @@ private:
     Eigen::Vector3f B;
     float frictionComp;
     float maxVel;
-    std::array<uint8_t, 512> posDepForceCompVec;
+    std::array<int16_t, 512> posDepForceCompVec;
 };
 
 template<typename T>
