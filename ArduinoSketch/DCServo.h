@@ -51,7 +51,7 @@ public:
     virtual const Eigen::Matrix3f& getA() = 0;
     virtual const Eigen::Vector3f& getB() = 0;
     virtual void limitVelocity(float& vel) = 0;
-    virtual float applyForceCompensations(float u, float rawEncPos, float velRef) = 0;
+    virtual float applyForceCompensations(float u, float rawEncPos, float velRef, float vel) = 0;
 
     virtual float getCycleTime()
     {
@@ -96,15 +96,15 @@ public:
         vel = std::max(-maxVel, vel);
     }
 
-    virtual float applyForceCompensations(float u, float rawEncPos, float velRef) override
+    virtual float applyForceCompensations(float u, float rawEncPos, float velRef, float vel) override
     {
         float out = u;
 
-        if (velRef > 0)
+        if (velRef > 0.0f && vel >= 0.0f)
         {
             out += frictionComp;
         }
-        else if (velRef < 0)
+        else if (velRef < 0.0f && vel <= 0.0f)
         {
             out -= frictionComp;
         }

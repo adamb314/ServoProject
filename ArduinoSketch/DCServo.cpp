@@ -276,7 +276,7 @@ void DCServo::controlLoop()
             controlSignal = u;
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
-            int16_t pwm = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef);
+            int16_t pwm = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef, x[1]);
 
             currentController->updateVelocity(x[1]);
             currentController->setReference(static_cast<int16_t>(pwm));
