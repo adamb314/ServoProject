@@ -3,7 +3,7 @@
 
 #include "config/config.h"
 
-SET_THREAD_HANDLER_TICK(600);
+SET_THREAD_HANDLER_TICK(200);
 THREAD_HANDLER_WITH_EXECUTION_ORDER_OPTIMIZED(InterruptTimer::getInstance());
 
 ThreadHandler* threadHandler = ThreadHandler::getInstance();
