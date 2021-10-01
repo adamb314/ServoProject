@@ -52,7 +52,7 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
     if (CommunicationNode::intArrayChanged[0])
     {
         intArrayIndex0Upscaler.update(CommunicationNode::intArray[0]);
-        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), CommunicationNode::intArray[1], CommunicationNode::intArray[2]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0f / positionUpscaling), CommunicationNode::intArray[1], CommunicationNode::intArray[2]);
 
         CommunicationNode::intArrayChanged[0] = false;
         dcServo->openLoopMode(false);
@@ -63,7 +63,7 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
     else if (CommunicationNode::intArrayChanged[2])
     {
         intArrayIndex0Upscaler.set(CommunicationNode::intArray[3]);
-        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0 / positionUpscaling), 0.0, CommunicationNode::intArray[2]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0f / positionUpscaling), 0.0f, CommunicationNode::intArray[2]);
 
         CommunicationNode::intArrayChanged[2] = false;
         dcServo->openLoopMode(true, CommunicationNode::charArray[1] == 1);

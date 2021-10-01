@@ -41,7 +41,7 @@ class EncoderHandler : public EncoderHandlerInterface
 {
   public:
     static constexpr int vecSize = 513;
-    EncoderHandler(int chipSelectPin, float unitsPerRev = 4096.0, const std::array<int16_t, vecSize>& compVec = {0});
+    EncoderHandler(int chipSelectPin, float unitsPerRev = 4096.0f, const std::array<int16_t, vecSize>& compVec = {0});
 
     ~EncoderHandler();
 

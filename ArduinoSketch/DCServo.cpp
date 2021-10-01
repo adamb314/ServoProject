@@ -237,11 +237,11 @@ void DCServo::controlLoop()
             if (!onlyUseMainEncoderControl)
             {
                 int newForceDir = forceDir;
-                if (feedForwardU > 1.0)
+                if (feedForwardU > 1.0f)
                 {
                     newForceDir = 1;
                 }
-                else if (feedForwardU < -1.0)
+                else if (feedForwardU < -1.0f)
                 {
                     newForceDir = -1;
                 }
@@ -256,10 +256,7 @@ void DCServo::controlLoop()
                 if (backlashControlGainDelayCounter == 0)
                 {
                     backlashControlGainDelayCounter = backlashControlGainCycleDelay;
-                    backlashControlGain = controlConfig->getCycleTime()
-                            * L[4] * (0.1 + 0.9 *
-                                std::max(0.0,
-                                    1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
+                    backlashControlGain = L[4] * (0.1f + 0.9f * std::max(0.0f, 1.0f - L[5] * std::abs(velRef)));
                 }
                 backlashControlGainDelayCounter--;
                 double backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
@@ -345,15 +342,15 @@ void DCServo::calculateAndUpdateLVector()
     float b = B(1);
 
     float posControlPole = exp(-dt * controlSpeed);
-    float velControlPole[] = {exp(-1.0 * dt * velControlSpeed), exp(-0.9 * dt * velControlSpeed)};
+    float velControlPole[] = {exp(-1.0f * dt * velControlSpeed), exp(-0.9f * dt * velControlSpeed)};
 
-    L[0] = (1.0 - posControlPole) / dt;
+    L[0] = (1.0f - posControlPole) / dt;
     L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
     L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
     L[3] = 10 * L[2];
 
-    L[4] = backlashControlSpeed;
-    L[5] = backlashControlSpeedVelGain;
+    L[4] = backlashControlSpeed * controlConfig->getCycleTime();
+    L[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
     L[6] = backlashSize;
 }
 
@@ -423,7 +420,7 @@ void ReferenceInterpolator::updateTiming()
         midPointTimeOffset += timingError / 8;
         loadTimeInterval += periodError / 16;
 
-        invertedLoadInterval = 1.0 / loadTimeInterval;
+        invertedLoadInterval = 1.0f / loadTimeInterval;
     }
 
     lastUpdateTimingTimestamp = timestamp;
@@ -455,18 +452,18 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
 
     float t = midPointTimeOffset * invertedLoadInterval;
 
-    if (t < -1.0)
+    if (t < -1.0f)
     {
-        t = -1.0;
+        t = -1.0f;
     }
-    else if (t > 1.2)
+    else if (t > 1.2f)
     {
-        t = 1.2;
+        t = 1.2f;
     }
 
-    if (t < 0.0)
+    if (t < 0.0f)
     {
-        t += 1.0;
+        t += 1.0f;
         feedForward = feed[0] + t * (feed[1] - feed[0]);
         float velDiff = vel[1] - vel[0];
         velocity = vel[0] + t * velDiff;
@@ -493,6 +490,6 @@ void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
     resetTiming();
 
     loadTimeInterval = interval;
-    invertedLoadInterval = 1.0 / loadTimeInterval;
-    dtDiv2 = loadTimeInterval * 0.000001 * 0.5;
+    invertedLoadInterval = 1.0f / loadTimeInterval;
+    dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
 }

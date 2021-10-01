@@ -4,7 +4,7 @@ ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev,
             std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer) :
         EncoderHandlerInterface(unitsPerRev),
         sensor(pin),
-        scaling{unitsPerRev * (1.0 / 4096.0) / 16.0},
+        scaling{unitsPerRev * (1.0f / 4096.0f) / 16.0f},
         compVec(compVec),
         synchronizer(synchronizer)
 {
@@ -41,10 +41,10 @@ void ResistiveEncoderHandler::triggerSample()
 
     newSensorValue /= n;
 
-    float t = newSensorValue * (vecSize / 4096.0);
+    float t = newSensorValue * (vecSize / 4096.0f);
     int i = std::min(vecSize - 2, static_cast<int>(t));
     t -= i;
-    newSensorValue -= compVec[i] * (1.0 - t) + compVec[i + 1] * t;
+    newSensorValue -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
 
     sensorValue = (15 * sensorValue) / 16 + newSensorValue;
 }

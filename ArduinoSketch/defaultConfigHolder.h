@@ -26,7 +26,7 @@ public:
     {
         std::array<uint16_t, 512> aVec = {};
         std::array<uint16_t, 512> bVec = {};
-        return std::make_unique<OpticalEncoderHandler>(aVec, bVec, A2, A3, 4096.0);
+        return std::make_unique<OpticalEncoderHandler>(aVec, bVec, A2, A3, 4096.0f);
     }
 
     class DefaultControlParameters
@@ -35,9 +35,9 @@ public:
         static Eigen::Vector3f getKVector()
         {
             Eigen::Vector3f K;
-            K << 0.0,
-                0.0,
-                0.0;
+            K << 0.0f,
+                0.0f,
+                0.0f;
 
             return K;
         }
@@ -45,9 +45,9 @@ public:
         static Eigen::Matrix3f getAMatrix()
         {
             Eigen::Matrix3f A;
-            A << 1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0;
+            A << 1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 1.0f;
 
             return A;
         }
@@ -55,9 +55,9 @@ public:
         static Eigen::Matrix3f getAInvMatrix()
         {
             Eigen::Matrix3f AInv;
-            AInv << 1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0;
+            AInv << 1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 1.0f;
 
             return AInv;
         }
@@ -65,9 +65,9 @@ public:
         static Eigen::Vector3f getBVector()
         {
             Eigen::Vector3f B;
-            B << 0.0,
-                0.0,
-                0.0;
+            B << 0.0f,
+                0.0f,
+                0.0f;
 
             return B;
         }
@@ -79,7 +79,7 @@ public:
 
         static float getFrictionComp()
         {
-            return 0.0;
+            return 0.0f;
         }
 
         static std::array<int16_t, 512> getPosDepForceCompVec()
@@ -98,7 +98,7 @@ std::unique_ptr<DCServo> createDCServo()
     auto mainEncoder = T::createMainEncoderHandler();
     auto outputEncoder = T::createOutputEncoderHandler();
     auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
-    bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012;
+    bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012f;
     auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>(kalmanFilterApproximation);
 
     return std::make_unique<DCServo>(

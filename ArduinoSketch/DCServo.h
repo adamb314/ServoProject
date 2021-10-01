@@ -40,8 +40,8 @@ class ReferenceInterpolator
     bool timingInvalid{true};
     bool refInvalid{true};
     uint16_t loadTimeInterval{12000};
-    float invertedLoadInterval{1.0 / 12000};
-    float dtDiv2{12000 * 0.000001 * 0.5};
+    float invertedLoadInterval{1.0f / 12000};
+    float dtDiv2{12000 * 0.000001f * 0.5f};
     uint16_t getTimeInterval{1200};
 };
 
@@ -198,7 +198,7 @@ class DCServo
     uint8_t backlashSize{0};
 
     uint8_t backlashControlGainDelayCounter{0};
-    float backlashControlGain{0.0};
+    float backlashControlGain{0.0f};
 
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop
@@ -210,11 +210,11 @@ class DCServo
     Eigen::Matrix<float, 7, 1> L;
 
     uint16_t loopNumber{0};
-    float rawMainPos{0.0};
-    float rawOutputPos{0.0};
+    float rawMainPos{0.0f};
+    float rawOutputPos{0.0f};
     int forceDir{0};
-    float outputPosOffset{0.0};
-    float initialOutputPosOffset{0.0};
+    float outputPosOffset{0.0f};
+    float initialOutputPosOffset{0.0f};
 
     //x[0]: Estimated position
     //x[1]: Estimated velocity
@@ -227,11 +227,11 @@ class DCServo
 
     int16_t current{0};
     int16_t pwmControlSIgnal{0};
-    float controlSignal{0.0};
+    float controlSignal{0.0f};
 
     ReferenceInterpolator refInterpolator;
 
-    float Ivel{0.0};
+    float Ivel{0.0f};
 
     std::unique_ptr<CurrentController> currentController;
     std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;

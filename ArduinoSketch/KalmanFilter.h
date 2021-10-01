@@ -38,18 +38,18 @@ protected:
     static Eigen::Matrix<float, 3, 7> translateKVecToPolyK(const Eigen::Matrix<float, 3, 4>& in)
     {
         Eigen::Matrix<float, 3, 7> polyK;
-        polyK << 0.0, 0.0, 0.0, in(0, 0), in(0, 1), in(0, 2), in(0, 3),
-            0.0, 0.0, 0.0, in(1, 0), in(1, 1), in(1, 2), in(1, 3),
-            0.0, 0.0, 0.0, in(2, 0), in(2, 1), in(2, 2), in(2, 3);
+        polyK << 0.0f, 0.0f, 0.0f, in(0, 0), in(0, 1), in(0, 2), in(0, 3),
+            0.0f, 0.0f, 0.0f, in(1, 0), in(1, 1), in(1, 2), in(1, 3),
+            0.0f, 0.0f, 0.0f, in(2, 0), in(2, 1), in(2, 2), in(2, 3);
         return polyK;
     }
 
     static Eigen::Matrix<float, 3, 7> translateKVecToPolyK(const Eigen::Vector3f& in)
     {
         Eigen::Matrix<float, 3, 7> polyK;
-        polyK << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, in[0],
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, in[1],
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, in[2];
+        polyK << 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, in[0],
+            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, in[1],
+            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, in[2];
         return polyK;
     }
 };

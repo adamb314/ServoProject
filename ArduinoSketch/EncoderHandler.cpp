@@ -3,7 +3,7 @@
 EncoderHandler::EncoderHandler(int chipSelectPin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
     EncoderHandlerInterface(unitsPerRev),
     chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0),
-    scaling(unitsPerRev * (1.0 / 4096.0)),
+    scaling(unitsPerRev * (1.0f / 4096.0f)),
     compVec(compVec)
 {
 }
@@ -36,7 +36,7 @@ void EncoderHandler::triggerSample()
     digitalWrite(chipSelectPin, HIGH);
     
     received = -received;
-    float newValue = (received & 0x3fff) * 0.25;
+    float newValue = (received & 0x3fff) * 0.25f;
     if (newValue - value > 4096 / 2)
     {
         wrapAroundCorretion -= 4096;
@@ -47,10 +47,10 @@ void EncoderHandler::triggerSample()
     }
     value = newValue;
 
-    float t = value * (vecSize / 4096.0);
+    float t = value * (vecSize / 4096.0f);
     int i = std::min(vecSize - 2, static_cast<int>(t));
     t -= i;
-    value -= compVec[i] * (1.0 - t) + compVec[i + 1] * t;
+    value -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
 
     status = 0;
 }

@@ -4,7 +4,7 @@ HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeF
     timer(TCC0),
     invert(invert),
     linearizeFunction(linearizeFunction),
-    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0 / frq + 0.5))
+    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0f / frq + 0.5f))
 {
     connectOutput();
 }
@@ -13,7 +13,7 @@ HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert
     timer(timer),
     invert(invert),
     linearizeFunction(linearizeFunction),
-    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0 / frq + 0.5))
+    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0f / frq + 0.5f))
 {
 }
 
