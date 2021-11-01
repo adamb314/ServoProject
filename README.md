@@ -114,7 +114,6 @@ Dependencies
 * Adafruit_DotStar `source:` Arduino Library List
 * LinkedList `source:` Arduino Library List
 * EigenArduino `source:` https://github.com/vancegroup/EigenArduino.git
-* AdcHandler `source:` https://github.com/adamb314/adchandler
 * ThreadHandler `source:` https://github.com/adamb314/threadhandler
 
 #### ArduinoSketch/configSelector.py
