@@ -2,6 +2,8 @@
 by Adam Bäckström
 ### Getting the most out of your hobby servo
 
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/donate?hosted_button_id=4PW3WJ2TDTMB8)
+
 ![Robot](readmeResources/robot.jpg)
 
 Theory
