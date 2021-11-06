@@ -23,33 +23,8 @@ void OpticalEncoderHandler::init()
 
 void OpticalEncoderHandler::triggerSample()
 {
-    sensor1Value = 0;
-    sensor2Value = 0;
-
-    const int n = 1;
-    for (int i = 0; i != n; ++i)
-    {
-        if (synchronizer)
-        {
-            while (synchronizer->willSwitchWithIn(16))
-            {
-            }
-        }
-        sensor1.triggerSample();
-        sensor1Value += sensor1.getValue();
-
-        if (synchronizer)
-        {
-            while (synchronizer->willSwitchWithIn(16))
-            {
-            }
-        }
-        sensor2.triggerSample();
-        sensor2Value += sensor2.getValue();
-    }
-
-    sensor1Value /= n;
-    sensor2Value /= n;
+    sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+    sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
 
     newData = true;
 }
@@ -58,6 +33,9 @@ float OpticalEncoderHandler::getValue()
 {
     if (newData)
     {
+        sensor1Value = sensor1.getValue() / 8;
+        sensor2Value = sensor2.getValue() / 8;
+
         newData = false;
         updatePosition();
     }

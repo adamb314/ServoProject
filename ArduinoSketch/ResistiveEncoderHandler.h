@@ -25,6 +25,7 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
     uint32_t sensorValue{0};
     const float scaling;
     std::array<int16_t, vecSize> compVec;
+    bool newData{false};
 };
 
 #endif

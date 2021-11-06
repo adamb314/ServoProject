@@ -5,6 +5,8 @@
 #undef max
 #undef min
 
+void ADC_Handler();
+
 class AdcSamplerInstance
 {
 public:
@@ -16,16 +18,21 @@ public:
 protected:
     void getAdcLockAndStartSampling();
 
-    void unlockFromAdc(AdcSamplerInstance* newInstance = nullptr);
+    void unlockFromAdc();
 
+    void startAdcSample();
 
-    void configureAdcPin();
-
-    virtual void loadConfig() = 0;
-    virtual void unloadConfig(int32_t result) = 0;
+    virtual void loadConfigAndStart() = 0;
+    virtual bool handleResultAndCleanUp(int32_t result) = 0;
 
 private:
     uint32_t pin;
+
+    AdcSamplerInstance* preQueued{nullptr};
+    AdcSamplerInstance* nextQueued{nullptr};
+    volatile bool pendingInQueue{false};
+
+    friend void ADC_Handler();
 };
 
 class AdcHandler
@@ -35,8 +42,10 @@ public:
 
 private:
     static AdcSamplerInstance* activeInstance;
+    static AdcSamplerInstance* endOfQueueInstance;
 
     friend class AdcSamplerInstance;
+    friend void ADC_Handler();
 };
 
 class AnalogSampler : public AdcSamplerInstance
@@ -46,28 +55,38 @@ public:
 
     virtual ~AnalogSampler();
 
-    void triggerSample();
+    void triggerSample(uint8_t sampleNrEnum = ADC_AVGCTRL_SAMPLENUM_1_Val);
 
     int32_t getValue();
 
 protected:
-    virtual void loadConfig() override;
+    virtual void loadConfigAndStart() override;
 
-    virtual void unloadConfig(int32_t result) override;
+    virtual bool handleResultAndCleanUp(int32_t result) override;
+
+    int32_t value{0};
 
 private:
-    int32_t value;
+    uint8_t sampleNrEnum;
+    uint8_t defaultSAMPLENUM;
+    uint16_t defaultRESSEL;
 };
 
-class AverageAnalogSampler : public AnalogSampler
+class AverageAnalogSampler : public AdcSamplerInstance
 {
 public:
     AverageAnalogSampler(uint32_t pin);
     virtual ~AverageAnalogSampler();
 
+    void triggerSample();
+
+    int32_t getValue();
+
 protected:
-    virtual void loadConfig() override;
-    virtual void unloadConfig(int32_t result) override;
+    virtual void loadConfigAndStart() override;
+    virtual bool handleResultAndCleanUp(int32_t result) override;
+
+    int32_t value{0};
 
 private:
     uint8_t defaultSAMPLENUM;

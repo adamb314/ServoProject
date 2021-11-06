@@ -22,32 +22,23 @@ void ResistiveEncoderHandler::init()
 
 void ResistiveEncoderHandler::triggerSample()
 {
-    uint32_t newSensorValue = 0;
-
-    const int n = 1;
-    for (int i = 0; i != n; ++i)
-    {
-        if (synchronizer)
-        {
-            while (synchronizer->willSwitchWithIn(16))
-            {
-            }
-        }
-        sensor.triggerSample();
-        newSensorValue += sensor.getValue();
-    }
-
-    newSensorValue /= n;
-
-    float t = newSensorValue * (vecSize / 4096.0f);
-    int i = std::min(vecSize - 2, static_cast<int>(t));
-    t -= i;
-    newSensorValue -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
-
-    sensorValue = (15 * sensorValue) / 16 + newSensorValue;
+    sensor.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+    newData = true;
 }
 
 float ResistiveEncoderHandler::getValue()
 {
+    if (newData)
+    {
+        newData = false;
+        uint32_t newSensorValue = sensor.getValue() / 8;
+
+        float t = newSensorValue * (vecSize / 4096.0f);
+        int i = std::min(vecSize - 2, static_cast<int>(t));
+        t -= i;
+        newSensorValue -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
+
+        sensorValue = (15 * sensorValue) / 16 + newSensorValue;
+    }
     return sensorValue * scaling;
 }
