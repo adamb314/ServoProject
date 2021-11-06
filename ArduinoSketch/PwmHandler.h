@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <vector>
 #include <algorithm>
+#include "AdcHandler.h"
 
 class SwitchAvoidingSynchronizer
 {
@@ -15,7 +16,7 @@ public:
     {
     public:
         virtual ~Switcher();
-        virtual bool willSwitchWithIn(uint16_t period) const = 0;
+        virtual bool willSwitchWithIn(int16_t period) const = 0;
     
     private:
         void addSynchronizer(SwitchAvoidingSynchronizer* synchronizer);
@@ -29,15 +30,41 @@ public:
     ~SwitchAvoidingSynchronizer();
     void addSwitcher(Switcher* switcher);
     bool removeSwitcher(Switcher* switcher);
-    bool willSwitchWithIn(uint16_t period);
+    bool willSwitchWithIn(int16_t period);
 
 private:
     std::vector<Switcher*> switchers;
 };
 
+class SwitchAvoidingSumAnalogSampler : public AdcSamplerInstance
+{
+public:
+    SwitchAvoidingSumAnalogSampler(uint32_t pin,
+            std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer,
+            uint16_t numberOfAdditiveSamples);
+
+    virtual ~SwitchAvoidingSumAnalogSampler();
+
+    void triggerSample();
+
+    int32_t getValue();
+
+protected:
+    virtual void loadConfigAndStart() override;
+
+    virtual bool handleResultAndCleanUp(int32_t result) override;
+
+    int32_t value{0};
+    int32_t sumOfAllSamples{0};
+    const uint16_t numberOfAdditiveSamples{1};
+    uint16_t switchFreeSamplesTaken{0};
+    uint16_t samplesLeft{0};
+    std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer;
+};
+
 class PwmHandler
 {
-  public:
+public:
     ~PwmHandler() {};
     virtual int setOutput(int output) = 0;
     virtual void activateBrake() = 0;
@@ -68,7 +95,7 @@ class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSync
 
     virtual void connectOutput() override;
 
-    virtual bool willSwitchWithIn(uint16_t period) const override;
+    virtual bool willSwitchWithIn(int16_t period) const override;
 
 protected:
     HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction,

@@ -149,28 +149,45 @@ void HBridgeHighResPin11And12Pwm::connectOutput()
     outputConnected = true;
 }
 
-bool HBridgeHighResPin11And12Pwm::willSwitchWithIn(uint16_t period) const
+bool HBridgeHighResPin11And12Pwm::willSwitchWithIn(int16_t period) const
 {
     if (timer->CTRLA.bit.ENABLE == false)
     {
         return false;
     }
 
+    timer->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
+
+    int minPeriodCount;
+    int maxPeriodCount;
+
     period *= tickPerUs;
 
-    timer->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
-    while (timer->CTRLBSET.bit.CMD)
+    if (period >= 0)
     {
+        minPeriodCount = 0;
+        maxPeriodCount = period;
     }
-    auto count = timer->COUNT.bit.COUNT;
+    else
+    {
+        minPeriodCount = period;
+        maxPeriodCount = 0;
+    }
+
     auto maxCC = timer->CC[0].bit.CC;
     if (maxCC < timer->CC[1].bit.CC)
     {
         maxCC = timer->CC[1].bit.CC;
     }
 
-    bool switchInPeriod = count + period > freqDiv * 1024 || count < switchTransientTime;
-    switchInPeriod |= count + period > maxCC && count < maxCC + switchTransientTime;
+    while (timer->CTRLBSET.bit.CMD)
+    {
+    }
+    minPeriodCount += timer->COUNT.bit.COUNT;
+    maxPeriodCount += timer->COUNT.bit.COUNT;
+
+    bool switchInPeriod = maxPeriodCount > freqDiv * 1024 || minPeriodCount < switchTransientTime;
+    switchInPeriod |= maxPeriodCount > maxCC && minPeriodCount < maxCC + switchTransientTime;
 
     return switchInPeriod;
 }
@@ -440,10 +457,72 @@ bool SwitchAvoidingSynchronizer::removeSwitcher(SwitchAvoidingSynchronizer::Swit
     return false;
 }
 
-bool SwitchAvoidingSynchronizer::willSwitchWithIn(uint16_t period)
+bool SwitchAvoidingSynchronizer::willSwitchWithIn(int16_t period)
 {
-    return std::any_of(std::begin(switchers), std::end(switchers), [period](Switcher* switcher)
-            {
-                return switcher->willSwitchWithIn(period);
-            });
+    for (auto it = std::begin(switchers); it != std::end(switchers); ++it)
+    {
+        if ((*it)->willSwitchWithIn(period))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+SwitchAvoidingSumAnalogSampler::SwitchAvoidingSumAnalogSampler(uint32_t pin,
+            std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer, uint16_t numberOfAdditiveSamples) :
+    AdcSamplerInstance(pin), numberOfAdditiveSamples(numberOfAdditiveSamples),
+    synchronizer(synchronizer)
+{
+}
+
+SwitchAvoidingSumAnalogSampler::~SwitchAvoidingSumAnalogSampler()
+{
+}
+
+void SwitchAvoidingSumAnalogSampler::triggerSample()
+{
+    AdcSamplerInstance::getAdcLockAndStartSampling();
+}
+
+int32_t SwitchAvoidingSumAnalogSampler::getValue()
+{
+    AdcSamplerInstance::unlockFromAdc();
+    return value;
+}
+
+void SwitchAvoidingSumAnalogSampler::loadConfigAndStart()
+{
+    value = 0;
+    sumOfAllSamples = 0;
+    samplesLeft = numberOfAdditiveSamples;
+    switchFreeSamplesTaken = 0;
+    AdcSamplerInstance::startAdcSample();
+}
+
+bool SwitchAvoidingSumAnalogSampler::handleResultAndCleanUp(int32_t result)
+{
+    sumOfAllSamples += result;
+    --samplesLeft;
+    if (!synchronizer->willSwitchWithIn(-13))
+    {
+        value += result;
+        ++switchFreeSamplesTaken;
+    }
+
+    if (samplesLeft == 0)
+    {
+        if (switchFreeSamplesTaken != 0)
+        {
+            value *= numberOfAdditiveSamples;
+            value /= switchFreeSamplesTaken;
+        }
+        else
+        {
+            value = sumOfAllSamples;
+        }
+        return true;
+    }
+
+    return false;
 }
