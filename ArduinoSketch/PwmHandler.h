@@ -74,7 +74,7 @@ public:
 
 class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSynchronizer::Switcher
 {
-  public:
+public:
     typedef uint16_t (*LinearizeFunctionType)(uint16_t);
 
     HBridgeHighResPin11And12Pwm(bool invert = false, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;},
@@ -119,7 +119,7 @@ protected:
 
 class HBridgeHighResPin3And4Pwm : public HBridgeHighResPin11And12Pwm
 {
-  public:
+public:
     HBridgeHighResPin3And4Pwm(bool invert = false, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;},
             uint16_t frq = 20000);
     HBridgeHighResPin3And4Pwm(HBridgeHighResPin3And4Pwm&& in);
@@ -135,7 +135,7 @@ class HBridgeHighResPin3And4Pwm : public HBridgeHighResPin11And12Pwm
 
 class HBridge2WirePwm : public PwmHandler
 {
-  public:
+public:
     typedef uint16_t (*LinearizeFunctionType)(uint16_t);
 
     HBridge2WirePwm(int16_t pin1, int16_t pin2, LinearizeFunctionType linearizeFunction = [](uint16_t in){return in;});
@@ -154,7 +154,7 @@ class HBridge2WirePwm : public PwmHandler
 
     virtual void connectOutput();
 
-  private:
+private:
     int16_t pin1;
     int16_t pin2;
 
