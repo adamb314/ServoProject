@@ -1,12 +1,10 @@
 #include "ResistiveEncoderHandler.h"
 
-ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec,
-            std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer) :
+ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
         EncoderHandlerInterface(unitsPerRev),
         sensor(pin),
         scaling{unitsPerRev * (1.0f / 4096.0f) / 16.0f},
-        compVec(compVec),
-        synchronizer(synchronizer)
+        compVec(compVec)
 {
 }
 

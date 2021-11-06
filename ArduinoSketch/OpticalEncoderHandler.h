@@ -11,8 +11,7 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
   public:
     static constexpr int vecSize = 512;
     OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
-            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev,
-            std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer = std::shared_ptr<SwitchAvoidingSynchronizer>());
+            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
 
     ~OpticalEncoderHandler();
 
@@ -47,8 +46,6 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     float value{0.0f};
     float wrapAroundCorretion{0.0f};
     bool newData{false};
-
-    std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer;
 
     const float scaling;
 };

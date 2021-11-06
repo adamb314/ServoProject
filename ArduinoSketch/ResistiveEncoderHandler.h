@@ -10,8 +10,7 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
 {
   public:
     static constexpr int vecSize = 513;
-    ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec = {0},
-        std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer = std::shared_ptr<SwitchAvoidingSynchronizer>());
+    ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec = {0});
 
     ~ResistiveEncoderHandler();
 
@@ -26,7 +25,6 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
     uint32_t sensorValue{0};
     const float scaling;
     std::array<int16_t, vecSize> compVec;
-    std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer;
 };
 
 #endif

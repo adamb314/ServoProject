@@ -1,12 +1,11 @@
 #include "OpticalEncoderHandler.h"
 
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
-        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev,
-        std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer) :
+        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
     EncoderHandlerInterface(unitsPerRev),
-    aVec(aVec), bVec(bVec), sensor1(sensor1Pin), sensor2(sensor2Pin),
-    scaling(unitsPerRev * (1.0f / 4096.0f)),
-    synchronizer(synchronizer)
+    aVec(aVec), bVec(bVec),
+    sensor1(sensor1Pin), sensor2(sensor2Pin),
+    scaling(unitsPerRev * (1.0f / 4096.0f))
 {
 }
 
