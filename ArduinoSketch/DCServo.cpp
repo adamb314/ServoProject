@@ -339,7 +339,6 @@ void DCServo::controlLoop()
 
 void DCServo::calculateAndUpdateLVector()
 {
-    kalmanFilter->setFilterSpeed(filterSpeed);
 
     const Eigen::Matrix3f& A = controlConfig->getA();
     const Eigen::Vector3f& B = controlConfig->getB();
@@ -351,14 +350,21 @@ void DCServo::calculateAndUpdateLVector()
     float posControlPole = exp(-dt * controlSpeed);
     float velControlPole[] = {exp(-1.0f * dt * velControlSpeed), exp(-0.9f * dt * velControlSpeed)};
 
-    L[0] = (1.0f - posControlPole) / dt;
-    L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
-    L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
-    L[3] = 10 * L[2];
+    auto tempL = L;
+    tempL[0] = (1.0f - posControlPole) / dt;
+    tempL[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
+    tempL[2] = (a - b * tempL[1] - velControlPole[0] * velControlPole[1]) / b;
+    tempL[3] = 10 * tempL[2];
 
-    L[4] = backlashControlSpeed * controlConfig->getCycleTime();
-    L[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
-    L[6] = backlashSize;
+    tempL[4] = backlashControlSpeed * controlConfig->getCycleTime();
+    tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
+    tempL[6] = backlashSize;
+
+    auto K = kalmanFilter->calculateNewKVector(filterSpeed);
+
+    ThreadInterruptBlocker blocker;
+    L = tempL;
+    kalmanFilter->setNewKVector(K);
 }
 
 ReferenceInterpolator::ReferenceInterpolator()

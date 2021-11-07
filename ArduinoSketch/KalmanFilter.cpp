@@ -11,18 +11,30 @@ KalmanFilter::KalmanFilter(const Eigen::Matrix3f& A,
 
 void KalmanFilter::setFilterSpeed(float speed)
 {
-	float speed2 = speed * speed;
-    float speed3 = speed2 * speed;
-    float speed4 = speed3 * speed;
-    float speed5 = speed4 * speed;
-	float speed6 = speed5 * speed;
+    auto K = calculateNewKVector(speed);
+    setNewKVector(K);
+}
+
+Eigen::Vector3f KalmanFilter::calculateNewKVector(float filterSpeed) const
+{
+    const float& s = filterSpeed;
+	const float s2 = s * s;
+    const float s3 = s2 * s;
+    const float s4 = s3 * s;
+    const float s5 = s4 * s;
+	const float s6 = s5 * s;
 
     Eigen::Vector3f K;
-    K << polyK(0, 0) * speed6 + polyK(0, 1) * speed5 + polyK(0, 2) * speed4 + polyK(0, 3) * speed3 + polyK(0, 4) * speed2 + polyK(0, 5) * speed + polyK(0, 6),
-    	polyK(1, 0) * speed6 + polyK(1, 1) * speed5 + polyK(1, 2) * speed4 + polyK(1, 3) * speed3 + polyK(1, 4) * speed2 + polyK(1, 5) * speed + polyK(1, 6),
-    	polyK(2, 0) * speed6 + polyK(2, 1) * speed5 + polyK(2, 2) * speed4 + polyK(2, 3) * speed3 + polyK(2, 4) * speed2 + polyK(2, 5) * speed + polyK(2, 6);
+    K << polyK(0, 0) * s6 + polyK(0, 1) * s5 + polyK(0, 2) * s4 + polyK(0, 3) * s3 + polyK(0, 4) * s2 + polyK(0, 5) * s + polyK(0, 6),
+    	polyK(1, 0) * s6 + polyK(1, 1) * s5 + polyK(1, 2) * s4 + polyK(1, 3) * s3 + polyK(1, 4) * s2 + polyK(1, 5) * s + polyK(1, 6),
+    	polyK(2, 0) * s6 + polyK(2, 1) * s5 + polyK(2, 2) * s4 + polyK(2, 3) * s3 + polyK(2, 4) * s2 + polyK(2, 5) * s + polyK(2, 6);
 
-    AInvXK = AInv * K;
+    return K;
+}
+
+void KalmanFilter::setNewKVector(const Eigen::Vector3f& K)
+{
+	AInvXK = AInv * K;
 }
 
 void KalmanFilter::reset(const Eigen::Vector3f& xhat0)

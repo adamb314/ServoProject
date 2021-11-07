@@ -24,6 +24,8 @@ public:
     static std::unique_ptr<KalmanFilter> create(bool approximation = false);
 
     void setFilterSpeed(float speed);
+    Eigen::Vector3f calculateNewKVector(float filterSpeed) const;
+    void setNewKVector(const Eigen::Vector3f& K);
 
     void reset(const Eigen::Vector3f& xhat0);
 
