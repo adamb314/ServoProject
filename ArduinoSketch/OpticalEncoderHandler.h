@@ -9,8 +9,10 @@
 class OpticalEncoderHandler : public EncoderHandlerInterface
 {
   public:
-    static constexpr int vecSize = 512;
+    static constexpr int vecSize = 2048;
     OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
+            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
+    OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
             int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
 
     ~OpticalEncoderHandler();

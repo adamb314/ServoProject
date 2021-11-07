@@ -96,6 +96,8 @@ public:
         vel = std::max(-maxVel, vel);
     }
 
+    static constexpr int vecSize = 512;
+
     virtual float applyForceCompensations(float u, float rawEncPos, float velRef, float vel) override
     {
         float out = u;
@@ -109,7 +111,9 @@ public:
             out -= frictionComp;
         }
 
-        out += posDepForceCompVec[rawEncPos];
+        constexpr float s = vecSize / 4096.0f;
+        size_t i = static_cast<int>(rawEncPos * s);
+        out += posDepForceCompVec[i];
 
         return out;
     }
@@ -119,7 +123,7 @@ private:
     Eigen::Vector3f B;
     float frictionComp;
     float maxVel;
-    std::array<int16_t, 512> posDepForceCompVec;
+    std::array<int16_t, vecSize> posDepForceCompVec;
 };
 
 template<typename T>

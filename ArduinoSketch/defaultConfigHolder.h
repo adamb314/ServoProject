@@ -24,8 +24,8 @@ public:
 
     static std::unique_ptr<OpticalEncoderHandler> createMainEncoderHandler()
     {
-        std::array<uint16_t, 512> aVec = {};
-        std::array<uint16_t, 512> bVec = {};
+        std::array<uint16_t, 2048> aVec = {};
+        std::array<uint16_t, 2048> bVec = {};
         return std::make_unique<OpticalEncoderHandler>(aVec, bVec, A2, A3, 4096.0f);
     }
 

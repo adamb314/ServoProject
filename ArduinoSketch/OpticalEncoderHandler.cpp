@@ -9,6 +9,23 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>
 {
 }
 
+OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
+        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
+    EncoderHandlerInterface(unitsPerRev),
+    sensor1(sensor1Pin), sensor2(sensor2Pin),
+    scaling(unitsPerRev * (1.0f / 4096.0f))
+{
+    constexpr size_t s = static_cast<int>(vecSize / 512);
+    for (size_t i = 0; i != 512; ++i)
+    {
+        for (size_t j = 0; j != s; ++j)
+        {
+            this->aVec[s * i + j] = aVec[i];
+            this->bVec[s * i + j] = bVec[i];
+        }
+    }
+}
+
 OpticalEncoderHandler::~OpticalEncoderHandler()
 {
 }
@@ -33,8 +50,8 @@ float OpticalEncoderHandler::getValue()
 {
     if (newData)
     {
-        sensor1Value = sensor1.getValue() / 8;
-        sensor2Value = sensor2.getValue() / 8;
+        sensor1Value = sensor1.getValue() / 2;
+        sensor2Value = sensor2.getValue() / 2;
 
         newData = false;
         updatePosition();
@@ -45,7 +62,7 @@ float OpticalEncoderHandler::getValue()
 
 uint16_t OpticalEncoderHandler::getUnscaledRawValue()
 {
-    return diagnosticData.c;
+    return diagnosticData.c * 2;
 }
 
 EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
@@ -146,6 +163,7 @@ void OpticalEncoderHandler::updatePosition()
     }
 
     diagnosticData.c = bestI;
+    bestCost = bestCost / 16;
     if (bestCost > diagnosticData.d)
     {
         diagnosticData.d = bestCost;
