@@ -18,16 +18,6 @@ void DCServo::init()
 {
     uint32_t cycleTime = controlConfig->getCycleTimeUs();
 
-    threads.push_back(createThread(3, cycleTime, 0,
-        [&]()
-        {
-            mainEncoderHandler->triggerSample();
-            if (outputEncoderHandler)
-            {
-                outputEncoderHandler->triggerSample();
-            }
-        }));
-
     refInterpolator.setGetTimeInterval(cycleTime);
     refInterpolator.setLoadTimeInterval(18000);
 
@@ -89,11 +79,11 @@ bool DCServo::isEnabled()
 
 void DCServo::enable(bool b)
 {
-    ThreadInterruptBlocker blocker;
     if (!isEnabled() && b)
     {
         calculateAndUpdateLVector();
     }
+    ThreadInterruptBlocker blocker;
 
     controlEnabled = b;
 }
@@ -206,6 +196,37 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 
 void DCServo::controlLoop()
 {
+    mainEncoderHandler->triggerSample();
+    if (outputEncoderHandler)
+    {
+        outputEncoderHandler->triggerSample();
+    }
+
+    float posRef;
+    float velRef;
+    float feedForwardU;
+
+    if (controlEnabled)
+    {
+        if (!openLoopControlMode)
+        {
+            Ivel -= L[2] * (vControlRef - x[1]);
+            Ivel += L[3] * (pwm - currentController->getLimitedRef());
+
+            refInterpolator.getNext(posRef, velRef, feedForwardU);
+
+            if (!onlyUseMainEncoderControl)
+            {
+                const uint8_t backlashControlGainCycleDelay = 8;
+                if (backlashControlGainDelayCounter == 0)
+                {
+                    backlashControlGainDelayCounter = backlashControlGainCycleDelay;
+                    backlashControlGain = L[4] * (0.1f + 0.9f * std::max(0.0f, 1.0f - L[5] * std::abs(velRef)));
+                }
+                backlashControlGainDelayCounter--;
+            }
+        }
+    }
 #ifdef SIMULATE
     xSim = controlConfig->getA() * xSim + controlConfig->getB() * controlSignal;
     rawMainPos =xSim[0];
@@ -228,12 +249,6 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            float posRef;
-            float velRef;
-            float feedForwardU;
-
-            refInterpolator.getNext(posRef, velRef, feedForwardU);
-
             if (!onlyUseMainEncoderControl)
             {
                 int newForceDir = forceDir;
@@ -252,13 +267,6 @@ void DCServo::controlLoop()
                 }
                 forceDir = newForceDir;
                 
-                const uint8_t backlashControlGainCycleDelay = 8;
-                if (backlashControlGainDelayCounter == 0)
-                {
-                    backlashControlGainDelayCounter = backlashControlGainCycleDelay;
-                    backlashControlGain = L[4] * (0.1f + 0.9f * std::max(0.0f, 1.0f - L[5] * std::abs(velRef)));
-                }
-                backlashControlGainDelayCounter--;
                 double backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
                 outputPosOffset -= backlashCompensationDiff;
             }
@@ -267,8 +275,9 @@ void DCServo::controlLoop()
 
             float posDiff = posRef - x[0];
 
-            float vControlRef = L[0] * posDiff + velRef;
 
+
+            vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
 
             float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
@@ -276,16 +285,14 @@ void DCServo::controlLoop()
             controlSignal = u;
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
-            int16_t pwm = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef, x[1]);
+            u = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef, x[1]);
+            pwm = u;
 
             currentController->updateVelocity(x[1]);
             currentController->setReference(static_cast<int16_t>(pwm));
             currentController->applyChanges();
             current = currentController->getCurrent();
             pwmControlSIgnal = currentController->getFilteredPwm();
-
-            Ivel -= L[2] * (vControlRef - x[1]);
-            Ivel += L[3] * (pwm - currentController->getLimitedRef());
         }
         else
         {
