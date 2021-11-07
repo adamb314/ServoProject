@@ -276,8 +276,6 @@ void DCServo::controlLoop()
 
             float posDiff = posRef - x[0];
 
-
-
             vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
 
