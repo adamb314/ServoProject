@@ -98,7 +98,7 @@ void DCServoCommunicationHandler::onComCycleEvent()
         CommunicationNode::intArray[6] = dcServo->getCurrent();
         CommunicationNode::intArray[7] = dcServo->getPwmControlSignal();
         CommunicationNode::intArray[8] = threadHandler->getCpuLoad();
-        CommunicationNode::intArray[9] = dcServo->getLoopNumber();
+        CommunicationNode::intArray[9] = dcServo->getLoopTime();
         CommunicationNode::intArray[10] = dcServo->getMainEncoderPosition() * positionUpscaling;
         CommunicationNode::intArray[11] = dcServo->getBacklashCompensation() * positionUpscaling;
 

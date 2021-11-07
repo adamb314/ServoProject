@@ -170,7 +170,7 @@ class DCServo
 
     int16_t getPwmControlSignal();
 
-    uint16_t getLoopNumber();
+    uint16_t getLoopTime();
 
     float getBacklashCompensation();
 
@@ -209,7 +209,7 @@ class DCServo
     //L[6]: Backlash size
     Eigen::Matrix<float, 7, 1> L;
 
-    uint16_t loopNumber{0};
+    uint16_t loopTime{0};
     float rawMainPos{0.0f};
     float rawOutputPos{0.0f};
     int forceDir{0};

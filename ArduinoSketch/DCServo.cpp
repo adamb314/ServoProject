@@ -67,7 +67,6 @@ void DCServo::init()
         [&]()
         {
             controlLoop();
-            loopNumber++;
         }));
 }
 
@@ -170,10 +169,12 @@ int16_t DCServo::getPwmControlSignal()
     return pwmControlSIgnal;
 }
 
-uint16_t DCServo::getLoopNumber()
+uint16_t DCServo::getLoopTime()
 {
     ThreadInterruptBlocker blocker;
-    return loopNumber;
+    auto out = loopTime;
+    loopTime = 0;
+    return out;
 }
 
 float DCServo::getBacklashCompensation()
@@ -335,6 +336,11 @@ void DCServo::controlLoop()
         pwmControlSIgnal = currentController->getFilteredPwm();
     }
 
+    int32_t newLoopTime = ThreadHandler::getInstance()->getTimingError();
+    if (newLoopTime > loopTime)
+    {
+        loopTime = newLoopTime;
+    }
 }
 
 void DCServo::calculateAndUpdateLVector()
