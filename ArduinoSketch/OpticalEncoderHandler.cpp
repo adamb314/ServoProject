@@ -4,7 +4,7 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>
         int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
     EncoderHandlerInterface(unitsPerRev),
     aVec(aVec), bVec(bVec),
-    sensor1(sensor1Pin), sensor2(sensor2Pin),
+    sensor1(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
     scaling(unitsPerRev * (1.0f / 4096.0f))
 {
 }
@@ -12,7 +12,7 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
         int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
     EncoderHandlerInterface(unitsPerRev),
-    sensor1(sensor1Pin), sensor2(sensor2Pin),
+    sensor1(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
     scaling(unitsPerRev * (1.0f / 4096.0f))
 {
     constexpr size_t s = static_cast<int>(vecSize / 512);
@@ -40,8 +40,8 @@ void OpticalEncoderHandler::init()
 
 void OpticalEncoderHandler::triggerSample()
 {
-    sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
-    sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+    sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
+    sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
 
     newData = true;
 }
@@ -50,8 +50,8 @@ float OpticalEncoderHandler::getValue()
 {
     if (newData)
     {
-        sensor1Value = sensor1.getValue() / 2;
-        sensor2Value = sensor2.getValue() / 2;
+        sensor1Value = sensor1.getValue() / 4;
+        sensor2Value = sensor2.getValue() / 4;
 
         newData = false;
         updatePosition();

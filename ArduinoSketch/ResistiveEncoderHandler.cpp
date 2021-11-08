@@ -2,7 +2,7 @@
 
 ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
         EncoderHandlerInterface(unitsPerRev),
-        sensor(pin),
+        sensor(pin, ADC_CTRLB_PRESCALER_DIV16_Val),
         scaling{unitsPerRev * (1.0f / 4096.0f) / 16.0f},
         compVec(compVec)
 {
@@ -22,7 +22,7 @@ void ResistiveEncoderHandler::init()
 
 void ResistiveEncoderHandler::triggerSample()
 {
-    sensor.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+    sensor.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
     newData = true;
 }
 
@@ -31,7 +31,7 @@ float ResistiveEncoderHandler::getValue()
     if (newData)
     {
         newData = false;
-        uint32_t newSensorValue = sensor.getValue() / 8;
+        uint32_t newSensorValue = sensor.getValue() / 16;
 
         float t = newSensorValue * (vecSize / 4096.0f);
         int i = std::min(vecSize - 2, static_cast<int>(t));
