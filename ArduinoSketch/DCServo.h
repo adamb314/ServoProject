@@ -101,12 +101,22 @@ public:
     virtual float applyForceCompensations(float u, float rawEncPos, float velRef, float vel) override
     {
         float out = u;
+        constexpr float eps = 1.0f;
 
-        if (velRef > 0.0f && vel >= 0.0f)
+        if (velRef > eps && vel >= -eps)
+        {
+            fricCompDir = 1;
+        }
+        else if (velRef < -eps && vel <= eps)
+        {
+            fricCompDir = -1;
+        }
+
+        if (fricCompDir == 1)
         {
             out += frictionComp;
         }
-        else if (velRef < 0.0f && vel <= 0.0f)
+        else if (fricCompDir == -1)
         {
             out -= frictionComp;
         }
@@ -124,6 +134,7 @@ private:
     float frictionComp;
     float maxVel;
     std::array<int16_t, vecSize> posDepForceCompVec;
+    int fricCompDir{0};
 };
 
 template<typename T>
