@@ -169,8 +169,9 @@ void ADC_Handler()
     ADC->INTFLAG.bit.RESRDY = 1;
 }
 
-AnalogSampler::AnalogSampler(uint32_t pin) :
-    AdcSamplerInstance(pin)
+AnalogSampler::AnalogSampler(uint32_t pin, uint8_t prescalerDivEnum) :
+    AdcSamplerInstance(pin),
+    prescalerDivEnum(prescalerDivEnum)
 {
 }
 
@@ -194,9 +195,11 @@ void AnalogSampler::loadConfigAndStart()
 {
     defaultSAMPLENUM = ADC->AVGCTRL.bit.SAMPLENUM;
     defaultRESSEL = ADC->CTRLB.bit.RESSEL;
+    defaultPRESCALER = ADC->CTRLB.bit.PRESCALER;
 
     ADC->AVGCTRL.bit.SAMPLENUM = sampleNrEnum;
     ADC->CTRLB.bit.RESSEL = ADC_CTRLB_RESSEL_16BIT_Val;
+    ADC->CTRLB.bit.PRESCALER = prescalerDivEnum;
 
     AdcSamplerInstance::startAdcSample();
 }
@@ -205,6 +208,7 @@ bool AnalogSampler::handleResultAndCleanUp(int32_t result)
 {
     ADC->AVGCTRL.bit.SAMPLENUM = defaultSAMPLENUM;
     ADC->CTRLB.bit.RESSEL = defaultRESSEL;
+    ADC->CTRLB.bit.PRESCALER = defaultPRESCALER;
 
     value = result;
     return true;

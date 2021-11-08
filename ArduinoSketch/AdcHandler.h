@@ -51,7 +51,7 @@ private:
 class AnalogSampler : public AdcSamplerInstance
 {
 public:
-    AnalogSampler(uint32_t pin);
+    AnalogSampler(uint32_t pin, uint8_t prescalerDivEnum = ADC_CTRLB_PRESCALER_DIV32_Val);
 
     virtual ~AnalogSampler();
 
@@ -68,8 +68,10 @@ protected:
 
 private:
     uint8_t sampleNrEnum;
+    uint8_t prescalerDivEnum;
     uint8_t defaultSAMPLENUM;
     uint16_t defaultRESSEL;
+    uint8_t defaultPRESCALER;
 };
 
 class AverageAnalogSampler : public AdcSamplerInstance
