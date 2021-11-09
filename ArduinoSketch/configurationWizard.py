@@ -1785,6 +1785,7 @@ import gi
 import re
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
+import webbrowser
 
 class GuiWindow(Gtk.Window):
     def __init__(self):
@@ -1793,7 +1794,37 @@ class GuiWindow(Gtk.Window):
         self.vboxMain = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.scrollWin = Gtk.ScrolledWindow()
         self.scrollWin.add(self.vboxMain)
-        self.add(self.scrollWin)
+        self.windowBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.windowBox.pack_start(self.scrollWin, True, True, 0)
+        self.add(self.windowBox)
+
+        byLabel = Gtk.Label(label='by <b>Adam Bäckström</b>')
+        byLabel.set_use_markup(True)
+        byLabel.set_margin_start(10)
+        byLabel.set_margin_end(10)
+        byLabel.set_margin_top(8)
+        byLabel.set_margin_bottom(10)
+        byLabel.set_xalign(0.0)
+
+        statusBarBox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        statusBarBox.pack_start(byLabel, False, False, 0)
+        self.windowBox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0)
+        self.windowBox.pack_start(statusBarBox, False, False, 0)
+
+        def gotoToStaring():
+            webbrowser.open('https://github.com/adamb314/ServoProject/stargazers')
+            with open('../.thankyou', 'w') as f:
+                f.write('Thankyou for staring the project!')
+
+        def starButtonClicked(widget):
+            gotoToStaring()
+
+        starButton = Gtk.Button(label=' \N{glowing star} Like')
+        starButton.connect("clicked", starButtonClicked)
+        starButton.set_margin_top(2)
+        starButton.set_margin_bottom(2)
+        starButton.set_margin_end(2)
+        statusBarBox.pack_end(starButton, False, False, 0)
 
         self.isClosed = False
 
