@@ -36,7 +36,13 @@ void EncoderHandler::triggerSample()
     digitalWrite(chipSelectPin, HIGH);
     
     received = -received;
-    float newValue = (received & 0x3fff) * 0.25f;
+    float newValue = (received & 0x3fff);
+    if (scaling < 0)
+    {
+        newValue = 0x3fff - newValue;
+    }
+    newValue *= 0.25f;
+
     if (newValue - value > 4096 / 2)
     {
         wrapAroundCorretion -= 4096;
@@ -57,7 +63,7 @@ void EncoderHandler::triggerSample()
 
 float EncoderHandler::getValue()
 {
-    return (value + wrapAroundCorretion) * scaling;
+    return (value + wrapAroundCorretion) * std::abs(scaling);
 }
 
 uint16_t EncoderHandler::getStatus()

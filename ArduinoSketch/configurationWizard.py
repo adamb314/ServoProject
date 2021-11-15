@@ -1909,16 +1909,13 @@ class PwmNonlinearityIdentifier(object):
 
 class OutputEncoderCalibrationGenerator(object):
     def __init__(self, data, wrapAround, unitsPerRev):
+        unitsPerRev = abs(unitsPerRev)
         data[:, 1] = data[:, 1] * 4096 / unitsPerRev
         data[:, 2] = data[:, 2] * 4096 / unitsPerRev
         self.data = data
 
         minPos = min(self.data[:, 1])
         maxPos = max(self.data[:, 1])
-        minDiff = min(self.data[:, 2])
-        maxDiff = max(self.data[:, 2])
-
-        self.meanCompSlope = abs(maxDiff - minDiff) / abs(maxPos - minPos)
 
         posListSize = int(4096 / 8)
         if not wrapAround:
@@ -1962,14 +1959,14 @@ class OutputEncoderCalibrationGenerator(object):
                 maxSum = 0
                 maxNr = 0
                 for d in temp:
-                    if d < meanV - meanBacklashSize / 2 * 0.5:
+                    if d < meanV - meanBacklashSize / 2 * 0.0:
                         minSum += d
                         minNr += 1
-                    elif d > meanV + meanBacklashSize / 2 * 0.5:
+                    elif d > meanV + meanBacklashSize / 2 * 0.0:
                         maxSum += d
                         maxNr += 1
-                
-                if minNr != 0 and maxNr != 0:
+
+                if minNr > 1 and maxNr > 1:
                     self.minList.append(minSum / minNr)
                     self.maxList.append(maxSum / maxNr)
                     self.meanList.append((self.minList[-1] + self.maxList[-1]) / 2)
@@ -2023,8 +2020,18 @@ class OutputEncoderCalibrationGenerator(object):
         self.data[:, 2] -= np.mean(self.meanList)
         self.meanList -= np.mean(self.meanList)
 
+    def checkForInvertedEncoder(data):
+        minPos = min(data[:, 1])
+        maxPos = max(data[:, 1])
+        minDiff = min(data[:, 2])
+        maxDiff = max(data[:, 2])
+
+        meanCompSlope = abs(maxDiff - minDiff) / abs(maxPos - minPos)
+
+        return meanCompSlope > 1.5
+
     def isInverted(self):
-        return self.meanCompSlope > 1.5
+        return OutputEncoderCalibrationGenerator.checkForInvertedEncoder(self.data)
 
     def plotGeneratedVector(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
@@ -4934,9 +4941,15 @@ class GuiWindow(Gtk.Window):
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
 
+                            controlSpeedScale = creatHScale(14, 0, 100, 1, getLowLev=True)
+                            controlSpeedScale = addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]
+                            calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
+
                             startButton = createButton('Start calibration', getLowLev=True)
 
                             recordingProgressBar = creatProgressBar(label='Recording', getLowLev=True)
+                            directionLabel = createLabel('')
+                            directionLabel.set_margin_start(50)
 
                             threadMutex = threading.Lock()
 
@@ -4945,18 +4958,52 @@ class GuiWindow(Gtk.Window):
                                 nonlocal testButton
                                 nonlocal calibrationBox
                                 nonlocal recordingProgressBar
+                                nonlocal directionLabel
                                 nonlocal minPwmScale
                                 nonlocal maxPwmScale
 
+                                controlSpeedScale[1].set_sensitive(True)
                                 startButton[1].set_label('Start calibration')
                                 startButton[1].set_sensitive(True)
                                 calibrationBox.remove(recordingProgressBar[0])
+                                calibrationBox.remove(directionLabel)
 
                             runThread = False
 
-                            def updateRecordingProgressBar(fraction):
+                            def updateRecordingProgressBar(fraction, pos):
                                 nonlocal recordingProgressBar
+                                nonlocal directionLabel
+                                stepsStr = []
+                                stepsStr.append('1) Move the servo-output-shaft over its range of motion.\n')
+                                stepsStr.append('2) Leave it someware in the middle.\n')
+                                stepsStr.append('3) Apply constant torque in CW direction (60 sec).\n')
+                                stepsStr.append('4) Change torque direction to CCW (60 sec).\n')
+                                if fraction < 0:
+                                    if fraction <= -1:
+                                        recordingProgressBar[1].set_text('Waiting for move to complete')
 
+                                        stepsStr[0] = '<b>' + stepsStr[0] + '</b>\n'
+                                    else:
+                                        recordingProgressBar[1].set_text('Confirming end positions')
+
+                                        stepsStr[1] = '<b>' + stepsStr[1] + '</b>\n'
+
+                                    fraction = -fraction
+                                else:
+                                    if fraction < 0.5:
+                                        fraction = fraction * 2.0
+                                        recordingProgressBar[1].set_text('Recording with CW torque')
+
+                                        stepsStr[2] = '<b>' + stepsStr[2] + '</b>\n'
+                                        
+                                    else:
+                                        fraction = (fraction - 0.5) * 2.0
+                                        recordingProgressBar[1].set_text('Recording with CCW torque')
+
+                                        stepsStr[3] = '<b>' + stepsStr[3] + '</b>\n'
+
+                                directionLabel.set_text("".join(stepsStr) + '\nRaw encoder position is ' + str(int(pos)))
+                                directionLabel.set_use_markup(True)
                                 recordingProgressBar[1].set_fraction(fraction)
 
                             def handleResults(data):
@@ -4968,7 +5015,7 @@ class GuiWindow(Gtk.Window):
                                     classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
                                     classString = classPattern.search(configFileAsString).group(0)
 
-                                    wrapAroundAndUnitPerRevPattern = re.compile(r'return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\(([^\)]*)\s*compVec\s*\)\s*;')
+                                    wrapAroundAndUnitPerRevPattern = re.compile(r'return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\(([^;]*)\s*compVec\s*\)\s*;')
 
                                     temp = wrapAroundAndUnitPerRevPattern.search(classString)
                                     
@@ -5070,50 +5117,139 @@ class GuiWindow(Gtk.Window):
                             def startCalibrationRun(nodeNr, port):
                                 nonlocal runThread
                                 nonlocal threadMutex
+                                nonlocal controlSpeedScale
 
                                 try:
-                                    robot = createRobot(nodeNr, port)
+                                    controlSpeedScale[1].set_sensitive(False)
+                                    controlSpeed = controlSpeedScale[1].get_value()
+                                    def initFun(robot):
+                                        nonlocal controlSpeed
+                                        robot.dcServoArray[nodeNr - 1].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+                                        robot.dcServoArray[nodeNr - 1].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-                                    t = 0.0
+                                    robot = createRobot(nodeNr, port, dt=0.018, initFunction=initFun)
+
+                                    t = -6.2
                                     doneRunning = False
+                                    refPos = 0.0
+                                    minPos = None
+                                    maxPos = None
+                                    direction = 1
 
                                     def sendCommandHandlerFunction(dt, robot):
                                         nonlocal nodeNr
                                         nonlocal t
                                         nonlocal threadMutex
+                                        nonlocal refPos
+                                        nonlocal minPos
+                                        nonlocal maxPos
+                                        nonlocal direction
 
                                         servo = robot.dcServoArray[nodeNr - 1]
 
+                                        if t < 0:
+                                            servo.setOpenLoopControlSignal(0, True)
+                                        else:
+                                            refVel = (maxPos - minPos) / 10.0
+                                            refPos += direction * refVel * dt
+
+                                            if refPos >= maxPos:
+                                                refPos = maxPos
+                                                direction = -1
+                                            elif refPos <= minPos:
+                                                refPos = minPos
+                                                direction = 1
+
+                                            servo.setReference(refPos, direction * refVel, 0.0)
+
                                     out = []
+
+                                    encPos = None
+                                    filteredVel = 0.0
 
                                     def readResultHandlerFunction(dt, robot):
                                         nonlocal nodeNr
                                         nonlocal t
                                         nonlocal runThread
                                         nonlocal doneRunning
+                                        nonlocal encPos
+                                        nonlocal refPos
+                                        nonlocal minPos
+                                        nonlocal maxPos
+                                        nonlocal filteredVel
+                                        nonlocal out
+
+                                        servo = robot.dcServoArray[nodeNr - 1]
 
                                         runTime = 120.0
 
-                                        t += dt
+                                        newMotorPos = servo.getPosition(False)
+                                        newEncPos = servo.getPosition(True)
+                                        newVel = servo.getVelocity()
+
+                                        rawEncPos = (newEncPos - servo.getOffset()) / servo.getScaling()
+
+                                        out.append([t,
+                                                rawEncPos,
+                                                (newEncPos - newMotorPos) / servo.getScaling()])
+
+                                        if t < 0.0:
+                                            if encPos == None:
+                                                encPos = newEncPos
+                                            else:
+                                                noiseLevel = abs(abs(newEncPos - encPos) - abs(newVel * dt))
+                                                encPos = newEncPos
+                                                filteredVel = 0.95 * filteredVel + 0.05 * newVel
+
+                                                if minPos == None:
+                                                    minPos = encPos
+                                                    maxPos = encPos
+                                                elif encPos < minPos:
+                                                    t = -6.1
+                                                    minPos = encPos
+                                                elif encPos > maxPos:
+                                                    t = -6.1
+                                                    maxPos = encPos
+                                                elif abs(maxPos - minPos) < 0.1:
+                                                    t = -6.1
+                                                elif ((encPos - minPos) / (maxPos - minPos) < 0.1 or
+                                                        (encPos - minPos) / (maxPos - minPos) > 0.9):
+                                                    t = -6.1
+                                                elif noiseLevel > 0.02:
+                                                    out = []
+                                                    minPos = encPos
+                                                    maxPos = encPos
+                                                    t = -6.1
+                                                elif abs(filteredVel) > 0.1:
+                                                    t = -6.1
+                                                else:
+                                                    t += dt
+
+                                                if t >= 0:
+                                                    data = np.array(out)
+                                                    if OutputEncoderCalibrationGenerator.checkForInvertedEncoder(data):
+                                                        t = runTime
+                                                    else:
+                                                        t = 0.0
+                                                        out = []
+                                                        refPos = encPos
+
+                                            GLib.idle_add(updateRecordingProgressBar, t / 6.0, round(rawEncPos))
+                                        else:
+                                            t += dt
+
+                                            GLib.idle_add(updateRecordingProgressBar, t / runTime, round(rawEncPos))
 
                                         stop = t > runTime
                                         with threadMutex:
                                             if runThread == False:
                                                 stop = True
-
                                         if stop:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
                                             return
 
-                                        servo = robot.dcServoArray[nodeNr - 1]
-                                        out.append([t,
-                                                (servo.getPosition(True) - servo.getOffset()) / servo.getScaling(),
-                                                (servo.getPosition(True) - servo.getPosition(False)) / servo.getScaling()])
-
-                                        GLib.idle_add(updateRecordingProgressBar, t / runTime)
-
-                                    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                                    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                                     while not doneRunning:
                                         time.sleep(0.1)
@@ -5138,6 +5274,7 @@ class GuiWindow(Gtk.Window):
                                 nonlocal minPwmScale
                                 nonlocal maxPwmScale
                                 nonlocal recordingProgressBar
+                                nonlocal directionLabel
                                 nonlocal testButton
 
                                 if widget.get_label() == 'Start calibration':
@@ -5182,10 +5319,10 @@ class GuiWindow(Gtk.Window):
 
                                     widget.set_label('Abort calibration')
 
-                                    startManuallyCalibrationMessage('60 seconds')
-
-                                    recordingProgressBar[1].set_fraction(0.0)
+                                    recordingProgressBar[1].set_fraction(1.0)
                                     calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
+                                    directionLabel.set_text('')
+                                    calibrationBox.pack_start(directionLabel, False, False, 0)
 
                                     calibrationBox.show_all()
 
