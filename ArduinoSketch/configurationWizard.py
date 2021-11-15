@@ -1836,6 +1836,11 @@ class PwmNonlinearityIdentifier(object):
             newValue = pwm**2 / firstNoneZeroValPwm**2 * firstNoneZeroVal
             self.compList[i] = newValue
 
+#        currList = [0, 0.0026, 0.005, 0.0082, 0.0121, 0.0159, 0.0202, 0.025, 0.0305, 0.0361, 0.0424, 0.0488, 0.0566, 0.078, 0.107, 0.1533, 0.18, 0.24, 0.33, 0.42, 0.57, 0.72, 0.99, 1.35]
+#        pwmList = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 680, 720, 735, 760, 793, 825, 869, 908, 960, 1023]
+#        self.compList = np.array(currList) / currList[-1] * 1023
+#        self.compListPwm = pwmList
+#
         self.pwmNonlinearityCompLookUp = []
 
         for pwm in range(0, 1024, self.lookUpStepSize):
