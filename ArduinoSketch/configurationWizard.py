@@ -3733,7 +3733,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
 
@@ -3912,7 +3912,6 @@ class GuiWindow(Gtk.Window):
                                         response = dialog.run()
                                         dialog.destroy()
 
-
                                     t = 0.0
                                     doneRunning = False
 
@@ -3966,7 +3965,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
 
@@ -4237,7 +4236,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
 
@@ -4447,7 +4446,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
                                             return
@@ -4681,7 +4680,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
 
@@ -4869,7 +4868,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
                                             return
@@ -5244,7 +5243,7 @@ class GuiWindow(Gtk.Window):
                                         with threadMutex:
                                             if runThread == False:
                                                 stop = True
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
                                             return
@@ -5532,7 +5531,7 @@ class GuiWindow(Gtk.Window):
                                             if runThread == False:
                                                 stop = True
 
-                                        if stop:
+                                        if stop or self.isClosed:
                                             robot.removeHandlerFunctions()
                                             doneRunning = True
                                             return
