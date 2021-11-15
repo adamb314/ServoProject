@@ -5349,7 +5349,6 @@ class GuiWindow(Gtk.Window):
                             calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                             calibrationBox.set_margin_start(40)
 
-
                             controlSpeedScale = creatHScale(14, 0, 100, 1, getLowLev=True)
                             controlSpeedScale = addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]
                             calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
@@ -5409,26 +5408,66 @@ class GuiWindow(Gtk.Window):
                             runThread = False
 
                             def handleResults(data):
+                                np.savetxt('compData_new.txt', data, delimiter=',')
+                                #data = np.loadtxt('compData4000Hz.txt', delimiter=',')
                                 plt.figure(1)
-                                plt.plot(data[:, 0], data[:, 1])
+                                plt.plot(data[:, 0], data[:, 4])
 
                                 plt.figure(2)
-                                plt.plot(data[:, 0], data[:, 2])
+                                plt.plot(data[:, 4], data[:, 2], 'g-')
+                                plt.plot(data[:, 4], data[:, 2], 'r+')
 
                                 plt.figure(3)
                                 plt.plot(data[:, 0], data[:, 3])
 
                                 plt.figure(4)
-                                plt.plot(data[:, 4], data[:, 5], 'g-')
-                                plt.plot(data[:, 4], data[:, 5], 'r+')
+                                plt.plot(data[:, 0], data[:, 5], 'g-')
+                                plt.plot(data[:, 0], data[:, 5], 'r+')
 
                                 plt.figure(5)
-                                plt.plot(data[:, 4], data[:, 3], 'g-')
-                                plt.plot(data[:, 4], data[:, 3], 'r+')
+                                plt.plot(data[:, 4], data[:, 3] / (10.0 / 1 * 11.0 / 62 * 14.0 / 48 * 13.0 / 45 * 1.0 / 42) / 2 / pi * 512, 'g-')
+                                plt.plot(data[:, 4], data[:, 3] / (10.0 / 1 * 11.0 / 62 * 14.0 / 48 * 13.0 / 45 * 1.0 / 42) / 2 / pi * 512, 'r+')
 
                                 plt.figure(6)
                                 plt.plot(data[:, 4], data[:, 6], 'g-')
                                 plt.plot(data[:, 4], data[:, 6], 'r+')
+
+                                plt.figure(7)
+                                plt.plot(data[:, 0], data[:, 7], 'g')
+                                
+                                plt.figure(8)
+                                plt.plot(data[:, 0], data[:, 1])
+                                plt.show()
+
+                                samplesList = []
+                                for i in range (0, 512):
+                                    samplesList.append([])
+
+                                for d in zip(data[:, 4], data[:, 5]):
+                                    for i in range(-8, 9):
+                                        i = int(d[0] / 4) + i
+                                        if i >= len(samplesList):
+                                            i -= len(samplesList)
+                                        samplesList[i].append(d[1])
+
+                                unsortedList = samplesList[:]
+                                samplesList = []
+                                for d in unsortedList:
+                                    samplesList.append(sorted(d))
+
+                                forcePos = np.zeros(len(samplesList))
+                                forceNeg = np.zeros(len(samplesList))
+
+                                for i, d in enumerate(samplesList):
+                                    l = int(len(d) * 0.1)
+                                    forcePos[i] = d[-l-1]
+                                    forceNeg[i] = d[l]
+
+                                print(intArrayToString(forcePos))
+                                print(intArrayToString(forceNeg))
+                                plt.plot(np.array(data[:, 4]) / 4, data[:, 5], 'g+')
+                                plt.plot(forcePos, 'r')
+                                plt.plot(forceNeg, 'b')
                                 plt.show()
 
                             def startTestRun(nodeNr, port):
@@ -5484,6 +5523,7 @@ class GuiWindow(Gtk.Window):
                                         nonlocal t
                                         nonlocal runThread
                                         nonlocal doneRunning
+                                        nonlocal pos
 
                                         t += dt
 
@@ -5499,13 +5539,15 @@ class GuiWindow(Gtk.Window):
 
                                         servo = robot.dcServoArray[nodeNr - 1]
                                         optData = servo.getOpticalEncoderChannelData()
-                                        out.append([t,
-                                                servo.getControlError(True),
+                                        out.append([time.time(),
+                                                servo.getPosition(True),
                                                 servo.getVelocity(),
                                                 servo.getControlError(False),
                                                 optData.minCostIndex,
                                                 servo.getControlSignal(),
-                                                optData.minCost])
+                                                optData.minCost,
+                                                servo.getLoopTime(),
+                                                pos])
 
                                     robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
