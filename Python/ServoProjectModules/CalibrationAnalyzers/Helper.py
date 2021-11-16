@@ -1,5 +1,4 @@
 import ServoProjectModules.Communication as ServoComModule
-from ServoProjectModules.Communication import createRobot
 from ServoProjectModules.Communication import pi
 
 import numpy as np
@@ -16,6 +15,31 @@ import numba
 import re
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
+
+def createRobot(nodeNr, port, dt=0.004, initFunction=lambda a: a):
+    if port != '':
+        com = ServoComModule.SerialCommunication(port)
+    else:
+        com = ServoComModule.SimulateCommunication()
+
+    def createServoFunction(robot):
+        nonlocal nodeNr
+        nonlocal com
+        servo = ServoComModule.DCServoCommunicator(nodeNr, com)
+
+        servo.setOffsetAndScaling(2 * pi / 4096.0, 0.950301, 0)
+
+        servo.setControlSpeed(20)
+        servo.setBacklashControlSpeed(0, 3.0, 0.00)
+        servo.setFrictionCompensation(0)
+
+        robot.dcServoArray.append(servo)
+
+        initFunction(robot)
+
+    robot = ServoComModule.Robot(cycleTime=dt, initFunction=createServoFunction)
+
+    return robot
 
 def shrinkArray(a, size, median = False):
     if len(a) <= size:

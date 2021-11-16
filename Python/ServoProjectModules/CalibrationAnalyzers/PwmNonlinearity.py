@@ -255,7 +255,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             pwm = 0
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal maxOscillationFrq
                 nonlocal maxPwmValue
@@ -263,7 +262,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal threadMutex
                 nonlocal pwm
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 frq = 0
                 pwmAmp = 0
@@ -279,7 +278,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             lastPosition = None
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
@@ -287,7 +285,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal lastPosition
 
                 t += dt
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 position = servo.getPosition(False)
 
@@ -464,7 +462,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             doneRunning = False
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal threadMutex
                 nonlocal maxOscillationFrq
@@ -472,7 +469,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
 
                 t += dt
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 pwmAmp = 0.0
                 if int(t) < len(pwmSampleValues):
@@ -494,7 +491,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             lastPosition = None
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
@@ -511,7 +507,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                     doneRunning = True
                     return
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 position = servo.getPosition(False)
 

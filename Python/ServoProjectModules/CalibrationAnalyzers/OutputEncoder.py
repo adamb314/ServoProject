@@ -354,8 +354,8 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             controlSpeed = controlSpeedScale[1].get_value()
             def initFun(robot):
                 nonlocal controlSpeed
-                robot.dcServoArray[nodeNr - 1].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
-                robot.dcServoArray[nodeNr - 1].setBacklashControlSpeed(0.0, 3.0, 0.0)
+                robot.dcServoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+                robot.dcServoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
             robot = createRobot(nodeNr, port, dt=0.018, initFunction=initFun)
 
@@ -367,7 +367,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             direction = 1
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal threadMutex
                 nonlocal refPos
@@ -375,7 +374,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal maxPos
                 nonlocal direction
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 if t < 0:
                     servo.setOpenLoopControlSignal(0, True)
@@ -398,7 +397,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             filteredVel = 0.0
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
@@ -409,7 +407,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal filteredVel
                 nonlocal out
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 runTime = 120.0
 

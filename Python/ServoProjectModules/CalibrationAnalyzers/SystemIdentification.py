@@ -384,25 +384,23 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             doneRunning = False
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal testPwmValue
                 nonlocal threadMutex
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 servo.setOpenLoopControlSignal(testPwmValue, True)
 
             out = []
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
 
                 t += dt
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
                 out.append([t, servo.getVelocity()])
 
                 stop = False
@@ -561,14 +559,13 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             doneRunning = False
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal threadMutex
                 nonlocal maxPwmValue
 
                 t += dt
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 pwm = 0.0
                 if int(t / motorSettleTime) < len(pwmSampleValues):
@@ -583,7 +580,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             out = []
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
@@ -599,7 +595,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                     doneRunning = True
                     return
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
                 out.append([t,
                         servo.getPosition(False) / servo.getScaling(),
                         pwmSampleValues[int(t / motorSettleTime)]])

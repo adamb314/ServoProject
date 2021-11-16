@@ -567,26 +567,10 @@ class DCServoCommunicator(object):
             self.offset += (4096 / 2) * self.scale
 
 class Robot(object):
-    def __init__(self, communication, simulate = [False] * 7, cycleTime = 0.018, initFunction=lambda robot: robot):
-        self.communicationSim = SimulateCommunication()
-
+    def __init__(self, cycleTime = 0.018, initFunction=lambda robot: robot):
         self.dcServoArray = []
-
-        for i, sim in enumerate(simulate[0:6]):
-            com = communication
-            if sim:
-                com = self.communicationSim
-
-            self.dcServoArray.append(DCServoCommunicator(1 + i, com))
-
-        com = communication
-        if simulate[6]:
-            com = self.communicationSim
-        self.gripperServo = DCServoCommunicator(7, com)
         
         self.cycleTime = cycleTime
-
-        self.dof = 6
 
         self.cycleSleepTime = 0
 
@@ -597,34 +581,6 @@ class Robot(object):
         self.sendCommandHandlerFunction = lambda cycleTime, robot : cycleTime
         self.readResultHandlerFunction = lambda cycleTime, robot : cycleTime
 
-        self.dcServoArray[0].setOffsetAndScaling(2 * pi / 4096.0, 0.950301, 0)
-        self.dcServoArray[1].setOffsetAndScaling(2 * pi / 4096.0, -2.042107923, pi / 2)
-        self.dcServoArray[2].setOffsetAndScaling(2 * pi / 4096.0, 1.0339, pi / 2)
-        self.dcServoArray[3].setOffsetAndScaling(-2 * pi / 4096.0, -1.47531, 0.0)
-        self.dcServoArray[4].setOffsetAndScaling(2 * pi / 4096.0, 1.23394, 0.0)
-        self.dcServoArray[5].setOffsetAndScaling(-2 * pi / 4096.0, -1.45191, 0.0)
-
-        self.dcServoArray[0].setControlSpeed(20)
-        self.dcServoArray[0].setBacklashControlSpeed(0, 3.0, 0.00)
-        self.dcServoArray[0].setFrictionCompensation(0)
-        self.dcServoArray[1].setControlSpeed(20)
-        self.dcServoArray[1].setBacklashControlSpeed(0, 3.0, 0.00)
-        self.dcServoArray[1].setFrictionCompensation(0)
-        self.dcServoArray[2].setControlSpeed(20)
-        self.dcServoArray[2].setBacklashControlSpeed(0, 3.0, 0.00)
-        self.dcServoArray[2].setFrictionCompensation(0)
-        self.dcServoArray[3].setControlSpeed(20)
-        self.dcServoArray[3].setBacklashControlSpeed(0, 3.0, 0.0)
-        self.dcServoArray[3].setFrictionCompensation(0)
-        self.dcServoArray[4].setControlSpeed(20)
-        self.dcServoArray[4].setBacklashControlSpeed(0, 3.0, 0.0)
-        self.dcServoArray[4].setFrictionCompensation(0)
-        self.dcServoArray[5].setControlSpeed(20)
-        self.dcServoArray[5].setBacklashControlSpeed(0, 3.0, 0.0)
-        self.dcServoArray[5].setFrictionCompensation(0)
-
-        self.gripperServo.setOffsetAndScaling(pi / 1900.0, 0.0, 0.0);
-
         initFunction(self)
 
         while True:
@@ -633,20 +589,12 @@ class Robot(object):
                 allDone = allDone and s.isInitComplete()
                 s.run()
 
-            allDone = allDone and self.gripperServo.isInitComplete()
-            self.gripperServo.run();
-
             if allDone:
                 break
 
         self.currentPosition = []
         for s in self.dcServoArray:
             self.currentPosition.append(s.getPosition())
-
-        for i in range(0, 2):
-            self.gripperServo.setReference(pi / 2.0, 0.0, 0.0)
-            self.gripperServo.run()
-            self.gripperServo.getPosition()
 
         self.t.start()
 
@@ -667,13 +615,9 @@ class Robot(object):
             for s in self.dcServoArray:
                 s.run()
 
-            self.gripperServo.run()
-
             for i, s in enumerate(self.dcServoArray):
                 self.currentPosition[i] = s.getPosition()
 
-            self.gripperServo.getPosition()
- 
             tempReadHandlerFunction(self.cycleTime, self)
 
     def getPosition(self):
@@ -695,14 +639,3 @@ class Robot(object):
 
     def getCycleSleepTime(self):
         return self.cycleSleepTime
-
-def createRobot(nodeNr, port, dt=0.004, initFunction=lambda a: a):
-    if port != '':
-        com = SerialCommunication(port)
-    else:
-        com = SimulateCommunication()
-    simVector = [True] * 7
-    simVector[nodeNr - 1] = False
-    robot = Robot(com, simVector, cycleTime=dt, initFunction=initFunction)
-
-    return robot

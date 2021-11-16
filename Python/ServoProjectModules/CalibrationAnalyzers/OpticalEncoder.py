@@ -733,12 +733,11 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             doneRunning = False
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal pwmValue
                 nonlocal threadMutex
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 pwm = 0
                 with threadMutex:
@@ -749,13 +748,12 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             out = []
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
 
                 t += dt
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
                 out.append([t,
                         opticalEncoderData.a,
@@ -951,13 +949,12 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                 runTime = 40.0
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal pwmValue
                 nonlocal threadMutex
                 nonlocal runTime
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
 
                 if manualMovement:
                     return
@@ -974,13 +971,12 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             out = []
 
             def readResultHandlerFunction(dt, robot):
-                nonlocal nodeNr
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
                 nonlocal runTime
 
-                servo = robot.dcServoArray[nodeNr - 1]
+                servo = robot.dcServoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
                 if t > 0.1 and (t < (runTime - 10.0) * 0.5 or t > (runTime - 10.0) * 0.5 + 10.0 or manualMovement):
                     out.append([t,
