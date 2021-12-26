@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <export version="D">
   <design>
-    <source>/home/adam/Dropbox/EgnaProjekt/ServoV3/ServoProject/PcbDesignes/Servo/combined/combined.sch</source>
-    <date>lör  3 jul 2021 20:23:12</date>
+    <source>/home/adam/Dropbox/EgnaProjekt/ServoV3/ServoProject/PcbDesignes/ServoBrushed/combined/combined.sch</source>
+    <date>sön 26 dec 2021 17:10:25</date>
     <tool>Eeschema 5.1.5+dfsg1-2build2</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -37,7 +37,7 @@
       <fields>
         <field name="LCSC">C88224</field>
       </fields>
-      <libsource lib="Driver_Motor" part="TB6612FNG" description="Driver IC for Dual DC motor, SSOP-24"/>
+      <libsource lib="combined-rescue" part="TB6612FNG-Driver_Motor" description=""/>
       <sheetpath names="/" tstamps="/"/>
       <tstamp>60DE09F8</tstamp>
     </comp>
@@ -72,7 +72,7 @@
       <fields>
         <field name="LCSC">C132563</field>
       </fields>
-      <libsource lib="Connector" part="USB_B_Micro" description="USB Micro Type B connector"/>
+      <libsource lib="combined-rescue" part="USB_B_Micro-Connector" description=""/>
       <sheetpath names="/" tstamps="/"/>
       <tstamp>60DE5218</tstamp>
     </comp>
@@ -239,7 +239,7 @@
       <fields>
         <field name="LCSC">C51118</field>
       </fields>
-      <libsource lib="Regulator_Linear" part="AP2112K-3.3" description="600mA low dropout linear regulator, with enable pin, 3.8V-6V input voltage range, 3.3V fixed positive output, SOT-23-5"/>
+      <libsource lib="combined-rescue" part="AP2112K-3.3-Regulator_Linear" description=""/>
       <sheetpath names="/" tstamps="/"/>
       <tstamp>60DE13C1</tstamp>
     </comp>
@@ -256,10 +256,10 @@
     </comp>
     <comp ref="D1">
       <value>LED</value>
-      <footprint>Diode_SMD:D_0402_1005Metric</footprint>
+      <footprint>LED_SMD:LED_0805_2012Metric_Castellated</footprint>
       <datasheet>~</datasheet>
       <fields>
-        <field name="LCSC">C130719 </field>
+        <field name="LCSC">C84256</field>
       </fields>
       <libsource lib="Device" part="LED" description="Light emitting diode"/>
       <sheetpath names="/" tstamps="/"/>
@@ -267,28 +267,6 @@
     </comp>
   </components>
   <libparts>
-    <libpart lib="Connector" part="USB_B_Micro">
-      <aliases>
-        <alias>USB_B_Mini</alias>
-      </aliases>
-      <description>USB Micro Type B connector</description>
-      <docs>~</docs>
-      <footprints>
-        <fp>USB*</fp>
-      </footprints>
-      <fields>
-        <field name="Reference">J</field>
-        <field name="Value">USB_B_Micro</field>
-      </fields>
-      <pins>
-        <pin num="1" name="VBUS" type="power_out"/>
-        <pin num="2" name="D-" type="BiDi"/>
-        <pin num="3" name="D+" type="BiDi"/>
-        <pin num="4" name="ID" type="passive"/>
-        <pin num="5" name="GND" type="power_out"/>
-        <pin num="6" name="Shield" type="passive"/>
-      </pins>
-    </libpart>
     <libpart lib="Connector_Generic" part="Conn_01x04">
       <description>Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
       <docs>~</docs>
@@ -389,44 +367,6 @@
         <pin num="2" name="~" type="passive"/>
       </pins>
     </libpart>
-    <libpart lib="Driver_Motor" part="TB6612FNG">
-      <description>Driver IC for Dual DC motor, SSOP-24</description>
-      <docs>https://toshiba.semicon-storage.com/us/product/linear/motordriver/detail.TB6612FNG.html</docs>
-      <footprints>
-        <fp>SSOP-24*5.3x8.2mm*P0.65mm*</fp>
-      </footprints>
-      <fields>
-        <field name="Reference">U</field>
-        <field name="Value">TB6612FNG</field>
-        <field name="Footprint">Package_SO:SSOP-24_5.3x8.2mm_P0.65mm</field>
-      </fields>
-      <pins>
-        <pin num="1" name="AO1" type="output"/>
-        <pin num="2" name="AO1" type="passive"/>
-        <pin num="3" name="PGND1" type="power_in"/>
-        <pin num="4" name="PGND1" type="passive"/>
-        <pin num="5" name="AO2" type="output"/>
-        <pin num="6" name="AO2" type="passive"/>
-        <pin num="7" name="BO2" type="output"/>
-        <pin num="8" name="BO2" type="passive"/>
-        <pin num="9" name="PGND2" type="power_in"/>
-        <pin num="10" name="PGND2" type="passive"/>
-        <pin num="11" name="BO1" type="output"/>
-        <pin num="12" name="BO1" type="passive"/>
-        <pin num="13" name="VM2" type="power_in"/>
-        <pin num="14" name="VM3" type="power_in"/>
-        <pin num="15" name="PWMB" type="input"/>
-        <pin num="16" name="BIN2" type="input"/>
-        <pin num="17" name="BIN1" type="input"/>
-        <pin num="18" name="GND" type="power_in"/>
-        <pin num="19" name="STBY" type="input"/>
-        <pin num="20" name="VCC" type="power_in"/>
-        <pin num="21" name="AIN1" type="input"/>
-        <pin num="22" name="AIN2" type="input"/>
-        <pin num="23" name="PWMA" type="input"/>
-        <pin num="24" name="VM1" type="power_in"/>
-      </pins>
-    </libpart>
     <libpart lib="Motor" part="Motor_DC">
       <description>DC Motor</description>
       <docs>~</docs>
@@ -441,48 +381,6 @@
       <pins>
         <pin num="1" name="+" type="passive"/>
         <pin num="2" name="-" type="passive"/>
-      </pins>
-    </libpart>
-    <libpart lib="Regulator_Linear" part="AP2204K-1.5">
-      <aliases>
-        <alias>AP2204K-1.8</alias>
-        <alias>AP2204K-2.5</alias>
-        <alias>AP2204K-2.8</alias>
-        <alias>AP2204K-3.0</alias>
-        <alias>AP2204K-3.3</alias>
-        <alias>AP2204K-5.0</alias>
-        <alias>AP2127K-1.0</alias>
-        <alias>AP2127K-1.2</alias>
-        <alias>AP2127K-1.5</alias>
-        <alias>AP2127K-1.8</alias>
-        <alias>AP2127K-2.5</alias>
-        <alias>AP2127K-2.8</alias>
-        <alias>AP2127K-3.0</alias>
-        <alias>AP2127K-3.3</alias>
-        <alias>AP2127K-4.2</alias>
-        <alias>AP2127K-4.75</alias>
-        <alias>AP2112K-1.2</alias>
-        <alias>AP2112K-1.8</alias>
-        <alias>AP2112K-2.5</alias>
-        <alias>AP2112K-2.6</alias>
-        <alias>AP2112K-3.3</alias>
-      </aliases>
-      <description>150mA low dropout linear regulator, wide input voltage range, 1.5V fixed positive output, SOT-23-5</description>
-      <docs>https://www.diodes.com/assets/Datasheets/AP2204.pdf</docs>
-      <footprints>
-        <fp>SOT?23?5*</fp>
-      </footprints>
-      <fields>
-        <field name="Reference">U</field>
-        <field name="Value">AP2204K-1.5</field>
-        <field name="Footprint">Package_TO_SOT_SMD:SOT-23-5</field>
-      </fields>
-      <pins>
-        <pin num="1" name="VIN" type="power_in"/>
-        <pin num="2" name="GND" type="power_in"/>
-        <pin num="3" name="EN" type="input"/>
-        <pin num="4" name="NC" type="NotConnected"/>
-        <pin num="5" name="VOUT" type="power_out"/>
       </pins>
     </libpart>
     <libpart lib="SAMD" part="ATSAMD21G15A-A">
@@ -579,252 +477,316 @@
         <pin num="4" name="E" type="openEm"/>
       </pins>
     </libpart>
+    <libpart lib="combined-rescue" part="AP2112K-3.3-Regulator_Linear">
+      <footprints>
+        <fp>SOT?23?5*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">AP2112K-3.3-Regulator_Linear</field>
+        <field name="Footprint">Package_TO_SOT_SMD:SOT-23-5</field>
+      </fields>
+      <pins>
+        <pin num="1" name="VIN" type="power_in"/>
+        <pin num="2" name="GND" type="power_in"/>
+        <pin num="3" name="EN" type="input"/>
+        <pin num="4" name="NC" type="NotConnected"/>
+        <pin num="5" name="VOUT" type="power_out"/>
+      </pins>
+    </libpart>
+    <libpart lib="combined-rescue" part="TB6612FNG-Driver_Motor">
+      <footprints>
+        <fp>SSOP-24*5.3x8.2mm*P0.65mm*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">TB6612FNG-Driver_Motor</field>
+        <field name="Footprint">Package_SO:SSOP-24_5.3x8.2mm_P0.65mm</field>
+      </fields>
+      <pins>
+        <pin num="1" name="AO1" type="output"/>
+        <pin num="2" name="AO1" type="passive"/>
+        <pin num="3" name="PGND1" type="power_in"/>
+        <pin num="4" name="PGND1" type="passive"/>
+        <pin num="5" name="AO2" type="output"/>
+        <pin num="6" name="AO2" type="passive"/>
+        <pin num="7" name="BO2" type="output"/>
+        <pin num="8" name="BO2" type="passive"/>
+        <pin num="9" name="PGND2" type="power_in"/>
+        <pin num="10" name="PGND2" type="passive"/>
+        <pin num="11" name="BO1" type="output"/>
+        <pin num="12" name="BO1" type="passive"/>
+        <pin num="13" name="VM2" type="power_in"/>
+        <pin num="14" name="VM3" type="power_in"/>
+        <pin num="15" name="PWMB" type="input"/>
+        <pin num="16" name="BIN2" type="input"/>
+        <pin num="17" name="BIN1" type="input"/>
+        <pin num="18" name="GND" type="power_in"/>
+        <pin num="19" name="STBY" type="input"/>
+        <pin num="20" name="VCC" type="power_in"/>
+        <pin num="21" name="AIN1" type="input"/>
+        <pin num="22" name="AIN2" type="input"/>
+        <pin num="23" name="PWMA" type="input"/>
+        <pin num="24" name="VM1" type="power_in"/>
+      </pins>
+    </libpart>
+    <libpart lib="combined-rescue" part="USB_B_Micro-Connector">
+      <footprints>
+        <fp>USB*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">USB_B_Micro-Connector</field>
+      </fields>
+      <pins>
+        <pin num="1" name="VBUS" type="power_out"/>
+        <pin num="2" name="D-" type="BiDi"/>
+        <pin num="3" name="D+" type="BiDi"/>
+        <pin num="4" name="ID" type="passive"/>
+        <pin num="5" name="GND" type="power_out"/>
+        <pin num="6" name="Shield" type="passive"/>
+      </pins>
+    </libpart>
   </libparts>
   <libraries>
-    <library logical="Connector">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Connector.lib</uri>
-    </library>
     <library logical="Connector_Generic">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Connector_Generic.lib</uri>
+      <uri>/usr/share/kicad/library/Connector_Generic.lib</uri>
     </library>
     <library logical="Device">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Device.lib</uri>
-    </library>
-    <library logical="Driver_Motor">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Driver_Motor.lib</uri>
+      <uri>/usr/share/kicad/library/Device.lib</uri>
     </library>
     <library logical="Motor">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Motor.lib</uri>
-    </library>
-    <library logical="Regulator_Linear">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Regulator_Linear.lib</uri>
+      <uri>/usr/share/kicad/library/Motor.lib</uri>
     </library>
     <library logical="SAMD">
-      <uri>/home/adam/Dropbox/EgnaProjekt/ServoV3/ServoProject/PcbDesignes/Servo/combined/MCU_Microchip_SAMD/MCU_Microchip_SAMD.lib</uri>
+      <uri>/home/adam/Dropbox/EgnaProjekt/ServoV3/ServoProject/PcbDesignes/ServoBrushed/combined/MCU_Microchip_SAMD/MCU_Microchip_SAMD.lib</uri>
     </library>
     <library logical="Sensor_Proximity">
-      <uri>/home/adam/gitRepoSoftwarePackages/kicad-symbols/Sensor_Proximity.lib</uri>
+      <uri>/usr/share/kicad/library/Sensor_Proximity.lib</uri>
+    </library>
+    <library logical="combined-rescue">
+      <uri>/home/adam/Dropbox/EgnaProjekt/ServoV3/ServoProject/PcbDesignes/ServoBrushed/combined/combined-rescue.lib</uri>
     </library>
   </libraries>
   <nets>
-    <net code="1" name="+3V3">
-      <node ref="U5" pin="15"/>
-      <node ref="U5" pin="23"/>
-      <node ref="U5" pin="20"/>
-      <node ref="U5" pin="19"/>
-      <node ref="U4" pin="6"/>
-      <node ref="C3" pin="1"/>
-      <node ref="R1" pin="2"/>
-      <node ref="R2" pin="2"/>
-      <node ref="C5" pin="1"/>
-      <node ref="U4" pin="17"/>
-      <node ref="Prog1" pin="5"/>
-      <node ref="Enc1" pin="1"/>
-      <node ref="U3" pin="5"/>
-      <node ref="U4" pin="44"/>
-      <node ref="U4" pin="36"/>
-      <node ref="R3" pin="2"/>
-      <node ref="R5" pin="2"/>
-    </net>
-    <net code="2" name="Net-(R3-Pad1)">
+    <net code="1" name="Net-(R3-Pad1)">
+      <node ref="R3" pin="1"/>
       <node ref="U4" pin="9"/>
       <node ref="U1" pin="3"/>
-      <node ref="R3" pin="1"/>
     </net>
-    <net code="3" name="Net-(R5-Pad1)">
+    <net code="2" name="Net-(R5-Pad1)">
       <node ref="U2" pin="3"/>
-      <node ref="U4" pin="10"/>
       <node ref="R5" pin="1"/>
+      <node ref="U4" pin="10"/>
     </net>
-    <net code="4" name="Net-(D2-Pad1)">
+    <net code="3" name="Net-(D2-Pad1)">
       <node ref="U4" pin="15"/>
       <node ref="D2" pin="1"/>
     </net>
-    <net code="5" name="Net-(COM1-Pad2)">
+    <net code="4" name="Net-(COM1-Pad2)">
       <node ref="D2" pin="2"/>
       <node ref="COM1" pin="2"/>
     </net>
-    <net code="6" name="Net-(Enc1-Pad4)">
+    <net code="5" name="+3V3">
+      <node ref="U5" pin="15"/>
+      <node ref="Prog1" pin="5"/>
+      <node ref="Enc1" pin="1"/>
+      <node ref="U3" pin="5"/>
+      <node ref="R1" pin="2"/>
+      <node ref="R2" pin="2"/>
+      <node ref="U4" pin="44"/>
+      <node ref="C5" pin="1"/>
+      <node ref="C3" pin="1"/>
+      <node ref="U4" pin="6"/>
+      <node ref="U5" pin="19"/>
+      <node ref="U5" pin="20"/>
+      <node ref="U5" pin="23"/>
+      <node ref="U4" pin="17"/>
+      <node ref="U4" pin="36"/>
+      <node ref="R5" pin="2"/>
+      <node ref="R3" pin="2"/>
+    </net>
+    <net code="6" name="Net-(Enc1-Pad5)">
+      <node ref="U4" pin="21"/>
+      <node ref="Enc1" pin="5"/>
+    </net>
+    <net code="7" name="Net-(Enc1-Pad4)">
       <node ref="U4" pin="20"/>
       <node ref="Enc1" pin="4"/>
     </net>
-    <net code="7" name="GND">
-      <node ref="U4" pin="35"/>
-      <node ref="U4" pin="42"/>
-      <node ref="Prog1" pin="2"/>
-      <node ref="USB1" pin="6"/>
-      <node ref="U1" pin="4"/>
-      <node ref="U4" pin="18"/>
-      <node ref="C5" pin="2"/>
-      <node ref="C3" pin="2"/>
-      <node ref="U5" pin="4"/>
-      <node ref="U5" pin="9"/>
-      <node ref="U1" pin="1"/>
-      <node ref="U4" pin="5"/>
-      <node ref="U2" pin="4"/>
-      <node ref="USB1" pin="5"/>
-      <node ref="U2" pin="1"/>
+    <net code="8" name="GND">
       <node ref="C2" pin="2"/>
-      <node ref="U5" pin="10"/>
-      <node ref="U5" pin="3"/>
-      <node ref="C4" pin="2"/>
-      <node ref="C1" pin="2"/>
       <node ref="U5" pin="18"/>
-      <node ref="U3" pin="2"/>
+      <node ref="C4" pin="2"/>
+      <node ref="U5" pin="4"/>
+      <node ref="U4" pin="18"/>
+      <node ref="U4" pin="35"/>
+      <node ref="USB1" pin="6"/>
+      <node ref="U4" pin="42"/>
+      <node ref="C5" pin="2"/>
+      <node ref="C1" pin="2"/>
+      <node ref="U5" pin="10"/>
+      <node ref="U2" pin="1"/>
+      <node ref="USB1" pin="5"/>
+      <node ref="C3" pin="2"/>
+      <node ref="U5" pin="3"/>
+      <node ref="U2" pin="4"/>
+      <node ref="U4" pin="5"/>
+      <node ref="U1" pin="4"/>
+      <node ref="U1" pin="1"/>
+      <node ref="U5" pin="9"/>
+      <node ref="D1" pin="1"/>
+      <node ref="Prog1" pin="2"/>
       <node ref="Enc1" pin="2"/>
       <node ref="COM1" pin="1"/>
-      <node ref="D1" pin="1"/>
-    </net>
-    <net code="8" name="Net-(Enc1-Pad5)">
-      <node ref="Enc1" pin="5"/>
-      <node ref="U4" pin="21"/>
+      <node ref="U3" pin="2"/>
     </net>
     <net code="9" name="Net-(Prog1-Pad4)">
-      <node ref="U4" pin="45"/>
       <node ref="Prog1" pin="4"/>
+      <node ref="U4" pin="45"/>
     </net>
-    <net code="10" name="Net-(Prog1-Pad3)">
-      <node ref="Prog1" pin="3"/>
-      <node ref="U4" pin="46"/>
-    </net>
-    <net code="11" name="Net-(R2-Pad1)">
+    <net code="10" name="Net-(R2-Pad1)">
       <node ref="R2" pin="1"/>
       <node ref="U2" pin="2"/>
     </net>
-    <net code="12" name="Net-(R1-Pad1)">
+    <net code="11" name="Net-(R1-Pad1)">
       <node ref="R1" pin="1"/>
       <node ref="U1" pin="2"/>
     </net>
-    <net code="13" name="Net-(Enc1-Pad3)">
-      <node ref="U4" pin="7"/>
+    <net code="12" name="Net-(Enc1-Pad3)">
       <node ref="Enc1" pin="3"/>
+      <node ref="U4" pin="7"/>
+    </net>
+    <net code="13" name="Net-(M1-Pad2)">
+      <node ref="M1" pin="2"/>
+      <node ref="U5" pin="2"/>
+      <node ref="U5" pin="1"/>
+      <node ref="U5" pin="11"/>
+      <node ref="U5" pin="12"/>
     </net>
     <net code="14" name="Net-(M1-Pad1)">
       <node ref="U5" pin="6"/>
-      <node ref="U5" pin="5"/>
-      <node ref="U5" pin="7"/>
       <node ref="M1" pin="1"/>
       <node ref="U5" pin="8"/>
+      <node ref="U5" pin="5"/>
+      <node ref="U5" pin="7"/>
     </net>
-    <net code="15" name="Net-(M1-Pad2)">
-      <node ref="U5" pin="2"/>
-      <node ref="U5" pin="12"/>
-      <node ref="U5" pin="1"/>
-      <node ref="U5" pin="11"/>
-      <node ref="M1" pin="2"/>
-    </net>
-    <net code="16" name="+BATT">
+    <net code="15" name="+BATT">
       <node ref="R4" pin="1"/>
       <node ref="COM1" pin="4"/>
-      <node ref="D3" pin="1"/>
       <node ref="C1" pin="1"/>
+      <node ref="D3" pin="1"/>
       <node ref="U5" pin="13"/>
       <node ref="U5" pin="14"/>
-      <node ref="U5" pin="24"/>
       <node ref="U3" pin="1"/>
+      <node ref="U5" pin="24"/>
     </net>
-    <net code="17" name="Net-(R4-Pad2)">
-      <node ref="R4" pin="2"/>
-      <node ref="U3" pin="3"/>
-    </net>
-    <net code="18" name="Net-(D1-Pad2)">
-      <node ref="R6" pin="2"/>
+    <net code="16" name="Net-(D1-Pad2)">
       <node ref="D1" pin="2"/>
+      <node ref="R6" pin="2"/>
     </net>
-    <net code="19" name="Net-(R6-Pad1)">
+    <net code="17" name="Net-(R6-Pad1)">
       <node ref="R6" pin="1"/>
       <node ref="U4" pin="26"/>
     </net>
-    <net code="20" name="Net-(U3-Pad4)">
+    <net code="18" name="Net-(R4-Pad2)">
+      <node ref="U3" pin="3"/>
+      <node ref="R4" pin="2"/>
+    </net>
+    <net code="19" name="Net-(U3-Pad4)">
       <node ref="U3" pin="4"/>
     </net>
+    <net code="20" name="/USB_D+">
+      <node ref="U4" pin="34"/>
+      <node ref="USB1" pin="3"/>
+    </net>
     <net code="21" name="Net-(U4-Pad28)">
-      <node ref="U5" pin="22"/>
       <node ref="U5" pin="16"/>
+      <node ref="U5" pin="22"/>
       <node ref="U4" pin="28"/>
     </net>
     <net code="22" name="Net-(U4-Pad25)">
+      <node ref="U4" pin="25"/>
       <node ref="U5" pin="21"/>
       <node ref="U5" pin="17"/>
-      <node ref="U4" pin="25"/>
     </net>
-    <net code="23" name="Net-(U4-Pad34)">
-      <node ref="USB1" pin="3"/>
-      <node ref="U4" pin="34"/>
-    </net>
-    <net code="24" name="Net-(U4-Pad33)">
-      <node ref="U4" pin="33"/>
+    <net code="23" name="/USB_D-">
       <node ref="USB1" pin="2"/>
+      <node ref="U4" pin="33"/>
     </net>
-    <net code="25" name="Net-(COM1-Pad3)">
+    <net code="24" name="Net-(COM1-Pad3)">
       <node ref="COM1" pin="3"/>
       <node ref="U4" pin="16"/>
     </net>
-    <net code="26" name="Net-(Prog1-Pad1)">
-      <node ref="U4" pin="40"/>
-      <node ref="Prog1" pin="1"/>
+    <net code="25" name="Net-(Prog1-Pad3)">
+      <node ref="Prog1" pin="3"/>
+      <node ref="U4" pin="46"/>
     </net>
-    <net code="27" name="Net-(U4-Pad8)">
+    <net code="26" name="Net-(U4-Pad8)">
       <node ref="U4" pin="8"/>
     </net>
-    <net code="28" name="Net-(USB1-Pad4)">
+    <net code="27" name="Net-(USB1-Pad4)">
       <node ref="USB1" pin="4"/>
     </net>
-    <net code="29" name="Net-(D3-Pad2)">
+    <net code="28" name="Net-(D3-Pad2)">
       <node ref="D3" pin="2"/>
       <node ref="USB1" pin="1"/>
     </net>
-    <net code="30" name="Net-(U4-Pad2)">
+    <net code="29" name="Net-(U4-Pad2)">
       <node ref="U4" pin="2"/>
     </net>
-    <net code="31" name="Net-(U4-Pad29)">
+    <net code="30" name="Net-(U4-Pad29)">
       <node ref="U4" pin="29"/>
     </net>
-    <net code="32" name="Net-(U4-Pad27)">
+    <net code="31" name="Net-(U4-Pad27)">
       <node ref="U4" pin="27"/>
     </net>
-    <net code="33" name="Net-(U4-Pad24)">
+    <net code="32" name="Net-(U4-Pad24)">
       <node ref="U4" pin="24"/>
     </net>
-    <net code="34" name="Net-(U4-Pad23)">
+    <net code="33" name="Net-(U4-Pad23)">
       <node ref="U4" pin="23"/>
     </net>
-    <net code="35" name="Net-(U4-Pad22)">
+    <net code="34" name="Net-(U4-Pad22)">
       <node ref="U4" pin="22"/>
     </net>
-    <net code="36" name="Net-(U4-Pad3)">
+    <net code="35" name="Net-(U4-Pad3)">
       <node ref="U4" pin="3"/>
     </net>
-    <net code="37" name="Net-(U4-Pad19)">
+    <net code="36" name="Net-(U4-Pad19)">
       <node ref="U4" pin="19"/>
     </net>
-    <net code="38" name="Net-(U4-Pad14)">
+    <net code="37" name="Net-(U4-Pad14)">
       <node ref="U4" pin="14"/>
     </net>
-    <net code="39" name="Net-(U4-Pad13)">
+    <net code="38" name="Net-(U4-Pad13)">
       <node ref="U4" pin="13"/>
     </net>
-    <net code="40" name="Net-(U4-Pad12)">
+    <net code="39" name="Net-(U4-Pad12)">
       <node ref="U4" pin="12"/>
     </net>
-    <net code="41" name="Net-(U4-Pad11)">
+    <net code="40" name="Net-(U4-Pad11)">
       <node ref="U4" pin="11"/>
     </net>
-    <net code="42" name="Net-(U4-Pad39)">
+    <net code="41" name="Net-(U4-Pad39)">
       <node ref="U4" pin="39"/>
     </net>
-    <net code="43" name="Net-(U4-Pad48)">
+    <net code="42" name="Net-(U4-Pad48)">
       <node ref="U4" pin="48"/>
     </net>
-    <net code="44" name="Net-(U4-Pad47)">
+    <net code="43" name="Net-(U4-Pad47)">
       <node ref="U4" pin="47"/>
     </net>
-    <net code="45" name="Net-(U4-Pad41)">
+    <net code="44" name="Net-(U4-Pad41)">
       <node ref="U4" pin="41"/>
     </net>
+    <net code="45" name="Net-(Prog1-Pad1)">
+      <node ref="Prog1" pin="1"/>
+      <node ref="U4" pin="40"/>
+    </net>
     <net code="46" name="Net-(C2-Pad1)">
-      <node ref="C2" pin="1"/>
       <node ref="U4" pin="4"/>
+      <node ref="C2" pin="1"/>
     </net>
     <net code="47" name="Net-(U4-Pad38)">
       <node ref="U4" pin="38"/>

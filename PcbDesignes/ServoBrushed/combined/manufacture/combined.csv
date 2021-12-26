@@ -1,7 +1,7 @@
 Comment,Designator,Footprint,LCSC
 10uF,"C1,C3",Capacitor_SMD:C_0402_1005Metric,C15525
 1uF,"C2,C4,C5",Capacitor_SMD:C_0402_1005Metric,C52923
-LED,D1,Diode_SMD:D_0402_1005Metric,C130719 
+LED,D1,LED_SMD:LED_0805_2012Metric_Castellated,C84256
 D,"D2,D3",Diode_SMD:D_SOD-123F,C64898
 120,"R1,R2",Resistor_SMD:R_0402_1005Metric,C25079
 8.2k,"R3,R5",Resistor_SMD:R_0402_1005Metric,C25924
