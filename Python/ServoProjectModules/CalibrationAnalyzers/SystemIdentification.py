@@ -388,7 +388,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal testPwmValue
                 nonlocal threadMutex
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 servo.setOpenLoopControlSignal(testPwmValue, True)
 
@@ -400,7 +400,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal doneRunning
 
                 t += dt
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
                 out.append([t, servo.getVelocity()])
 
                 stop = False
@@ -565,7 +565,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
 
                 t += dt
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 pwm = 0.0
                 if int(t / motorSettleTime) < len(pwmSampleValues):
@@ -595,7 +595,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                     doneRunning = True
                     return
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
                 out.append([t,
                         servo.getPosition(False) / servo.getScaling(),
                         pwmSampleValues[int(t / motorSettleTime)]])

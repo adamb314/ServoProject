@@ -737,7 +737,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                 nonlocal pwmValue
                 nonlocal threadMutex
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 pwm = 0
                 with threadMutex:
@@ -753,7 +753,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                 nonlocal doneRunning
 
                 t += dt
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
                 out.append([t,
                         opticalEncoderData.a,
@@ -954,7 +954,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                 nonlocal threadMutex
                 nonlocal runTime
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 if manualMovement:
                     return
@@ -976,7 +976,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                 nonlocal doneRunning
                 nonlocal runTime
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
                 if t > 0.1 and (t < (runTime - 10.0) * 0.5 or t > (runTime - 10.0) * 0.5 + 10.0 or manualMovement):
                     out.append([t,

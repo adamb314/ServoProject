@@ -33,7 +33,7 @@ def createRobot(nodeNr, port, dt=0.004, initFunction=lambda a: a):
         servo.setBacklashControlSpeed(0, 3.0, 0.00)
         servo.setFrictionCompensation(0)
 
-        robot.dcServoArray.append(servo)
+        robot.servoArray.append(servo)
 
         initFunction(robot)
 

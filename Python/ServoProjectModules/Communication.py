@@ -568,8 +568,8 @@ class DCServoCommunicator(object):
 
 class Robot(object):
     def __init__(self, cycleTime = 0.018, initFunction=lambda robot: robot):
-        self.dcServoArray = []
-        
+        self.servoArray = []
+
         self.cycleTime = cycleTime
 
         self.cycleSleepTime = 0
@@ -585,7 +585,7 @@ class Robot(object):
 
         while True:
             allDone = True
-            for s in self.dcServoArray:
+            for s in self.servoArray:
                 allDone = allDone and s.isInitComplete()
                 s.run()
 
@@ -593,7 +593,7 @@ class Robot(object):
                 break
 
         self.currentPosition = []
-        for s in self.dcServoArray:
+        for s in self.servoArray:
             self.currentPosition.append(s.getPosition())
 
         self.t.start()
@@ -612,10 +612,10 @@ class Robot(object):
 
             tempSendHandlerFunction(self.cycleTime, self)
 
-            for s in self.dcServoArray:
+            for s in self.servoArray:
                 s.run()
 
-            for i, s in enumerate(self.dcServoArray):
+            for i, s in enumerate(self.servoArray):
                 self.currentPosition[i] = s.getPosition()
 
             tempReadHandlerFunction(self.cycleTime, self)

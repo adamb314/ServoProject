@@ -144,15 +144,15 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advanced
 
         try:
             def initFun(robot):
-                robot.dcServoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
-                robot.dcServoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
+                robot.servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
+                robot.servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
 
             robot = createRobot(nodeNr, port, dt=0.018, initFunction=initFun)
 
             t = 0.0
             doneRunning = False
 
-            pos = robot.dcServoArray[0].getPosition() + positionOffset
+            pos = robot.servoArray[0].getPosition() + positionOffset
 
             def sendCommandHandlerFunction(dt, robot):
                 nonlocal t
@@ -160,7 +160,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advanced
                 nonlocal pos
                 nonlocal testVel
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 vel = 0
                 with threadMutex:
@@ -190,7 +190,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advanced
                     doneRunning = True
                     return
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
                 optData = servo.getOpticalEncoderChannelData()
                 out.append([time.time(),
                         servo.getPosition(True),

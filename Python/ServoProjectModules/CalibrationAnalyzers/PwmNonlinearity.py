@@ -262,7 +262,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal threadMutex
                 nonlocal pwm
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 frq = 0
                 pwmAmp = 0
@@ -285,7 +285,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                 nonlocal lastPosition
 
                 t += dt
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 position = servo.getPosition(False)
 
@@ -469,7 +469,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
 
                 t += dt
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 pwmAmp = 0.0
                 if int(t) < len(pwmSampleValues):
@@ -507,7 +507,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                     doneRunning = True
                     return
 
-                servo = robot.dcServoArray[0]
+                servo = robot.servoArray[0]
 
                 position = servo.getPosition(False)
 
