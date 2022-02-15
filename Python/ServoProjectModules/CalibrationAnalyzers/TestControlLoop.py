@@ -1,5 +1,99 @@
 from ServoProjectModules.CalibrationAnalyzers.Helper import *
 
+class SmoothMoveHandler:
+    def __init__(self, startPos, minMoveTime = 0.1):
+        self.minMoveTime = minMoveTime
+        self.p = startPos
+        self.endP = self.p
+        self.newEndP = None
+        self.maxV = 0.0
+        self.w = 0.0
+        self.d = 0.0
+
+    def set(self, endP, maxV):
+        oldNewEndP = self.newEndP
+        oldEndP = self.endP
+        if (endP - self.p) * self.d < 0.0:
+            self.newEndP = endP
+        elif self.newEndP == None:
+            oldNewEndP = self.endP
+            self.endP = endP
+
+        if endP != self.p and oldNewEndP != endP:
+            self.maxV = min(maxV, abs(endP - self.p) / self.minMoveTime / 2 * math.pi)
+
+        if oldEndP == self.endP:
+            return
+
+        if self.w > math.pi * 0.5:
+            self.w = math.pi - self.w
+
+        self.d = (self.endP - self.p) / (1.0 + math.cos(self.w))
+
+    def getNextRef(self, dt):
+        if self.w == math.pi:
+            self.w = 0.0
+            self.d = 0.0
+            if self.newEndP != None:
+                temp = self.newEndP
+                self.newEndP = None
+                self.set(temp, self.maxV)
+
+        eps = 1.0e-100
+        if abs(self.d) > eps:
+            a = abs(self.maxV / self.d)
+        else:
+            a = abs(self.maxV / eps)
+
+        self.w = min(self.w + a * dt, math.pi)
+        self.p = self.endP - self.d * (1.0 + math.cos(self.w))
+        v = self.d * a * math.sin(self.w)
+        return self.p, v
+
+def main():
+    moveHandler = SmoothMoveHandler(0.0, 0.4)
+    moveHandler.set(0.0, 0.2)
+
+    refV = 1.0
+    r = 1.0
+    moveHandler.set(r, refV)
+
+    p, v = moveHandler.getNextRef(0.0)
+
+    pVec = [p]
+    vVec = [v]
+    rVec = [r]
+    for i in range(0, 100):
+        p, v = moveHandler.getNextRef(0.01)
+        pVec.append(p)
+        vVec.append(v)
+        rVec.append(r)
+
+    r = 1.5
+
+    for i in range(0, 100):
+        moveHandler.set(r, refV)
+        p, v = moveHandler.getNextRef(0.01)
+        pVec.append(p)
+        vVec.append(v)
+        rVec.append(r)
+
+    for i in range(0, 500):
+        r = 0.5 + min(0.3, i * 0.001)
+        moveHandler.set(r, refV)
+        p, v = moveHandler.getNextRef(0.01)
+        pVec.append(p)
+        vVec.append(v)
+        rVec.append(r)
+
+    plt.plot(pVec, 'g+')
+    plt.plot(vVec, 'y+')
+    plt.plot(rVec, 'r+')
+    plt.show()
+
+if __name__ == '__main__':
+    main()
+
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, advancedMode):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
@@ -21,26 +115,48 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
     backlashControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Backlash control speed</b>', backlashControlSpeedScale[0]), backlashControlSpeedScale[1]
     calibrationBox.pack_start(backlashControlSpeedScale[0], False, False, 0)
 
-    testVel = 0
+    refVel = 0.2
+    refPos = 0.0
 
-    testVelScale = GuiFunctions.creatHScale(0.0, -1.000, 1.000, 0.0001, getLowLev=True)
-    testVelScale = GuiFunctions.addTopLabelTo('<b>Velocity</b>\n in radians per second', testVelScale[0]), testVelScale[1]
+    refVelScale = GuiFunctions.creatHScale(refVel, 0, 1.0, 0.01, getLowLev=True)
+    refVelScale = GuiFunctions.addTopLabelTo('<b>Max Velocity</b>\n in radians per second', refVelScale[0]), refVelScale[1]
+
+    refPosScale = GuiFunctions.creatHScale(refPos, -1.0, 1.0, 0.01, getLowLev=True)
+    refPosScale = GuiFunctions.addTopLabelTo('<b>Set position offset</b>\n in radians', refPosScale[0]), refPosScale[1]
+    refPosScale[1].set_sensitive(False)
+
     startButton = GuiFunctions.createButton('Start test', getLowLev=True)
 
-    positionOffsetScale = GuiFunctions.creatHScale(0.0, -1.0, 1.0, 0.001, getLowLev=True)
-    positionOffsetScale = GuiFunctions.addTopLabelTo('<b>Position offset</b>\n in radians', positionOffsetScale[0]), positionOffsetScale[1]
-    calibrationBox.pack_start(positionOffsetScale[0], False, False, 0)
+    statusLabel = GuiFunctions.createLabel(f'Position: - (start offset: -)\n'
+                        f'Velocity: -\n'
+                        f'Error at output: -\n'
+                        f'Error at motor: -\n'
+                        f'control signal: -\n'
+                        f'Loop time: -')
 
-    def onTestVelScaleChange(widget):
-        nonlocal threadMutex
-        nonlocal testVel
-
-        with threadMutex:
-            testVel = widget.get_value()
-
-    testVelScale[1].connect('value-changed', onTestVelScaleChange)
+    calibrationBox.pack_start(refVelScale[0], False, False, 0)
+    calibrationBox.pack_start(refPosScale[0], False, False, 0)
+    calibrationBox.pack_start(startButton[0], False, False, 0)
+    calibrationBox.pack_start(statusLabel, False, False, 0)
+    calibrationBox.show_all()
 
     threadMutex = threading.Lock()
+
+    def onRefVelScaleChange(widget):
+        nonlocal refVel
+        with threadMutex:
+            refVel = widget.get_value()
+
+    def onRefPosScaleChange(widget):
+        nonlocal refPos
+        with threadMutex:
+            refPos = widget.get_value()
+
+    refVelScale[1].connect('value-changed', onRefVelScaleChange)
+    refPosScale[1].connect('value-changed', onRefPosScaleChange)
+
+    def updateStatusLabel(string):
+        statusLabel.set_label(string)
 
     def resetGuiAfterCalibration():
         nonlocal startButton
@@ -48,7 +164,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
         nonlocal velControlSpeedScale
         nonlocal filterSpeedScale
         nonlocal backlashControlSpeedScale
-        nonlocal positionOffsetScale
+        nonlocal refPosScale
 
         startButton[1].set_label('Start test')
         startButton[1].set_sensitive(True)
@@ -58,77 +174,52 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             filterSpeedScale[1].set_sensitive(True)
 
         backlashControlSpeedScale[1].set_sensitive(True)
-        positionOffsetScale[1].set_sensitive(True)
+        refPosScale[1].set_sensitive(False)
+        refPosScale[1].set_value(0.0)
 
     runThread = False
 
-    def handleResults(data):
-        np.savetxt('compData_new.txt', data, delimiter=',')
-        #data = np.loadtxt('compData4000Hz.txt', delimiter=',')
-        plt.figure(1)
-        plt.plot(data[:, 0], data[:, 4])
+    def plotData(data):
+        dialog = Gtk.MessageDialog(
+                transient_for=parent,
+                flags=0,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text='Test done',
+        )
+        dialog.format_secondary_text(
+            "Do you want to plot the recorded data?"
+        )
+        response = dialog.run()
+        dialog.destroy()
 
-        plt.figure(2)
-        plt.plot(data[:, 4], data[:, 2], 'g-')
-        plt.plot(data[:, 4], data[:, 2], 'r+')
+        if response == Gtk.ResponseType.YES:
+            time = data[:, 0] - data[0, 0]
+            fig = plt.figure(1)
+            fig.suptitle('Position')
+            plt.plot(time, data[:, 8], 'r')
+            plt.plot(time, data[:, 1], 'g')
 
-        plt.figure(3)
-        plt.plot(data[:, 0], data[:, 3])
+            fig = plt.figure(2)
+            fig.suptitle('Velocity')
+            plt.plot(time, data[:, 2])
 
-        plt.figure(4)
-        plt.plot(data[:, 0], data[:, 5], 'g-')
-        plt.plot(data[:, 0], data[:, 5], 'r+')
+            fig = plt.figure(3)
+            fig.suptitle('Error at output')
+            plt.plot(time, data[:, 3])
 
-        plt.figure(5)
-        plt.plot(data[:, 4], data[:, 3] / (10.0 / 1 * 11.0 / 62 * 14.0 / 48 * 13.0 / 45 * 1.0 / 42) / 2 / pi * 512, 'g-')
-        plt.plot(data[:, 4], data[:, 3] / (10.0 / 1 * 11.0 / 62 * 14.0 / 48 * 13.0 / 45 * 1.0 / 42) / 2 / pi * 512, 'r+')
+            fig = plt.figure(4)
+            fig.suptitle('Error at motor')
+            plt.plot(time, data[:, 4])
 
-        plt.figure(6)
-        plt.plot(data[:, 4], data[:, 6], 'g-')
-        plt.plot(data[:, 4], data[:, 6], 'r+')
-
-        plt.figure(7)
-        plt.plot(data[:, 0], data[:, 7], 'g')
-        
-        plt.figure(8)
-        plt.plot(data[:, 0], data[:, 1])
-        plt.show()
-
-        samplesList = []
-        for i in range (0, 512):
-            samplesList.append([])
-
-        for d in zip(data[:, 4], data[:, 5]):
-            for i in range(-8, 9):
-                i = int(d[0] / 4) + i
-                if i >= len(samplesList):
-                    i -= len(samplesList)
-                samplesList[i].append(d[1])
-
-        unsortedList = samplesList[:]
-        samplesList = []
-        for d in unsortedList:
-            samplesList.append(sorted(d))
-
-        forcePos = np.zeros(len(samplesList))
-        forceNeg = np.zeros(len(samplesList))
-
-        for i, d in enumerate(samplesList):
-            l = int(len(d) * 0.1)
-            forcePos[i] = d[-l-1]
-            forceNeg[i] = d[l]
-
-        print(intArrayToString(forcePos))
-        print(intArrayToString(forceNeg))
-        plt.plot(np.array(data[:, 4]) / 4, data[:, 5], 'g+')
-        plt.plot(forcePos, 'r')
-        plt.plot(forceNeg, 'b')
-        plt.show()
+            fig = plt.figure(5)
+            fig.suptitle('Control signal')
+            plt.plot(time, data[:, 5])
+            plt.show()
 
     def startTestRun(nodeNr, port):
         nonlocal runThread
         nonlocal threadMutex
-        nonlocal testVel
 
         controlSpeed = int(controlSpeedScale[1].get_value())
         velControlSpeed = controlSpeed * 4
@@ -140,8 +231,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             filterSpeedScale[1].set_value(filterSpeed)
         backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
-        positionOffset = positionOffsetScale[1].get_value()
-
         def initFun(robot):
             robot.servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
             robot.servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
@@ -150,23 +239,18 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             t = 0.0
             doneRunning = False
 
-            pos = robot.servoArray[0].getPosition() + positionOffset
+            robot.servoArray[0].getPosition(False)
+            posOffset = robot.servoArray[0].getPosition()
+            moveHandler = SmoothMoveHandler(posOffset, 0.4)
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal threadMutex
-                nonlocal pos
-                nonlocal testVel
-
                 servo = robot.servoArray[0]
 
-                vel = 0
                 with threadMutex:
-                    vel = testVel
+                    moveHandler.set(refPos + posOffset, refVel)
 
-                servo.setReference(pos, vel, 0)
-
-                pos += dt * vel
+                p, v = moveHandler.getNextRef(dt)
+                servo.setReference(p, v, 0)
 
             out = []
 
@@ -174,7 +258,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
-                nonlocal pos
 
                 t += dt
 
@@ -189,16 +272,26 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                     return
 
                 servo = robot.servoArray[0]
+                p = servo.getPosition(True)
+                v = servo.getVelocity()
+                u = servo.getControlSignal()
+                error = servo.getControlError(True)
+                motorError = servo.getControlError(False)
                 optData = servo.getOpticalEncoderChannelData()
-                out.append([time.time(),
-                        servo.getPosition(True),
-                        servo.getVelocity(),
-                        servo.getControlError(False),
+                out.append([time.time(), p, v,
+                        error,
+                        motorError,
+                        u,
                         optData.minCostIndex,
-                        servo.getControlSignal(),
                         optData.minCost,
-                        servo.getLoopTime(),
-                        pos])
+                        refPos + posOffset])
+
+                GLib.idle_add(updateStatusLabel, f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
+                        f'Velocity: {v:0.4f}\n'
+                        f'Error at output: {error:0.4f}\n'
+                        f'Error at motor: {motorError:0.4f}\n'
+                        f'control signal: {u:0.4f}\n'
+                        f'Loop time: {servo.getLoopTime()}')
 
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
@@ -211,7 +304,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             robot.shutdown()
 
             data = np.array(out)
-            GLib.idle_add(handleResults, data)
+            GLib.idle_add(plotData, data)
 
         GLib.idle_add(resetGuiAfterCalibration)
 
@@ -219,15 +312,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
     def onStartCalibration(widget):
         nonlocal testThread
-        nonlocal threadMutex
         nonlocal runThread
-
-        nonlocal calibrationBox
-        nonlocal controlSpeedScale
-        nonlocal velControlSpeedScale
-        nonlocal filterSpeedScale
-        nonlocal backlashControlSpeedScale
-        nonlocal positionOffsetScale
 
         if widget.get_label() == 'Start test':
             widget.set_label('Stop test')
@@ -237,22 +322,19 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                 velControlSpeedScale[1].set_sensitive(False)
                 filterSpeedScale[1].set_sensitive(False)
             backlashControlSpeedScale[1].set_sensitive(False)
-            positionOffsetScale[1].set_sensitive(False)
+            refPosScale[1].set_sensitive(True)
 
             calibrationBox.show_all()
 
             with threadMutex:
                 runThread = True
             testThread = threading.Thread(target=startTestRun, args=(nodeNr, getPortFun(),))
-            testThread.start()                                    
+            testThread.start()
         else:
             with threadMutex:
                 runThread = False
             testThread.join()
 
-    calibrationBox.pack_start(testVelScale[0], False, False, 0)
     startButton[1].connect('clicked', onStartCalibration)
-    calibrationBox.pack_start(startButton[0], False, False, 0)
-    calibrationBox.show_all()
 
     return calibrationBox
