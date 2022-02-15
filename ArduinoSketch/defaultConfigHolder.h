@@ -1,4 +1,4 @@
-#include <Eigen30.h>
+#include <ArduinoEigenDense.h>
 #include "EncoderHandler.h"
 #include "CurrentControlLoop.h"
 #include "OpticalEncoderHandler.h"

@@ -1,4 +1,4 @@
-#include <Eigen30.h>
+#include <ArduinoEigenDense.h>
 #include "ArduinoC++BugFixes.h"
 
 #ifndef KALMAN_FILTER_H
