@@ -2,6 +2,7 @@ import os
 import serial.tools.list_ports
 import webbrowser
 import re
+import threading
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
 import ServoProjectModules.CalibrationAnalyzers.OpticalEncoder as OpticalEncoderAnalyzer
@@ -9,11 +10,14 @@ import ServoProjectModules.CalibrationAnalyzers.PwmNonlinearity as PwmNonlineari
 import ServoProjectModules.CalibrationAnalyzers.SystemIdentification as SystemIdentificationAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.OutputEncoder as OutputEncoderAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.TestControlLoop as TestControlLoopAnalyzer
+import ServoProjectModules.CalibrationAnalyzers.Helper as Helper
+import ServoProjectModules.ArduinoManager as ArduinoManager
 
 class GuiWindow(Gtk.Window):
     def __init__(self, ArduinoSketchPath):
         Gtk.Window.__init__(self, title="Servo configuration", default_height=900, default_width=800)
 
+        self.ArduinoSketchPath = ArduinoSketchPath
         self.vboxMain = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.scrollWin = Gtk.ScrolledWindow()
         self.scrollWin.add(self.vboxMain)
@@ -108,6 +112,12 @@ class GuiWindow(Gtk.Window):
             activeConfigCombo[1].set_model(items)
             activeConfigCombo[1].set_active(activeIndex)
 
+        def selectActiveConfig(configName):
+            items = activeConfigCombo[1].get_model()
+            l = [i for i, d in enumerate(items) if d[0] == configName]
+            if len(l) > 0:
+                activeConfigCombo[1].set_active(l[0])
+
         loadConfigs(None, None)
         activeConfigCombo[0].connect('enter-notify-event', loadConfigs)
         activeConfigCombo[1].connect('focus', loadConfigs)
@@ -115,8 +125,9 @@ class GuiWindow(Gtk.Window):
         activeNodeNrCombo = GuiFunctions.creatComboBox('', [''], getLowLev=True)
 
         activeComPortCombo = GuiFunctions.creatComboBox('', [''], getLowLev=True)
+        ignoreComPortComboChangeEvent = False
         def loadComPorts(widget, event):
-            nonlocal activeComPortCombo
+            nonlocal ignoreComPortComboChangeEvent
             ports = []
 
             for port, desc, hwid in serial.tools.list_ports.comports():
@@ -136,22 +147,92 @@ class GuiWindow(Gtk.Window):
                 if currentItem == name:
                     activeIndex = i
 
+            ignoreComPortComboChangeEvent = True
             activeComPortCombo[1].set_model(items)
             activeComPortCombo[1].set_active(activeIndex)
+            ignoreComPortComboChangeEvent = False
 
         loadComPorts(None, None)
         activeComPortCombo[0].connect('enter-notify-event', loadComPorts)
         activeComPortCombo[1].connect('focus', loadComPorts)
 
-        activeConfigCombo = GuiFunctions.addTopLabelTo('<b>Select active configuration for transfer</b>', activeConfigCombo[0]), activeConfigCombo[1]
+        transferToTargetButton = GuiFunctions.createButton('Transfer to target', width=50, getLowLev=True)
+        transferToTargetButton[1].set_margin_start(0)
+        transferToTargetButton[1].set_margin_end(10)
+        transferToTargetButton[1].set_margin_top(10)
+        transferToTargetButton[1].set_margin_bottom(8)
+        transferToTargetButton[1].set_sensitive(False)
+        box3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        box3.add(activeComPortCombo[0])
+        box3.add(transferToTargetButton[0])
+        activeComPortCombo = box3, activeComPortCombo[1]
+        self.transferToTargetButton = transferToTargetButton[1]
+
+        activeConfigCombo = GuiFunctions.addTopLabelTo('<b>Configuration</b>', activeConfigCombo[0]), activeConfigCombo[1]
         box0.pack_start(activeConfigCombo[0], False, False, 0)
 
+        activeComPortCombo = GuiFunctions.addTopLabelTo('<b>COM port</b>', activeComPortCombo[0]), activeComPortCombo[1]
+        box0.pack_start(activeComPortCombo[0], False, False, 0)
+
         activeNodeNrCombo = GuiFunctions.addTopLabelTo('<b>Select node number</b>', activeNodeNrCombo[0]), activeNodeNrCombo[1]
-        activeComPortCombo = GuiFunctions.addTopLabelTo('<b>Select COM port</b>', activeComPortCombo[0]), activeComPortCombo[1]
-        box1.pack_start(activeComPortCombo[0], False, False, 0)
+
+        calibrationCombo = None
+
+        def onNodeNrChange(widget):
+            if calibrationCombo and not ignoreComPortComboChangeEvent:
+                calibrationCombo[1].set_active(0)
+
+        activeNodeNrCombo[1].connect('changed', onNodeNrChange)
+
+        def getComPortFromCombo():
+            portString = activeComPortCombo[1].get_model()[activeComPortCombo[1].get_active()][0]
+            descStartIndex = portString.find(':')
+            if descStartIndex != -1:
+                return portString[0: descStartIndex]
+            return ''
+
+        def onTranferToTarget(widget):
+            t = None
+
+            dialog = Gtk.MessageDialog(
+                    transient_for=self,
+                    flags=0,
+                    message_type=Gtk.MessageType.INFO,
+                    buttons=Gtk.ButtonsType.NONE,
+                    text='Transferring to target...',
+            )
+            dialog.format_secondary_text('')
+            dialog.connect('delete-event', lambda w, e : t.join())
+
+            def resetAfterTransfer(ok):
+                t.join()
+                dialog.destroy()
+
+                resultDialog = Gtk.MessageDialog(
+                        transient_for=self,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO if ok else Gtk.MessageType.ERROR,
+                        buttons=Gtk.ButtonsType.OK,
+                        text='Transfer Complete' if ok else 'Transfer Failed!',
+                )
+                resultDialog.format_secondary_text(
+                    '' if ok else 'Please transfer to target manually'
+                )
+                resultDialog.run()
+                resultDialog.destroy()
+
+            def transferThreadRun():
+                ok = ArduinoManager.transfer(getComPortFromCombo())
+                GLib.idle_add(resetAfterTransfer, ok)
+
+            t = testThread = threading.Thread(target=transferThreadRun)
+            t.start()
+
+            dialog.run()
+
+        transferToTargetButton[1].connect('clicked', onTranferToTarget)
 
         lastActiveConfig = ''
-        calibrationCombo = None
         calibrationBox = None
         def onActiveConfigChange(widget):
             nonlocal lastActiveConfig
@@ -176,6 +257,7 @@ class GuiWindow(Gtk.Window):
                         box1.remove(calibrationBox)
 
                 if configName == '':
+                    transferToTargetButton[1].set_sensitive(False)
                     items = Gtk.ListStore(str)
                     for i, name in enumerate(['']):
                         n = []
@@ -186,26 +268,17 @@ class GuiWindow(Gtk.Window):
                     activeNodeNrCombo[1].set_active(0)
                     return
 
-                with open(ArduinoSketchPath + "/config/config.h", "w") as configFile:
-                    configFile.write("#include \"" + configName + "\"\n")
+                transferToTargetButton[1].set_sensitive(True)
 
-                configFilePath = ArduinoSketchPath + "/config/" + configName
-                configFileAsString = ''
-                with open(configFilePath, "r") as configFile:
-                    configFileAsString = configFile.read()
+                self.setActiveConfig(configName)
 
-                    nodeNrList = []
-                    configClassNames = []
+                nodeNrList, configClassNames = self.getNodeNrAndClassNames(configName)
 
-                    tempConfigFileAsString = configFileAsString
-                    dcServoPattern = re.compile(r'make_unique\s*<\s*DCServoCommunicationHandler\s*>\s*\(([0-9]*)\s*,\s*createDCServo\s*<\s*(\w+)\s*>')
-                    temp = dcServoPattern.search(tempConfigFileAsString)
-                    while temp != None:
-                        nodeNrList.append(temp.group(1))
-                        configClassNames.append(temp.group(2))
-                        tempConfigFileAsString = tempConfigFileAsString[temp.end(1):]
-                        temp = dcServoPattern.search(tempConfigFileAsString)
+                if len(nodeNrList) == 0 or len(configClassNames) == 0:
+                    box1.remove(activeNodeNrCombo[0])
+                    supportedCalibrationOptions = ['']
 
+                else:
                     items = Gtk.ListStore(str)
                     for i, name in enumerate(nodeNrList):
                         n = []
@@ -217,105 +290,85 @@ class GuiWindow(Gtk.Window):
 
                     if len(items) == 1:
                         box1.remove(activeNodeNrCombo[0])
-                        box1.remove(activeComPortCombo[0])
-                        box1.pack_start(activeComPortCombo[0], False, False, 0)
                     else:
                         box1.remove(activeNodeNrCombo[0])
-                        box1.remove(activeComPortCombo[0])
                         box1.pack_start(activeNodeNrCombo[0], False, False, 0)
-                        box1.pack_start(activeComPortCombo[0], False, False, 0)
 
                     supportedCalibrationOptions = ['',
-                            'Optical encoder',
-                            'Optical encoder (manual)',
                             'Pwm nonlinearity',
+                            'Optical encoder',
                             'System identification',
                             'Output encoder calibration',
                             'Test control loop',
                             'Test control loop (Advanced)']
 
-                    def getNodeNrFromCombo(nodeNrCombo):
-                        nodeNr = nodeNrCombo.get_model()[nodeNrCombo.get_active()][0]
-                        nodeNr = int(nodeNr)
+                def getNodeNrFromCombo(nodeNrCombo):
+                    nodeNr = nodeNrCombo.get_model()[nodeNrCombo.get_active()][0]
+                    nodeNr = int(nodeNr)
 
-                        return nodeNr
+                    return nodeNr
 
-                    def getComPortFromCombo(comPortCombo):
-                        portString = comPortCombo.get_model()[comPortCombo.get_active()][0]
-                        descStartIndex = portString.find(':')
-                        if descStartIndex != -1:
-                            return portString[0: descStartIndex]
-                        return ''
+                def getConfigClassNameFromCombo(nodeNrCombo):
+                    return configClassNames[nodeNrCombo.get_active()]
 
-                    def getConfigClassNameFromCombo(nodeNrCombo):
-                        return configClassNames[nodeNrCombo.get_active()]
+                def onCaribrationTypeChange(widget):
+                    nonlocal calibrationBox
+                    nonlocal box1
+                    calibrationType = ''
+                    activeIter = widget.get_active_iter()
+                    if activeIter is not None:
+                        model = widget.get_model()
+                        calibrationType = model[activeIter][0]
 
-                    def onCaribrationTypeChange(widget):
-                        nonlocal calibrationBox
-                        nonlocal box1
-                        calibrationType = ''
-                        activeIter = widget.get_active_iter()
-                        if activeIter is not None:
-                            model = widget.get_model()
-                            calibrationType = model[activeIter][0]
+                    if calibrationBox != None:
+                        box1.remove(calibrationBox)
 
-                        if calibrationBox != None:
-                            box1.remove(calibrationBox)
+                    configFilePath = self.ArduinoSketchPath + "/config/" + configName
 
-                        if calibrationType == '':
-                            calibrationBox = None
+                    if calibrationType == '':
+                        calibrationBox = None
 
-                        elif calibrationType == 'Optical encoder' or calibrationType == 'Optical encoder (manual)':
-                            manualMovement = False
-                            if calibrationType == 'Optical encoder (manual)':
-                                manualMovement = True
-                            else:
-                                GuiFunctions.disconnectMotorFromGearboxMessage(self)
+                    elif calibrationType == 'Pwm nonlinearity':
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = PwmNonlinearityAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
-                            nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            getPortFun = getComPortFromCombo
-                            configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName, manualMovement)
+                    elif calibrationType == 'Optical encoder':
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
-                        elif calibrationType == 'Pwm nonlinearity':
-                            GuiFunctions.disconnectMotorFromGearboxMessage(self)
+                    elif calibrationType == 'System identification':
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
-                            nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            getPortFun = getComPortFromCombo
-                            configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = PwmNonlinearityAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                    elif calibrationType == 'Output encoder calibration':
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
-                        elif calibrationType == 'System identification':
-                            GuiFunctions.disconnectMotorFromGearboxMessage(self)
+                    elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
+                        advancedMode = False
+                        if calibrationType == 'Test control loop (Advanced)':
+                            advancedMode = True
+                        
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName, advancedMode)
 
-                            nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            getPortFun = getComPortFromCombo
-                            configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                    if calibrationBox != None:
+                        box1.pack_start(calibrationBox, False, False, 0)
 
-                        elif calibrationType == 'Output encoder calibration':
-                            nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            getPortFun = getComPortFromCombo
-                            configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
-
-                        elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
-                            advancedMode = False
-                            if calibrationType == 'Test control loop (Advanced)':
-                                advancedMode = True
-                            
-                            nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            getPortFun = getComPortFromCombo
-                            configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName, advancedMode)
-
-                        if calibrationBox != None:
-                            box1.pack_start(calibrationBox, False, False, 0)
-
-                    calibrationCombo = GuiFunctions.creatComboBox('', supportedCalibrationOptions, onCaribrationTypeChange, getLowLev=True)
-                    calibrationCombo = GuiFunctions.addTopLabelTo('<b>Supported calibrations</b>', calibrationCombo[0]), calibrationCombo[1]
-                    box1.pack_start(calibrationCombo[0], False, False, 0)
-                    box1.show_all()
+                calibrationCombo = GuiFunctions.creatComboBox('', supportedCalibrationOptions, onCaribrationTypeChange, getLowLev=True)
+                calibrationCombo = GuiFunctions.addTopLabelTo('<b>Supported calibrations</b>', calibrationCombo[0]), calibrationCombo[1]
+                box1.pack_start(calibrationCombo[0], False, False, 0)
+                box1.show_all()
 
 
         activeConfigCombo[1].connect('changed', onActiveConfigChange)
@@ -330,3 +383,31 @@ class GuiWindow(Gtk.Window):
 
         configs.sort()
         return configs
+
+    def setActiveConfig(self, configName):
+        with open(self.ArduinoSketchPath + "/config/config.h", "w") as configFile:
+            configFile.write("#include \"" + configName + "\"\n")
+
+    def getNodeNrAndClassNames(self, configName):
+        nodeNrList = []
+        configClassNames = []
+
+        configFilePath = self.ArduinoSketchPath + "/config/" + configName
+        configFileAsString = ''
+
+        with open(configFilePath, "r") as configFile:
+            configFileAsString = configFile.read()
+
+            tempConfigFileAsString = configFileAsString
+            dcServoPattern = re.compile(r'make_unique\s*<\s*DCServoCommunicationHandler\s*>\s*\(([0-9]*)\s*,\s*createDCServo\s*<\s*(\w+)\s*>')
+            temp = dcServoPattern.search(tempConfigFileAsString)
+            while temp != None:
+                nodeNrList.append(temp.group(1))
+                configClassNames.append(temp.group(2))
+                tempConfigFileAsString = tempConfigFileAsString[temp.end(1):]
+                temp = dcServoPattern.search(tempConfigFileAsString)
+
+        return nodeNrList, configClassNames
+
+    def setFocusOnTranferButton(self):
+        self.transferToTargetButton.grab_focus()
