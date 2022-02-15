@@ -680,7 +680,7 @@ class OpticalEncoderDataVectorGenerator:
 
         return out
 
-def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMovement):
+def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, manualMovement):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     pwmValue = 0
@@ -836,7 +836,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             widget.set_label('Stop pwm test')
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=testPwmRun, args=(nodeNr, port,))
+            testThread = threading.Thread(target=testPwmRun, args=(nodeNr, getPortFun(),))
             testThread.start()
         else:
             with threadMutex:
@@ -1065,7 +1065,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
 
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, port,))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
             testThread.start()                                    
         else:
             with threadMutex:

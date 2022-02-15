@@ -126,7 +126,7 @@ class PwmNonlinearityIdentifier(object):
 
         return out
 
-def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
+def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
 
@@ -354,7 +354,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             widget.set_label('Stop pwm test')
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=testPwmRun, args=(nodeNr,port,))
+            testThread = threading.Thread(target=testPwmRun, args=(nodeNr,getPortFun(),))
             testThread.start()
         else:
             with threadMutex:
@@ -591,7 +591,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
 
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, port,))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
             testThread.start()                                    
         else:
             with threadMutex:

@@ -273,31 +273,31 @@ class GuiWindow(Gtk.Window):
                                 GuiFunctions.disconnectMotorFromGearboxMessage(self)
 
                             nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            port = getComPortFromCombo(activeComPortCombo[1])
+                            getPortFun = getComPortFromCombo
                             configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, port, configFilePath, configClassName, manualMovement)
+                            calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName, manualMovement)
 
                         elif calibrationType == 'Pwm nonlinearity':
                             GuiFunctions.disconnectMotorFromGearboxMessage(self)
 
                             nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            port = getComPortFromCombo(activeComPortCombo[1])
+                            getPortFun = getComPortFromCombo
                             configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = PwmNonlinearityAnalyzer.createGuiBox(self, nodeNr, port, configFilePath, configClassName)
+                            calibrationBox = PwmNonlinearityAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
                         elif calibrationType == 'System identification':
                             GuiFunctions.disconnectMotorFromGearboxMessage(self)
 
                             nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            port = getComPortFromCombo(activeComPortCombo[1])
+                            getPortFun = getComPortFromCombo
                             configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, port, configFilePath, configClassName)
+                            calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
                         elif calibrationType == 'Output encoder calibration':
                             nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            port = getComPortFromCombo(activeComPortCombo[1])
+                            getPortFun = getComPortFromCombo
                             configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, port, configFilePath, configClassName)
+                            calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
                         elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
                             advancedMode = False
@@ -305,9 +305,9 @@ class GuiWindow(Gtk.Window):
                                 advancedMode = True
                             
                             nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                            port = getComPortFromCombo(activeComPortCombo[1])
+                            getPortFun = getComPortFromCombo
                             configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                            calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, port, configFilePath, configClassName, advancedMode)
+                            calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName, advancedMode)
 
                         if calibrationBox != None:
                             box1.pack_start(calibrationBox, False, False, 0)

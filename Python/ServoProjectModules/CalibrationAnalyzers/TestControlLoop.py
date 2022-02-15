@@ -1,6 +1,6 @@
 from ServoProjectModules.CalibrationAnalyzers.Helper import *
 
-def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advancedMode):
+def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, advancedMode):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
 
@@ -243,7 +243,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advanced
 
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startTestRun, args=(nodeNr, port,))
+            testThread = threading.Thread(target=startTestRun, args=(nodeNr, getPortFun(),))
             testThread.start()                                    
         else:
             with threadMutex:
