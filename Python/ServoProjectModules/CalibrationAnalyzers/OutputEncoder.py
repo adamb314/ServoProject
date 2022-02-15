@@ -18,55 +18,39 @@ class OutputEncoderCalibrationGenerator(object):
         for i in range(0, posListSize):
             posList.append([])
 
+        lastPos = int(round((self.data[0, 1] % 4096) / 8))
+        inSequence = []
         for d in self.data:
+            if d[0] < 1.0:
+                continue
             if d[1] != maxPos and d[1] != minPos:
                 pos = int(round((d[1] % 4096) / 8))
                 if pos == posListSize:
                     pos = posListSize - 1
-                posList[pos].append(d[2])
 
-        backlashSizeSum = 0
-        backlashSizeNr = 0
-        for d in posList:
-            if len(d) >= 2:
-                backlashSizeSum += max(d) - min(d)
-                backlashSizeNr += 1
+                if lastPos == pos:
+                    inSequence.append(d[2])
+                elif len(inSequence) > 0:
+                    posList[pos].append([sum(inSequence), len(inSequence)])
+                    inSequence = []
+                lastPos = pos
 
-        meanBacklashSize = backlashSizeSum / backlashSizeNr
-
-        self.minList = []
-        self.maxList = []
         self.meanList = []
         for d in posList:
-            temp = d
-            if len(temp) == 0:
-                self.minList.append(None)
-                self.maxList.append(None)
+            if len(d) < 2:
                 self.meanList.append(None)
             else:
-                maxV = max(temp)
-                minV = min(temp)
-                meanV = (maxV + minV) / 2
-                minSum = 0
-                minNr = 0
-                maxSum = 0
-                maxNr = 0
-                for d in temp:
-                    if d < meanV - meanBacklashSize / 2 * 0.0:
-                        minSum += d
-                        minNr += 1
-                    elif d > meanV + meanBacklashSize / 2 * 0.0:
-                        maxSum += d
-                        maxNr += 1
-
-                if minNr > 1 and maxNr > 1:
-                    self.minList.append(minSum / minNr)
-                    self.maxList.append(maxSum / maxNr)
-                    self.meanList.append((self.minList[-1] + self.maxList[-1]) / 2)
-                else:
-                    self.minList.append(None)
-                    self.maxList.append(None)
-                    self.meanList.append(None)
+                d.sort(key=lambda dd: -dd[1])
+                listOfMeans = [dd[0] / dd[1] for dd in d]
+                mean = sum(listOfMeans) / len(listOfMeans)
+                eps = 0.0001
+                underMean = [dd for dd in listOfMeans if dd < mean - eps]
+                overMean = [dd for dd in listOfMeans if dd > mean + eps]
+                l = min(len(underMean), len(overMean))
+                if l != 0:
+                    self.meanList.append((sum(underMean[0:l]) + sum(overMean[0:l])) / (2 * l))
+                elif len(underMean) == 0 and len(overMean) == 0:
+                    self.meanList.append(mean)
 
         i = 0
         if wrapAround:
@@ -92,26 +76,27 @@ class OutputEncoderCalibrationGenerator(object):
             if i == end:
                 break
 
-        for d1 in noneSegList:
-            for d2 in d1:
-                t = (d2 - (d1[0] - 1)) / ((d1[-1] + 1) - (d1[0] - 1))
-                if not wrapAround and d1[0] - 1 < 0:
-                    a = self.meanList[d1[-1] + 1]
-                else:
-                    a = self.meanList[d1[0] - 1]
-                if not wrapAround and d1[-1] + 1 == len(self.meanList):
-                    b = self.meanList[d1[0] - 1]
-                else:
-                    b = self.meanList[d1[-1] + 1]
-                
-                self.meanList[d2] = (b - a) * t + a
+        if len(noneSegList) > 1:
+            for d1 in noneSegList:
+                for d2 in d1:
+                    t = (d2 - (d1[0] - 1)) / ((d1[-1] + 1) - (d1[0] - 1))
+                    if not wrapAround and d1[0] - 1 < 0:
+                        a = self.meanList[d1[-1] + 1]
+                    else:
+                        a = self.meanList[d1[0] - 1]
+                    if not wrapAround and d1[-1] + 1 == len(self.meanList):
+                        b = self.meanList[d1[0] - 1]
+                    else:
+                        b = self.meanList[d1[-1] + 1]
+                    
+                    self.meanList[d2] = (b - a) * t + a
 
-        if wrapAround:
-            self.meanList.append(self.meanList[0])
+            if wrapAround:
+                self.meanList.append(self.meanList[0])
 
-        self.meanList = np.array(self.meanList)
-        self.data[:, 2] -= np.mean(self.meanList)
-        self.meanList -= np.mean(self.meanList)
+            self.meanList = np.array(self.meanList)
+            self.data[:, 2] -= np.mean(self.meanList)
+            self.meanList -= np.mean(self.meanList)
 
     def checkForInvertedEncoder(data):
         minPos = min(data[:, 1])
@@ -126,13 +111,50 @@ class OutputEncoderCalibrationGenerator(object):
     def isInverted(self):
         return OutputEncoderCalibrationGenerator.checkForInvertedEncoder(self.data)
 
+    _compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*([^\}]*)\s*\};')
+
+    def getConfiguredOutputEncoderData(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        wrapAroundAndUnitPerRevPattern = re.compile(r'return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\(([^;]*)\s*compVec\s*\)\s*;')
+
+        temp = wrapAroundAndUnitPerRevPattern.search(configClassString)
+        
+        magneticEncoder = temp.group(1) == 'EncoderHandler'
+        unitsPerRev = 4096
+        if not magneticEncoder:
+            paramStr = wrapAroundAndUnitPerRevPattern.search(configClassString).group(2)
+            i = paramStr.find(',')
+            paramStr = paramStr[i + 1:]
+            i = paramStr.find(',')
+            paramStr = paramStr[0:i]
+            paramStr = re.sub(r'f', '', paramStr)
+            unitsPerRev = eval(paramStr)
+
+        return magneticEncoder, unitsPerRev
+
+    def checkForPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        temp = OutputEncoderCalibrationGenerator._compVecPattern.search(configClassString)
+        if temp != None:
+            if temp.group(3) != '0':
+                return True
+
+        return False
+
+    def resetPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+        configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\1{0};', configClassString)
+        configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+        return configFileAsString
+
     def plotGeneratedVector(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
         ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b,')
-        #ax.plot(self.minList, 'b-+')
-        #ax.plot(self.maxList, 'r-+')
         ax.plot(range(0, 4096 + 8, 8), self.meanList, 'g-+')
 
         canvas = FigureCanvas(fig)
@@ -141,14 +163,15 @@ class OutputEncoderCalibrationGenerator(object):
 
         box.show_all()
 
-    def writeVectorToConfigClassString(self, configClassString):
-        compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*[^\}]*\s*\};')
+    def writeVectorToConfigFileString(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
         
-        temp = compVecPattern.search(configClassString)
+        temp = OutputEncoderCalibrationGenerator._compVecPattern.search(configClassString)
         if temp != None:
-            configClassString = re.sub(compVecPattern, r'\1' + intArrayToString(self.meanList), configClassString)
+            configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\1' + intArrayToString(self.meanList), configClassString)
 
-            return configClassString
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+            return configFileAsString
 
         return ''
 
@@ -158,15 +181,23 @@ class OutputEncoderCalibrationGenerator(object):
 
         return out
 
-    def invertOutputEncoder(self, configClassString):
-        unitPerRevPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*\w*\s*>\s*\([^,]*,\s*)([^,]*)(,\s*compVec\s*\)\s*;)')
+    def invertOutputEncoder(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+        unitPerRevPattern = re.compile(r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*\w*\s*>\s*\([^,]*,\s*)(?P<units>[^,]*)(?P<end>,\s*compVec\s*\)\s*;)')
 
         temp = unitPerRevPattern.search(configClassString)
 
         if temp != None:
-            configClassString = re.sub(unitPerRevPattern, r'\1-(\3)\4', configClassString)
+            unitsPerRevStr = temp.group('units')
+            unitsPerRevStr = '-(' + unitsPerRevStr + ')'
+
+            while unitsPerRevStr.find('-(-(') == 0:
+                unitsPerRevStr = unitsPerRevStr[4:-2]
+
+            configClassString = re.sub(unitPerRevPattern, r'\g<beg>' + unitsPerRevStr + r'\g<end>', configClassString)
         
-            return configClassString
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+            return configFileAsString
 
         return ''
 
@@ -241,24 +272,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with open(configFilePath, "r") as configFile:
             configFileAsString = configFile.read()
 
-            classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-            classString = classPattern.search(configFileAsString).group(0)
-
-            wrapAroundAndUnitPerRevPattern = re.compile(r'return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\(([^;]*)\s*compVec\s*\)\s*;')
-
-            temp = wrapAroundAndUnitPerRevPattern.search(classString)
-            
-            magneticEncoder = temp.group(1) == 'EncoderHandler'
-            unitsPerRev = 4096
-            if not magneticEncoder:
-                paramStr = wrapAroundAndUnitPerRevPattern.search(classString).group(2)
-                i = paramStr.find(',')
-                paramStr = paramStr[i + 1:]
-                i = paramStr.find(',')
-                paramStr = paramStr[0:i]
-                paramStr = re.sub(r'f', '', paramStr)
-                unitsPerRev = eval(paramStr)
-
+            magneticEncoder, unitsPerRev = OutputEncoderCalibrationGenerator.getConfiguredOutputEncoderData(configFileAsString, configClassName)
             outputEncoderCalibrationGenerator = OutputEncoderCalibrationGenerator(data, magneticEncoder, unitsPerRev)
 
             if outputEncoderCalibrationGenerator.isInverted():
@@ -276,10 +290,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 dialog.destroy()
 
                 if response == Gtk.ResponseType.YES:
-                    classString = outputEncoderCalibrationGenerator.invertOutputEncoder(classString)
+                    configFileAsString = outputEncoderCalibrationGenerator.invertOutputEncoder(configFileAsString, configClassName)
 
-                    if classString != '':
-                        configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                    if configFileAsString != '':
                         with open(configFilePath, "w") as configFile:
                             configFile.write(configFileAsString)
                             GuiFunctions.transferToTargetMessage(parent)
@@ -312,14 +325,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 "Should the configuration be updated with the green compensation vector?"
             )
             outputEncoderCalibrationGenerator.plotGeneratedVector(dialog.get_message_area())
+            dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
             response = dialog.run()
             dialog.destroy()
 
             if response == Gtk.ResponseType.YES:
-                classString = outputEncoderCalibrationGenerator.writeVectorToConfigClassString(classString)
+                configFileAsString = outputEncoderCalibrationGenerator.writeVectorToConfigFileString(configFileAsString, configClassName)
 
-                if classString != '':
-                    configFileAsString = re.sub(classPattern, classString, configFileAsString)
+                if configFileAsString != '':
                     with open(configFilePath, "w") as configFile:
                         configFile.write(configFileAsString)
                         GuiFunctions.transferToTargetMessage(parent)
@@ -338,7 +351,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 )
                 box = dialog.get_message_area()
                 vecEntry = Gtk.Entry()
-                vecEntry.set_text(outputEncoderCalibrationGenerator.getGeneratedModel())
+                vecEntry.set_text(outputEncoderCalibrationGenerator.getGeneratedVector())
                 box.add(vecEntry)
                 box.show_all()
                 response = dialog.run()
@@ -377,7 +390,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 if t < 0:
                     servo.setOpenLoopControlSignal(0, True)
                 else:
-                    refVel = (maxPos - minPos) / 10.0
+                    refVel = (maxPos - minPos) / 20.0
                     refPos += direction * refVel * dt
 
                     if refPos >= maxPos:
@@ -393,6 +406,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             encPos = None
             filteredVel = 0.0
+
+            if port == '':
+                servo = robot.servoArray[0]
+                p = servo.getPosition(True)
+                minPos = p - 1.5
+                maxPos = p + 1.5
+                out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 2 / servo.getScaling()])
+                out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), -2 / servo.getScaling()])
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
@@ -504,39 +525,29 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             with open(configFilePath, "r") as configFile:
                 configFileAsString = configFile.read()
 
-                classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
-                temp = classPattern.search(configFileAsString)
-                if temp != None:
-                    classString = temp.group(0)
+                if OutputEncoderCalibrationGenerator.checkForPreviousCalibration(configFileAsString, configClassName):
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.ERROR,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Output encoder calibration already done for this configuration!',
+                    )
+                    dialog.format_secondary_text(
+                        "Output encoder calibration only works on configurations without previous calibration.\n\nShould the calibration be reset?"
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
 
-                    compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*([^\}]*)\s*\};')
+                    if response == Gtk.ResponseType.NO:
+                        return
 
-                    temp = compVecPattern.search(classString)
-                    if temp != None:
-                        if temp.group(3) != '0':
-                            dialog = Gtk.MessageDialog(
-                                    transient_for=parent,
-                                    flags=0,
-                                    message_type=Gtk.MessageType.ERROR,
-                                    buttons=Gtk.ButtonsType.YES_NO,
-                                    text='Output encoder calibration already done for this configuration!',
-                            )
-                            dialog.format_secondary_text(
-                                "Output encoder calibration only works on configurations without previous calibration.\n\nShould the calibration be reset?"
-                            )
-                            response = dialog.run()
-                            dialog.destroy()
+                    configFileAsString = OutputEncoderCalibrationGenerator.resetPreviousCalibration(configFileAsString, configClassName)
+                    with open(configFilePath, "w") as configFile:
+                        configFile.write(configFileAsString)
+                        GuiFunctions.transferToTargetMessage(parent)
 
-                            if response == Gtk.ResponseType.NO:
-                                return
-
-                            classString = re.sub(compVecPattern, r'\1{0};', classString)
-                            configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                            with open(configFilePath, "w") as configFile:
-                                configFile.write(configFileAsString)
-                                GuiFunctions.transferToTargetMessage(parent)
-
-                            return
+                    return
 
             widget.set_label('Abort calibration')
 
