@@ -35,10 +35,10 @@ class SerialCommunication(object):
         self.commandArray.append(int(value))
 
     def writeInt(self, nr, value):
-        value = value % (256 * 256)
+        int16Value = int(value) % (256 * 256)
         self.commandArray.append(int(nr) + 64)
-        self.commandArray.append(int(value % 256))
-        self.commandArray.append(int(value / 256))
+        self.commandArray.append(int(int16Value % 256))
+        self.commandArray.append(int(int16Value / 256))
 
     def requestReadChar(self, nr):
         self.commandArray.append(int(nr) + 128)
