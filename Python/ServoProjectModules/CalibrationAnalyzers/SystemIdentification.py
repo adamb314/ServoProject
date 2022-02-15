@@ -182,6 +182,18 @@ class KalmanFilter(object):
 
         self.polyK = np.vstack((p1, p2, p3))
 
+def getModelDtFromConfigFileString(configFileAsString, configClassName):
+    configClassString = getConfigClassString(configFileAsString, configClassName)
+
+    dtPattern = re.compile(r'Eigen::Matrix3f\s+A;[\n\s]+A\s*<<\s*[^,]*,\s*([^,]*)')
+    temp = dtPattern.search(configClassString)
+    if temp != None:
+        dtStr = temp.group(1)
+        dtStr = re.sub(r'f', '', dtStr)
+        return float(dtStr)
+    else:
+        raise Exception('Could not find model dt')
+
 class ServoModel(object):
     """docstring for ServoModel"""
     def __init__(self, dt, systemModel):
@@ -248,7 +260,9 @@ class ServoModel(object):
         out += indent + '};'
         return out
 
-    def writeModelToConfigClassString(self, configClassString):
+    def writeModelToConfigFileString(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)            
+
         pwmToStallCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+pwmToStallCurrent\s*)\{[^\}]*\};')
         backEmfCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+backEmfCurrent\s*)\{[^\}]*\};')
         controlParametersPattern = re.compile(r'((\s*)class\s+ControlParameters\s+:.*\n\2\{)(.*\n)*?\2\};')
@@ -268,7 +282,9 @@ class ServoModel(object):
             out += self.getControlParametersClassContentStr(r'\2')
             configClassString = re.sub(controlParametersPattern, out, configClassString)
 
-            return configClassString
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+            return configFileAsString
 
         return ''
 
@@ -293,9 +309,34 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
 
+    limitMovementButton = GuiFunctions.createToggleButton('Lock', getLowLev=True)
+    limitMovementButton = GuiFunctions.addTopLabelTo('<b>Limit movement</b>\n Only move around locked position to avoid end limits', limitMovementButton[0]), limitMovementButton[1]
+    calibrationBox.pack_start(limitMovementButton[0], False, False, 0)
+
+    startPos = None
+
+    def onLockPosition(widget):
+        nonlocal startPos
+        if widget.get_active():
+            with createRobot(nodeNr, getPortFun()) as r:
+                startPos = r.servoArray[0].getPosition(True)
+        else:
+            startPos = None
+
+    limitMovementButton[1].connect('toggled', onLockPosition)
+
+    outputModelDt = 0.0012
     motorSettleTime = 2
     minPwmValue = 10
     maxPwmValue = 100
+
+    try:
+        with open(configFilePath, "r") as configFile:
+            configFileAsString = configFile.read()
+            outputModelDt = getModelDtFromConfigFileString(configFileAsString, configClassName)
+    except Exception as e:
+        pass
+
 
     motorSettleTimeScale = GuiFunctions.creatHScale(motorSettleTime, 1, 10, 1, getLowLev=True)
     motorSettleTimeScale = GuiFunctions.addTopLabelTo('<b>Motor settle time</b>', motorSettleTimeScale[0]), motorSettleTimeScale[1]
@@ -310,6 +351,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
+
+    dtSpinButton = GuiFunctions.creatSpinButton(outputModelDt * 1000, 0.6, 2.4, 0.2, getLowLev=True)
+    dtSpinButton[1].set_margin_end(6)
+    label = GuiFunctions.createLabel('ms')
+    label.set_margin_start(6)
+    dtSpinButton[0].pack_start(label, False, False, 0)
+    dtSpinButton = GuiFunctions.addTopLabelTo('<b>System model cycle time</b>', dtSpinButton[0]), dtSpinButton[1]
+
+
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
 
     recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
@@ -365,12 +415,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
         testButton[1].set_label('Test pwm value')
         testButton[1].set_sensitive(True)
+        dtSpinButton[1].set_sensitive(True)
         startButton[1].set_label('Start calibration')
         startButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
         motorSettleTimeScale[1].set_sensitive(True)
         minPwmScale[1].set_sensitive(True)
         maxPwmScale[1].set_sensitive(True)
+        limitMovementButton[1].set_sensitive(True)
 
     runThread = False
     def testPwmRun(nodeNr, port):
@@ -380,15 +432,28 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with createRobot(nodeNr, port) as robot:
             t = 0.0
             doneRunning = False
+            pwmDir = 1
+            moveDir = 0
 
             def sendCommandHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal testPwmValue
                 nonlocal threadMutex
+                nonlocal pwmDir
+                nonlocal moveDir
 
                 servo = robot.servoArray[0]
 
-                servo.setOpenLoopControlSignal(testPwmValue, True)
+                pos = servo.getPosition(True)
+
+                if startPos != None:
+                    if pos - startPos < -1 and moveDir != -1:
+                        moveDir = -1
+                        pwmDir *= -1
+                    elif pos - startPos > 1 and moveDir != 1:
+                        moveDir = 1
+                        pwmDir *= -1
+
+                servo.setOpenLoopControlSignal(testPwmValue * pwmDir, True)
 
             out = []
 
@@ -455,7 +520,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal threadMutex
 
         if widget.get_label() == 'Test pwm value':
+            dtSpinButton[1].set_sensitive(False)
             startButton[1].set_sensitive(False)
+            limitMovementButton[1].set_sensitive(False)
             widget.set_label('Stop pwm test')
             with threadMutex:
                 runThread = True
@@ -465,6 +532,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             with threadMutex:
                 runThread = False
             testThread.join()
+
+    def onDtSpinButtonChange(widget):
+        outputModelDt = widget.get_value()
 
     def updateRecordingProgressBar(fraction):
         nonlocal recordingProgressBar
@@ -485,37 +555,24 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             "Should the configuration be updated with the new model?"
         )
         systemIdentifier.plotServoSystemModel(dialog.get_message_area())
+        dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
         response = dialog.run()
         dialog.destroy()
 
         if response == Gtk.ResponseType.YES:
-            dt = 0.0012
             with open(configFilePath, "r") as configFile:
                 configFileAsString = configFile.read()
 
-                classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-                temp = classPattern.search(configFileAsString)
-                if temp != None:
-                    classString = temp.group(0)
+                servoModel = ServoModel(outputModelDt, systemIdentifier)
 
-                    dtPattern = re.compile(r'Eigen::Matrix3f\s+A;[\n\s]+A\s*<<\s*[^,]*,\s*([^,]*)')
-                    temp = dtPattern.search(classString)
-                    if temp != None:
-                        dtStr = temp.group(1)
-                        dtStr = re.sub(r'f', '', dtStr)
-                        dt = float(dtStr)
+                configFileAsString = servoModel.writeModelToConfigFileString(configFileAsString, configClassName)
 
-                        servoModel = ServoModel(dt, systemIdentifier)
-                        
-                        classString = servoModel.writeModelToConfigClassString(classString)
+                if configFileAsString != '':
+                    with open(configFilePath, "w") as configFile:
+                        configFile.write(configFileAsString)
+                        GuiFunctions.transferToTargetMessage(parent)
 
-                        if classString != '':
-                            configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                            with open(configFilePath, "w") as configFile:
-                                configFile.write(configFileAsString)
-                                GuiFunctions.transferToTargetMessage(parent)
-
-                                return
+                        return
 
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
@@ -545,33 +602,24 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with createRobot(nodeNr, port, 0.018) as robot:
             pwmSampleValues = []
             nr = 10
-            for i in range(1, nr + 1):
-                pwmSampleValues.append(i * (maxPwmValue - minPwmValue) / nr + minPwmValue)
+            for i in range(0, nr):
+                pwmSampleValues.append(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue)
                 pwmSampleValues.append(minPwmValue)
-                pwmSampleValues.append(-(i * (maxPwmValue - minPwmValue) / nr + minPwmValue))
+                pwmSampleValues.append(-(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue))
                 pwmSampleValues.append(-minPwmValue)
 
-            t = 0.0
-            doneRunning = False
-
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal threadMutex
-                nonlocal maxPwmValue
+                return
 
-                t += dt
+            t = 0.0
+            if startPos != None:
+                t = -float(motorSettleTime)
 
-                servo = robot.servoArray[0]
-
-                pwm = 0.0
-                if int(t / motorSettleTime) < len(pwmSampleValues):
-                    pwm = pwmSampleValues[int(t / motorSettleTime)]
-                else:
-                    return
-
-                GLib.idle_add(updateRecordingProgressBar, (t / motorSettleTime) / len(pwmSampleValues))
-
-                servo.setOpenLoopControlSignal(pwm, True)
+            doneRunning = False
+            i = 0
+            pwm = None
+            pwmDir = -1
+            outEncDir = 1
 
             out = []
 
@@ -579,9 +627,56 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 nonlocal t
                 nonlocal runThread
                 nonlocal doneRunning
-                nonlocal pwmSampleValues
+                nonlocal pwm
+                nonlocal i
+                nonlocal pwmDir
+                nonlocal startPos
+                nonlocal outEncDir
 
-                stop = int(t / motorSettleTime) >= len(pwmSampleValues)
+                stop = False
+
+                servo = robot.servoArray[0]
+
+                d = [t, servo.getPosition(False) / servo.getScaling(),
+                        pwm]
+                if pwm != None:
+                    out.append(d)
+
+                pos = servo.getPosition(True)
+
+                if t < 0:
+                    if pwmDir == -1:
+                        if abs(pos - startPos) > 1.0:
+                            pwmDir = 1
+                            if pos - startPos >= 0.0:
+                                outEncDir = -1
+                        t = -motorSettleTime
+                    elif abs(pos - startPos) > 1.0:
+                        t = -motorSettleTime
+                    else:
+                        pwmDir = 0
+
+                    servo.setOpenLoopControlSignal(maxPwmValue * pwmDir, True)
+
+                    pwm = None
+                else:
+                    i = int(t / motorSettleTime)
+                    if i < len(pwmSampleValues):
+                        pwm = pwmSampleValues[i]
+
+                        if startPos != None:
+                            if outEncDir * pwm < 0 and pos - startPos > 1.0:
+                                t -= dt
+                            if outEncDir * pwm > 0 and pos - startPos < -1.0:
+                                t -= dt
+                    else:
+                        pwm = 0
+                        stop = True
+
+                    servo.setOpenLoopControlSignal(pwm, True)
+
+                GLib.idle_add(updateRecordingProgressBar, t / (motorSettleTime * len(pwmSampleValues)))
+
                 with threadMutex:
                     if runThread == False:
                         stop = True
@@ -591,10 +686,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     doneRunning = True
                     return
 
-                servo = robot.servoArray[0]
-                out.append([t,
-                        servo.getPosition(False) / servo.getScaling(),
-                        pwmSampleValues[int(t / motorSettleTime)]])
+                t += dt
 
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
@@ -629,10 +721,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             recordingProgressBar[1].set_fraction(0.0)
             testButton[1].set_sensitive(False)
+            dtSpinButton[1].set_sensitive(False)
             calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
             motorSettleTimeScale[1].set_sensitive(False)
             minPwmScale[1].set_sensitive(False)
             maxPwmScale[1].set_sensitive(False)
+            limitMovementButton[1].set_sensitive(False)
 
             calibrationBox.show_all()
 
@@ -646,8 +740,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             testThread.join()
 
     testButton[1].connect('clicked', onTestPwm)
+    dtSpinButton[1].connect('changed', onDtSpinButtonChange)
     startButton[1].connect('clicked', onStartCalibration)
     calibrationBox.pack_start(testButton[0], False, False, 0)
+    calibrationBox.pack_start(dtSpinButton[0], False, False, 0)
     calibrationBox.pack_start(startButton[0], False, False, 0)
     calibrationBox.show_all()
 
