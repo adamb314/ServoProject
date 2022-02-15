@@ -6,6 +6,13 @@ import random
 
 pi = 3.1415926535
 
+def removeIntWraparound(newVal, oldVal, bitLenght):
+    diff = (newVal - oldVal) % (2**bitLenght)
+    if diff > (2**bitLenght / 2):
+        diff -= (2**bitLenght)
+    newVal = oldVal + diff
+    return newVal
+
 class SerialCommunication(object):
     def __init__(self, devName):
         if devName != '':
@@ -156,43 +163,71 @@ class SerialCommunication(object):
 class SimulateCommunication(SerialCommunication):
     class ServoSim(object):
         def __init__(self):
-            self.pos = 40240
+            self.pos = 1257.5
             self.vel = 0
             self.charArray = [0] * 16
             self.intArray = [0] * 16
-            self.intArray[3] = self.pos
+            self.intArray[0] = int(self.pos * 32)
+            self.intArray[3] = self.intArray[0]
+            self.intArray[10] = self.intArray[3]
+            self.timestamp = None
 
         def run(self):
+            dt = 0.0
+            newTimestamp = time.monotonic()
+            if self.timestamp != None:
+                dt = newTimestamp - self.timestamp
+            self.timestamp = newTimestamp
+
             force = self.intArray[2]
 
-            if self.charArray[1] == True:
-                dt = 0.004
+            if self.charArray[1] == True and dt > 0.0:
+                subStep = 10
+                for i in range(0, subStep):
+                    velInRad = self.vel / 2048 * math.pi
 
-                damp = 5
-                friction = force - damp * self.vel + self.vel / dt
-                if friction > 10:
-                    friction = 10
-                elif friction < -10:
-                    friction = -10
+                    damp = 5
+                    backEmf = 0.3
+                    maxFriction = 40
+                    b = 0.1
 
-                self.vel = self.vel + dt * (force - damp * self.vel - friction)
+                    f = force - backEmf * velInRad * abs(force);
+                    friction = f - damp * velInRad + velInRad / (dt / subStep * b)
+                    if friction > maxFriction:
+                        friction = maxFriction
+                    elif friction < -maxFriction:
+                        friction = -maxFriction
 
-                self.pos += dt * self.vel
+                    self.vel += (dt / subStep * b) * (f - damp * velInRad - friction) / math.pi * 2048
 
-                self.intArray[12] = (1 + math.sin(self.pos)) * 400 + 1000 + random.random() * 30
-                self.intArray[13] = (1 + math.cos(self.pos)) * 700 + 1000 + random.random() * 30
+                    self.pos += dt / subStep * self.vel
 
-                self.intArray[3] = self.pos
-                self.intArray[10] = self.pos
-                self.intArray[4] = self.vel
+
+                self.intArray[12] = int((1 + math.sin(self.pos / 2048 * math.pi * 100)) * 400 + 1000 + random.random() * 10)
+                self.intArray[13] = int((1 + math.cos(self.pos / 2048 * math.pi * 100)) * 700 + 1000 + random.random() * 10)
+
+                self.charArray[1] = False
             else:
-                self.pos = self.intArray[0]
-                self.vel = self.intArray[1]
-                self.intArray[3] = self.pos
-                self.intArray[10] = self.pos
-                self.intArray[4] = self.vel
+                newPosRef = self.intArray[0]
+                oldPosRef = self.pos * 32
 
-            self.intArray[5] = force
+                self.pos = removeIntWraparound(newPosRef, oldPosRef, bitLenght=16) / 32
+                self.vel = self.intArray[1]
+
+            if self.charArray[6] == 0:
+                backlashSize = int(5 * 32 + random.random() * 10)
+
+                self.intArray[10] = int(round(self.pos * 32))
+                if self.intArray[3] < self.intArray[10] - backlashSize:
+                    self.intArray[3] = self.intArray[10] - backlashSize
+                elif self.intArray[3] > self.intArray[10] + backlashSize:
+                    self.intArray[3] = self.intArray[10] + backlashSize
+            else:
+                self.intArray[3] = int(round(self.pos * 32))
+                self.intArray[10] = self.intArray[3]
+
+            self.intArray[4] = int(self.vel)
+            self.intArray[5] = int(force)
 
     def __init__(self):
         super(SimulateCommunication, self).__init__('')
@@ -260,12 +295,7 @@ class ContinuousValueUpCaster(object):
         self.value = v
 
     def update(self, input):
-        diff = (input - self.value) % (2**self.inputBitLen)
-        if diff > 2**self.inputBitLen / 2:
-            diff -= 2**self.inputBitLen
-
-        self.value += diff
-
+        self.value = removeIntWraparound(input, self.value, self.inputBitLen)
 
 class DCServoCommunicator(object):
     class OpticalEncoderChannelData(object):
