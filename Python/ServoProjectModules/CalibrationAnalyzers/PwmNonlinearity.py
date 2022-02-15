@@ -1,82 +1,115 @@
 from ServoProjectModules.CalibrationAnalyzers.Helper import *
 
+class QuadraticCurve:
+    def __init__(self, xList, yList, index = 1):
+        x0 = xList[index - 1]
+        x1 = xList[index]
+        x2 = xList[index + 1]
+        y0 = yList[index - 1]
+        y1 = yList[index]
+        y2 = yList[index + 1]
+
+        #y0 = c0 * x0**2 + c1 * x0 + c2
+        #y1 = c0 * x1**2 + c1 * x1 + c2
+        #y2 = c0 * x2**2 + c1 * x2 + c2
+        #Y = A * C
+        # ==> C = A^-1 * Y
+        A = np.matrix([[x0**2, x0, 1],
+                         [x1**2, x1, 1],
+                         [x2**2, x2, 1]])
+        
+        temp = np.linalg.inv(A) * np.matrix([[y0], [y1], [y2]])
+        self._c = list((d[0, 0] for d in temp))
+
+        self._xCenter = x1
+        self._xSpan = [x1 - x0, x2 - x1]
+        
+    def getY(self, xList):
+        c0 = self._c[0]
+        c1 = self._c[1]
+        c2 = self._c[2]
+
+        y = [c0 * x**2 + c1 * x + c2 for x in xList]
+        return list(y)
+
+    def addToWeightedAveraged(self, x, ywSum, wSum):
+        y = self.getY(x)
+        w = [math.exp(-(2 * (d - self._xCenter) / 
+                (self._xSpan[0] if d - self._xCenter < 0 else self._xSpan[1]))**2) for d in x]
+
+        ywSum = list([d[0] + d[1] * d[2] for d in zip(ywSum, y, w)])
+        wSum = list([d[0] + d[1] for d in zip(wSum, w)])
+        return ywSum, wSum
+
 class PwmNonlinearityIdentifier(object):
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, compListPwm, compList):
+        self.compListPwm = []
+        self.compList = []
+
+        lastCompVal = None
+        for d in zip(compListPwm, compList):
+            if lastCompVal != d[1]:
+                self.compListPwm.append(d[0])
+                self.compList.append(d[1])
+            lastCompVal = d[1]
 
         self.lookUpStepSize = 4
 
-        self.timeList = []
-        pwmList = []
-        self.ampList = []
-        ampSum = 0
-        ampSumNr = 0
-        startOfPwmValue = 0
-        lastPwm = None
-        for d in zip(self.data[:, 0], self.data[:, 1], self.data[:, 2]):
-            if not lastPwm == d[2]:
-                if not lastPwm == None:
-                    self.timeList.append(d[0])
-                    pwmList.append(lastPwm)
-                    self.ampList.append(math.sqrt(ampSum / ampSumNr))
+        x = np.arange(0, 1024, 1)
+        ywSum = np.zeros(1024)
+        wSum = np.zeros(1024)
+        for i in range(1, len(self.compList) - 1):
+            q = QuadraticCurve(self.compListPwm, self.compList, i)
+            v = self.compListPwm[i]
+            xSeg = np.arange(v - 150, v + 150, 10)
+            plt.plot(xSeg, q.getY(xSeg), 'y')
+            ywSum, wSum = q.addToWeightedAveraged(x, ywSum, wSum)
 
-                lastPwm = d[2]
-                startOfPwmValue = d[0]
-                ampSum = 0
-                ampSumNr = 0
+        self.compListQuadInter = np.array([max(0, d[0]) / d[1] for d in zip(ywSum, wSum)])
+        plt.plot(self.compListQuadInter, 'm')
+        plt.plot(self.compListPwm, self.compList, 'r+')
+        plt.show()
 
-            if d[0] - startOfPwmValue > 2.0:
-                ampSum += d[1]**2
-                ampSumNr += 1
+        s = 1023 / self.compListQuadInter[-1]
+        self.compListQuadInter *= s
+        self.compList = list([d * s for d in self.compList])
 
-        self.timeList.append(self.data[-1, 0])
-        pwmList.append(lastPwm)
-        self.ampList.append(math.sqrt(ampSum / ampSumNr))
 
-        i = len(pwmList) - 1
-        
-        t = (1023 - pwmList[i - 1]) / (pwmList[i] - pwmList[i - 1])
-
-        pwmList.append((pwmList[i] - pwmList[i - 1]) * t + pwmList[i - 1])
-        self.timeList.append((self.timeList[i] - self.timeList[i - 1]) * t + self.timeList[i - 1])
-        self.ampList.append(((self.ampList[i] * pwmList[i] - self.ampList[i - 1] * pwmList[i - 1]) * t 
-            + self.ampList[i - 1] * pwmList[i - 1]) / 1023)
-
-        lastZero = 0
-        self.compList = [0]
-        self.compListPwm = [0]
-        for i, d in enumerate(zip(pwmList, self.ampList)):
-            comp = d[0] * d[1] / self.ampList[-1]
-            self.compList.append(comp)
-            self.compListPwm.append(d[0])
-            if comp < 20:
-                lastZero = i + 1
-
-        firstNoneZeroVal = self.compList[lastZero + 1]
-        firstNoneZeroValPwm = self.compListPwm[lastZero + 1]
-
-        for i in range(0, lastZero + 1):
-            pwm = self.compListPwm[i]
-            newValue = pwm**2 / firstNoneZeroValPwm**2 * firstNoneZeroVal
-            self.compList[i] = newValue
-
-#        currList = [0, 0.0026, 0.005, 0.0082, 0.0121, 0.0159, 0.0202, 0.025, 0.0305, 0.0361, 0.0424, 0.0488, 0.0566, 0.078, 0.107, 0.1533, 0.18, 0.24, 0.33, 0.42, 0.57, 0.72, 0.99, 1.35]
-#        pwmList = [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 680, 720, 735, 760, 793, 825, 869, 908, 960, 1023]
-#        self.compList = np.array(currList) / currList[-1] * 1023
-#        self.compListPwm = pwmList
-#
         self.pwmNonlinearityCompLookUp = []
 
         for pwm in range(0, 1024, self.lookUpStepSize):
             index = -1
-            for d in self.compList[0:-1]:
+            for d in self.compListQuadInter[0:-1]:
                 if d < pwm:
                     index += 1
                 else:
                     break
 
-            t = (pwm - self.compList[index]) / (self.compList[index + 1] - self.compList[index])
-            self.pwmNonlinearityCompLookUp.append(self.compListPwm[index] + (self.compListPwm[index + 1] - self.compListPwm[index]) * t)
+            t = (pwm - self.compListQuadInter[index]) / (self.compListQuadInter[index + 1] - self.compListQuadInter[index])
+            self.pwmNonlinearityCompLookUp.append(index + t)
+
+    _linearizeFuncReturnPattern = re.compile(r'(\n([ \t]*).*createCurrentController\(\)\s*\{(.*\n)*?(\s*)auto\s+pwmHighFrqCompFun\s+=\s+\[\]\(uint16_t\s+in\)\4\{\n)([ \t]*)(?P<function>(.*\n)*?.*)(\4\};(.*\n)*?\2\})')
+    _linearizeVecPattern = re.compile(r'((\s*).*createCurrentController\(\)\s*\{(.*\n)*?)(\s*)auto\s+pwmHighFrqCompFun\s+=\s+\[\]\(uint16_t\s+in\)(.*\n)*?\4\};((.*\n)*?\2\})')
+    
+    def checkForPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        temp = PwmNonlinearityIdentifier._linearizeFuncReturnPattern.search(configClassString)
+        if not temp:
+            raise Exception('Configuration not compatible')
+
+        if temp.group('function') != 'return in;':
+            return True
+
+        return False
+
+    def resetPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        configClassString = re.sub(PwmNonlinearityIdentifier._linearizeFuncReturnPattern, r'\1\5return in;\8', configClassString)
+        configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+        return configFileAsString
 
     def plotGeneratedVector(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
@@ -92,10 +125,10 @@ class PwmNonlinearityIdentifier(object):
 
         box.show_all()
 
+    def writeLinearizationFunctionToConfigFileString(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+        linearizeVecPattern = PwmNonlinearityIdentifier._linearizeVecPattern
 
-    def writeLinearizationFunctionToConfigClassString(self, configClassString):
-        linearizeVecPattern = re.compile(r'((\s*).*createCurrentController\(\)\s*\{(.*\n)*?)(\s*)auto\s+pwmHighFrqCompFun\s+=\s+\[\]\(uint16_t\s+in\)(.*\n)*?\4\};((.*\n)*?\2\})')
-        
         temp = linearizeVecPattern.search(configClassString)
         if temp != None:
             lookUpSize = len(self.pwmNonlinearityCompLookUp)
@@ -103,8 +136,9 @@ class PwmNonlinearityIdentifier(object):
             out += self.getLinearizationFunction(r'\4')
             out += r'\6'
             configClassString = re.sub(linearizeVecPattern, out, configClassString)
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
 
-            return configClassString
+            return configFileAsString
 
         return ''
 
@@ -127,247 +161,294 @@ class PwmNonlinearityIdentifier(object):
         return out
 
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
+    with open(configFilePath, "r") as configFile:
+        configFileAsString = configFile.read()
+
+        try:
+            PwmNonlinearityIdentifier.checkForPreviousCalibration(configFileAsString, configClassName)
+        except Exception as e:
+            dialog = Gtk.MessageDialog(
+                    transient_for=parent,
+                    flags=0,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.YES_NO,
+                    text='Pwm calibration not compatible with this configuration! Continue any way?',
+            )
+            dialog.format_secondary_text(
+                ""
+            )
+            response = dialog.run()
+            dialog.destroy()
+
+            if response == Gtk.ResponseType.NO:
+                return
+
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
 
-    maxOscillationFrq = 10 
-    maxFrqScale = GuiFunctions.creatHScale(maxOscillationFrq, 1, 100, 1, getLowLev=True)
-    maxFrqScale = GuiFunctions.addTopLabelTo('<b>Max oscillation frequency</b>', maxFrqScale[0]), maxFrqScale[1]
-    calibrationBox.pack_start(maxFrqScale[0], False, False, 0)
+    testListBox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    testListBox.set_margin_start(0)
 
-    minPwmValue = 0
-    midPwmValue = 500
-    maxPwmValue = 605
-    minPwmScale = GuiFunctions.creatHScale(minPwmValue, 0, 1023, 10, getLowLev=True)
-    minPwmScale = GuiFunctions.addTopLabelTo('<b>Pwm value to start calibration at</b>\n This should be just under the pwm value that makes the motor start moving', minPwmScale[0]), minPwmScale[1]
-    calibrationBox.pack_start(minPwmScale[0], False, False, 0)
+    lableBox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    lable = GuiFunctions.createLabel('<b>Stall current over pwm values</b>')
+    lableBox.pack_start(lable, False, False, 0)
+    editTestButton = GuiFunctions.createButton('Edit', width=26, getLowLev=True)
+    lable.set_margin_end(4)
+    editTestButton[1].set_margin_start(4)
 
-    midPwmScale = GuiFunctions.creatHScale(midPwmValue, 0, 1023, 10, getLowLev=True)
-    midPwmScale = GuiFunctions.addTopLabelTo('<b>Pwm value for switching to sparse sample points</b>\n Lower value limits motor heat up at the cost of calibration resolution', midPwmScale[0]), midPwmScale[1]
-    calibrationBox.pack_start(midPwmScale[0], False, False, 0)
+    lableBox.pack_start(editTestButton[0], False, False, 0)
+    calibrationBox.pack_start(lableBox, False, False, 0)
 
-    maxPwmScale = GuiFunctions.creatHScale(maxPwmValue, 1, 1023, 10, getLowLev=True)
-    maxPwmScale = GuiFunctions.addTopLabelTo('<b>Max motor pwm value</b>', maxPwmScale[0]), maxPwmScale[1]
-    calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
+    scrollWin = Gtk.ScrolledWindow()
+    scrollWin.set_min_content_height(100)
+    scrollWin.set_margin_start(40)
+    scrollWin.add(testListBox)
+    calibrationBox.pack_start(scrollWin, True, True, 0)
 
-    testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
-    startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
+    calculateCalibrationButton = GuiFunctions.createButton('Calculate calibration', getLowLev=True)
+    calculateCalibrationButton[1].set_sensitive(False)
+    calibrationBox.pack_start(calculateCalibrationButton[0], False, False, 0)
 
-    recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
+    buttons = []
+    testValues = list(range(0, 1023, 100))
+    testResults = list(['' for v in testValues])
+    if getPortFun() == '':
+        testResults = ['0.0522', '0.0568', '0.0621', '0.0683', '0.0765', '0.0844', '0.095', '0.172', '0.44', '0.88', '1.61']
 
-    testPwmValue = midPwmValue
+    def getIndexOfWidget(widget):
+        return [i for i, w in enumerate(buttons) if widget == w[1] or widget == w[2]][0]
 
-    threadMutex = threading.Lock()
-    def maxFrqValueChanged(widget):
-        nonlocal maxOscillationFrq
-        nonlocal threadMutex
+    def updateCalculateCalibrationButtonStatus():
+        if testResults[0] == '':
+            calculateCalibrationButton[1].set_label(
+                f'Data point at 0 needed to calibration')
+            calculateCalibrationButton[1].set_sensitive(False)
+            return
 
-        with threadMutex:
-            maxOscillationFrq = widget.get_value()
+        nrOfCalibrationDataPoints = len([[d[0], d[1]] for d in zip(testValues, testResults) if d[1] != ''])
+        if nrOfCalibrationDataPoints >= 3:
+            calculateCalibrationButton[1].set_label(f'Calculate calibration')
+            calculateCalibrationButton[1].set_sensitive(True)                
+        else:
+            missingPoints = 3 - nrOfCalibrationDataPoints
+            calculateCalibrationButton[1].set_label(
+                    f'Minimum {missingPoints} more data point{"s" if missingPoints > 1 else ""} to calibration')
+            calculateCalibrationButton[1].set_sensitive(False)
 
-    def minPwmValueChanged(widget):
-        nonlocal maxPwmScale
-        nonlocal midPwmValue
-        nonlocal minPwmValue
-        nonlocal testPwmValue
-        nonlocal threadMutex
+    def onEditTestValuesClicked(widget):
+        nonlocal buttons
+        nonlocal testValues
+        nonlocal testResults
 
-        with threadMutex:
-            minPwmValue = widget.get_value()
-            testPwmValue = minPwmValue
+        if widget != None:
+            dialog = Gtk.MessageDialog(
+                    transient_for=parent,
+                    flags=0,
+                    message_type=Gtk.MessageType.INFO,
+                    buttons=Gtk.ButtonsType.OK_CANCEL,
+                    text='Edit pwm test values',
+            )
+            dialog.format_secondary_text(
+                'Examples:\n  \'[123, 456, 789]\'\n  \'range(100, 900, 100)\''
+            )
+            box = dialog.get_message_area()
+            testValuesEntry = Gtk.Entry()
+            testValuesEntry.set_text(f'{testValues[1:]}')
+            box.add(testValuesEntry)
+            box.show_all()
+            dialog.get_widget_for_response(Gtk.ResponseType.CANCEL).grab_focus()
+            response = dialog.run()
 
-        if minPwmValue > midPwmScale[1].get_value():
-            midPwmScale[1].set_value(minPwmValue)
+            try:
+                s = testValuesEntry.get_text()
+                if s.find('\n') != -1:
+                    raise Exception('line break not allowed')
+                gen = eval(s)
+                newTestValues = [int(round(d)) for d in gen]
+                if len(newTestValues) == 0 or newTestValues[0] != 0:
+                    newTestValues = [0] + newTestValues
+                newTestResults = ['' for d in newTestValues]
+                for i, newTest in enumerate(newTestValues):
+                    resultsForOldTest = [oldResult for oldTest, oldResult in zip(testValues, testResults) if newTest == oldTest]
+                    if len(resultsForOldTest) > 0:
+                        newTestResults[i] = resultsForOldTest[0]
 
-        if minPwmValue > maxPwmScale[1].get_value():
-            maxPwmScale[1].set_value(minPwmValue)
+                testValues = newTestValues
+                testResults = newTestResults
 
-    def midPwmValueChanged(widget):
-        nonlocal maxPwmScale
-        nonlocal midPwmValue
-        nonlocal minPwmValue
-        nonlocal testPwmValue
-        nonlocal threadMutex
-
-        with threadMutex:
-            midPwmValue = widget.get_value()
-            testPwmValue = midPwmValue
-
-        if midPwmValue < minPwmScale[1].get_value():
-            minPwmScale[1].set_value(midPwmValue)
-
-        if midPwmValue > maxPwmScale[1].get_value():
-            maxPwmScale[1].set_value(midPwmValue)
-
-    def maxPwmValueChanged(widget):
-        nonlocal midPwmScale
-        nonlocal maxPwmValue
-        nonlocal testPwmValue
-        nonlocal threadMutex
-
-        with threadMutex:
-            maxPwmValue = widget.get_value()
-            testPwmValue = maxPwmValue
-
-        if maxPwmValue < minPwmScale[1].get_value():
-            minPwmScale[1].set_value(maxPwmValue)
-
-        if maxPwmValue < midPwmScale[1].get_value():
-            midPwmScale[1].set_value(maxPwmValue)
-
-    maxFrqScale[1].connect('value-changed', maxFrqValueChanged)
-    minPwmScale[1].connect('value-changed', minPwmValueChanged)
-    midPwmScale[1].connect('value-changed', midPwmValueChanged)
-    maxPwmScale[1].connect('value-changed', maxPwmValueChanged)
-
-    def resetGuiAfterCalibration():
-        nonlocal startButton
-        nonlocal testButton
-        nonlocal calibrationBox
-        nonlocal recordingProgressBar
-        nonlocal maxFrqScale
-        nonlocal minPwmScale
-        nonlocal midPwmScale
-        nonlocal maxPwmScale
-
-        startButton[1].set_label('Start calibration')
-        startButton[1].set_sensitive(True)
-        testButton[1].set_label('Test pwm value')
-        testButton[1].set_sensitive(True)
-        calibrationBox.remove(recordingProgressBar[0])
-        maxFrqScale[1].set_sensitive(True)
-        minPwmScale[1].set_sensitive(True)
-        midPwmScale[1].set_sensitive(True)
-        maxPwmScale[1].set_sensitive(True)
-
-    resetGuiAfterCalibration()
-
-    runThread = False
-    def testPwmRun(nodeNr, port):
-        nonlocal runThread
-        nonlocal threadMutex
-
-        with createRobot(nodeNr, port) as robot:
-            t = 0.0
-            doneRunning = False
-            pwm = 0
-
-            def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal maxOscillationFrq
-                nonlocal maxPwmValue
-                nonlocal testPwmValue
-                nonlocal threadMutex
-                nonlocal pwm
-
-                servo = robot.servoArray[0]
-
-                frq = 0
-                pwmAmp = 0
-                with threadMutex:
-                    pwmAmp = testPwmValue
-                    frq = pwmAmp / maxPwmValue * maxOscillationFrq
-
-                pwm = pwmAmp * math.sin(frq * 2 * pi * t)
-                servo.setOpenLoopControlSignal(pwm, True)
-
-            out = []
-
-            lastPosition = None
-
-            def readResultHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal runThread
-                nonlocal doneRunning
-                nonlocal pwm
-                nonlocal lastPosition
-
-                t += dt
-                servo = robot.servoArray[0]
-
-                position = servo.getPosition(False)
-
-                if lastPosition == None:
-                    lastPosition = position
-
-                out.append([t, (position - lastPosition) / dt, pwm])
-
-                lastPosition = position
-
-                stop = False
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
-
-                if stop or parent.isClosed:
-                    robot.removeHandlerFunctions()
-                    doneRunning = True
-
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
-
-            while not doneRunning:
-                if not robot.isAlive():
-                    break
-                time.sleep(0.1)
-
-            robot.shutdown()
-
-            data = np.array(out)
-
-            def plotData(data):
-                dialog = Gtk.MessageDialog(
+            except Exception as e:
+                errorDiaglog = Gtk.MessageDialog(
                         transient_for=parent,
                         flags=0,
-                        message_type=Gtk.MessageType.INFO,
-                        buttons=Gtk.ButtonsType.YES_NO,
-                        text='Pwm test done!',
+                        message_type=Gtk.MessageType.ERROR,
+                        buttons=Gtk.ButtonsType.OK,
+                        text='Evaluation Error',
                 )
-                dialog.format_secondary_text(
-                    "Do you want to plot the recorded data?"
+                errorDiaglog.format_secondary_text(
+                    f'{e!r}'
                 )
-                response = dialog.run()
+                errorDiaglog.run()
+                errorDiaglog.destroy()
+            finally:
                 dialog.destroy()
 
-                if response == Gtk.ResponseType.YES:
-                    plt.figure(1)
-                    plt.plot(data[:, 0], data[:, 1], 'r')
-                    plt.figure(2)
-                    plt.plot(data[:, 0], data[:, 2], 'b')
-                    plt.show()
+        updateCalculateCalibrationButtonStatus()
 
-            GLib.idle_add(plotData, data)
+        for b in buttons:
+            testListBox.remove(b[0])
 
-        GLib.idle_add(resetGuiAfterCalibration)
+        robot = None
+        def onTestButtonPressed(widget):
+            nonlocal robot
 
-    testThread = None
+            index = getIndexOfWidget(widget)
 
-    def onTestPwm(widget):
-        nonlocal calibrationBox
-        nonlocal startButton
+            for w in buttons:
+                if w[1] != widget:
+                    if widget.get_active():
+                        w[1].set_sensitive(False)
+                    else:
+                        w[1].set_sensitive(True)
 
-        nonlocal testThread
-        nonlocal runThread
-        nonlocal threadMutex
+            if widget.get_active():
+                with open(configFilePath, "r") as configFile:
+                    configFileAsString = configFile.read()
 
-        if widget.get_label() == 'Test pwm value':
-            startButton[1].set_sensitive(False)
-            widget.set_label('Stop pwm test')
-            with threadMutex:
-                runThread = True
-            testThread = threading.Thread(target=testPwmRun, args=(nodeNr,getPortFun(),))
-            testThread.start()
-        else:
-            with threadMutex:
-                runThread = False
-            testThread.join()
+                    previousCalibrationDetected = False
+                    try:
+                        previousCalibrationDetected = PwmNonlinearityIdentifier.checkForPreviousCalibration(configFileAsString, configClassName)
+                    except Exception as e:
+                        pass
 
-    def updateRecordingProgressBar(fraction):
-        nonlocal recordingProgressBar
+                    if previousCalibrationDetected:
+                        dialog = Gtk.MessageDialog(
+                                transient_for=parent,
+                                flags=0,
+                                message_type=Gtk.MessageType.ERROR,
+                                buttons=Gtk.ButtonsType.YES_NO,
+                                text='Pwm calibration already done for this configuration!',
+                        )
+                        dialog.format_secondary_text(
+                            "Pwm linarization only works on configurations without previous calibration.\n\nShould the calibration be reset?"
+                        )
+                        response = dialog.run()
+                        dialog.destroy()
 
-        recordingProgressBar[1].set_fraction(fraction)
+                        if response == Gtk.ResponseType.NO:
+                            widget.set_active(False)
+                            return
 
-    def handleResults(data):
-        pwmNonlinearityIdentifier = PwmNonlinearityIdentifier(data)
+                        configFileAsString = PwmNonlinearityIdentifier.resetPreviousCalibration(configFileAsString, configClassName)
+                        with open(configFilePath, "w") as configFile:
+                            configFile.write(configFileAsString)
+                            GuiFunctions.transferToTargetMessage(parent)
+
+                        widget.set_active(False)
+                        return
+
+                pwm = int(widget.get_label())
+
+                robot = createRobot(nodeNr, getPortFun())
+
+                def sendCommandHandlerFunction(dt, robot):
+                    robot.servoArray[0].setOpenLoopControlSignal(pwm, True)
+
+                def readResultHandlerFunction(dt, robot):
+                    pos = robot.servoArray[0].getPosition()
+                    print(f'{pos}', end = '\r')
+                    return
+
+                def errorHandlerFunction(exception):
+                    GLib.idle_add(guiErrorHandler, exception)
+
+                def guiErrorHandler(exception):
+                    nonlocal robot
+                    print(f'{exception!r}')
+                    robot.shutdown()
+                    robot = None
+                    widget.set_active(False)
+
+                robot.setHandlerFunctions(sendCommandHandlerFunction, 
+                        readResultHandlerFunction, errorHandlerFunction)
+                robot.start()
+            elif robot:
+                robot.removeHandlerFunctions()
+                robot.shutdown()
+                buttons[index][2].grab_focus()
+                robot = None
+
+        def onResultEntryEdit(widget):
+            if not onResultEntryEdit.firstLevelEvent:
+                return
+
+            index = getIndexOfWidget(widget)
+
+            try:
+                s = widget.get_text()
+                newS = ''
+                if s !='':
+                    v = abs(float(s))
+                    newS = str(v)
+                    if v != float(s):
+                        onResultEntryEdit.firstLevelEvent = False
+                        widget.set_text(newS)
+                testResults[index] = newS
+            except ValueError as e:
+                onResultEntryEdit.firstLevelEvent = False
+                widget.set_text(testResults[index])
+            finally:
+                onResultEntryEdit.firstLevelEvent = True
+
+                updateCalculateCalibrationButtonStatus()
+
+        onResultEntryEdit.firstLevelEvent = True
+
+        def onResultEntryEnter(widget):
+            index = getIndexOfWidget(widget)
+
+            if index < len(buttons) - 1:
+                buttons[index + 1][1].grab_focus()
+            else:
+                calculateCalibrationButton[1].grab_focus()
+
+        buttons = []
+        for pwm, result in zip(testValues, testResults):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            b = Gtk.ToggleButton(label=f'{pwm}')
+            b.set_margin_start(4)
+            b.set_margin_end(4)
+            b.set_margin_top(8)
+            b.set_margin_bottom(1)
+            b.set_property("width-request", 20)
+            b.connect('toggled', onTestButtonPressed);
+            box.pack_start(b, False, False, 0)
+            e = Gtk.Entry()
+            e.set_text(f'{result}')
+            e.set_width_chars(3)
+            e.set_margin_start(4)
+            e.set_margin_end(4)
+            e.set_margin_top(1)
+            e.set_margin_bottom(4)
+            e.connect('changed', onResultEntryEdit)
+            e.connect('activate', onResultEntryEnter)
+            box.pack_start(e, False, False, 0)
+            buttons.append((box, b, e))
+
+
+        for b in buttons:
+            testListBox.pack_start(b[0], False, False, 0)
+
+        testListBox.show_all()
+
+    onEditTestValuesClicked(None)
+    editTestButton[1].connect('clicked', onEditTestValuesClicked)
+
+    def onCalculateCalibrationButtonClicked(widget):
+        data = [[d[0], d[1]] for d in zip(testValues, testResults) if d[1] != '']
+        compListPwm = list([int(d[0]) for d in data])
+        compList = list([float(d[1]) - float(data[0][1]) for d in data])
+
+        pwmNonlinearityIdentifier = PwmNonlinearityIdentifier(compListPwm, compList)
 
         dialog = Gtk.MessageDialog(
                 transient_for=parent,
@@ -380,6 +461,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             "Should the configuration be updated with the new data?"
         )
         pwmNonlinearityIdentifier.plotGeneratedVector(dialog.get_message_area())
+        dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
         response = dialog.run()
         dialog.destroy()
 
@@ -387,19 +469,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             with open(configFilePath, "r") as configFile:
                 configFileAsString = configFile.read()
 
-                classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-                temp = classPattern.search(configFileAsString)
-                if temp != None:
-                    classString = temp.group(0)
+                configFileAsString = pwmNonlinearityIdentifier.writeLinearizationFunctionToConfigFileString(configFileAsString, configClassName)
+                if configFileAsString != '':
+                    with open(configFilePath, "w") as configFile:
+                        configFile.write(configFileAsString)
+                        GuiFunctions.transferToTargetMessage(parent)
 
-                    classString = pwmNonlinearityIdentifier.writeLinearizationFunctionToConfigClassString(classString)
-                    if classString != '':
-                        configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                        with open(configFilePath, "w") as configFile:
-                            configFile.write(configFileAsString)
-                            GuiFunctions.transferToTargetMessage(parent)
-
-                            return
+                        return
                 
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
@@ -419,188 +495,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             response = dialog.run()
             dialog.destroy()
 
-    def startCalibrationRun(nodeNr, port):
-        nonlocal runThread
-        nonlocal threadMutex
-        nonlocal maxOscillationFrq
-        nonlocal maxPwmValue
+    calculateCalibrationButton[1].connect('clicked', onCalculateCalibrationButtonClicked)
 
-        with createRobot(nodeNr, port) as robot:
-            with threadMutex:
-                highResStep = min(25, int(midPwmValue - minPwmValue / 10.0))
-                temp = [v for v in range(int(minPwmValue), int(midPwmValue), highResStep)]
-                temp = np.array(temp)
-                temp += highResStep
-                temp = temp / temp[-1] * midPwmValue
-
-                temp2 = [v for v in range(0, int(maxPwmValue - midPwmValue), 100)]
-                temp2 = np.array(temp2)
-                temp2 += 100
-                temp2 = temp2 / temp2[-1] * (maxPwmValue - midPwmValue)
-                temp2 += midPwmValue
-                pwmSampleValues = np.append(temp, temp2)
-
-                temp = []
-                for v in pwmSampleValues:
-                    frq = v / maxPwmValue * maxOscillationFrq
-
-                    sampleTime = max(4.0, 2.0 + 10 / frq)
-
-                    i = 0
-                    while i < sampleTime:
-                        i += 1
-                        temp.append(v)
-
-                pwmSampleValues = np.array(temp)
-
-            t = 0.0
-            runTime = 6.0
-            doneRunning = False
-
-            def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal threadMutex
-                nonlocal maxOscillationFrq
-                nonlocal maxPwmValue
-
-                t += dt
-
-                servo = robot.servoArray[0]
-
-                pwmAmp = 0.0
-                if int(t) < len(pwmSampleValues):
-                    pwmAmp = pwmSampleValues[int(t)]
-                else:
-                    return
-
-                frq = 0.0
-                with threadMutex:
-                    frq = pwmAmp / maxPwmValue * maxOscillationFrq
-
-                GLib.idle_add(updateRecordingProgressBar, t / len(pwmSampleValues))
-
-                pwm = pwmAmp * math.sin(frq * 2 * pi * t)
-                servo.setOpenLoopControlSignal(pwm, True)
-
-            out = []
-
-            lastPosition = None
-
-            def readResultHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal runThread
-                nonlocal doneRunning
-                nonlocal pwmSampleValues
-                nonlocal lastPosition
-
-                stop = int(t) >= len(pwmSampleValues)
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
-
-                if stop or parent.isClosed:
-                    robot.removeHandlerFunctions()
-                    doneRunning = True
-                    return
-
-                servo = robot.servoArray[0]
-
-                position = servo.getPosition(False)
-
-                if lastPosition == None:
-                    lastPosition = position
-
-                out.append([t, (position - lastPosition) / dt, pwmSampleValues[int(t)]])
-
-                lastPosition = position
-
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
-
-            while not doneRunning:
-                if not robot.isAlive():
-                    runThread = False
-                    break
-                time.sleep(0.1)
-
-            robot.shutdown()
-
-            if runThread == True:
-                data = np.array(out)
-                GLib.idle_add(handleResults, data)
-
-        GLib.idle_add(resetGuiAfterCalibration)
-
-    def onStartCalibration(widget):
-        nonlocal testThread
-        nonlocal threadMutex
-        nonlocal runThread
-
-        nonlocal calibrationBox
-        nonlocal maxFrqScale
-        nonlocal minPwmScale
-        nonlocal midPwmScale
-        nonlocal maxPwmScale
-        nonlocal recordingProgressBar
-        nonlocal testButton
-
-        if widget.get_label() == 'Start calibration':
-            with open(configFilePath, "r") as configFile:
-                configFileAsString = configFile.read()
-
-                classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})') 
-                classString = classPattern.search(configFileAsString).group(0)
-
-                linearizeVecPattern = re.compile(r'(\n([ \t]*).*createCurrentController\(\)\s*\{(.*\n)*?(\s*)auto\s+pwmHighFrqCompFun\s+=\s+\[\]\(uint16_t\s+in\)\4\{\n)([ \t]*)((.*\n)*?.*)(\4\};(.*\n)*?\2\})')
-
-                if linearizeVecPattern.search(classString).group(6) != 'return in;':
-                    dialog = Gtk.MessageDialog(
-                            transient_for=parent,
-                            flags=0,
-                            message_type=Gtk.MessageType.ERROR,
-                            buttons=Gtk.ButtonsType.YES_NO,
-                            text='Pwm calibration already done for this configuration!',
-                    )
-                    dialog.format_secondary_text(
-                        "Pwm linarization only works on configurations without previous calibration.\n\nShould the calibration be reset?"
-                    )
-                    response = dialog.run()
-                    dialog.destroy()
-
-                    if response == Gtk.ResponseType.NO:
-                        return
-
-                    classString = re.sub(linearizeVecPattern, r'\1\5return in;\8', classString)
-                    configFileAsString = re.sub(classPattern, classString, configFileAsString)
-                    with open(configFilePath, "w") as configFile:
-                        configFile.write(configFileAsString)
-                        GuiFunctions.transferToTargetMessage(parent)
-
-                    return
-
-            widget.set_label('Abort calibration')
-
-            recordingProgressBar[1].set_fraction(0.0)
-            testButton[1].set_sensitive(False)
-            calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
-            maxFrqScale[1].set_sensitive(False)
-            minPwmScale[1].set_sensitive(False)
-            midPwmScale[1].set_sensitive(False)
-            maxPwmScale[1].set_sensitive(False)
-
-            calibrationBox.show_all()
-
-            with threadMutex:
-                runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
-            testThread.start()                                    
-        else:
-            with threadMutex:
-                runThread = False
-            testThread.join()
-
-    testButton[1].connect('clicked', onTestPwm)
-    startButton[1].connect('clicked', onStartCalibration)
-    calibrationBox.pack_start(testButton[0], False, False, 0)
-    calibrationBox.pack_start(startButton[0], False, False, 0)
     calibrationBox.show_all()
     return calibrationBox
