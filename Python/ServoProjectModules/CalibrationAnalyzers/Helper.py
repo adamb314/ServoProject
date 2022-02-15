@@ -1,6 +1,7 @@
 import ServoProjectModules.Communication as ServoComModule
 from ServoProjectModules.Communication import pi
 
+import numba
 import numpy as np
 import scipy.signal
 import threading
@@ -11,7 +12,6 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_gtk3agg import (
     FigureCanvasGTK3Agg as FigureCanvas)
 from matplotlib.figure import Figure
-import numba
 import re
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
