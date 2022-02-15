@@ -13,6 +13,148 @@ import ServoProjectModules.CalibrationAnalyzers.TestControlLoop as TestControlLo
 import ServoProjectModules.CalibrationAnalyzers.Helper as Helper
 import ServoProjectModules.ArduinoManager as ArduinoManager
 
+def openCreateConfigDialog(parent, configs):
+    dialog = Gtk.MessageDialog(
+            transient_for=parent,
+            flags=0,
+            message_type=Gtk.MessageType.OTHER,
+            buttons=Gtk.ButtonsType.OK_CANCEL,
+            text='Create new configuration',
+    )
+    dialog.format_secondary_text(
+        ""
+    )
+    box = dialog.get_message_area()
+    createButton = dialog.get_widget_for_response(Gtk.ResponseType.OK)
+    createButton.set_label('Create')
+    createButton.set_sensitive(False)
+
+    def onNewConfiNameEntryChange(widget):
+        newName = widget.get_text()
+        newFilePath = parent.ArduinoSketchPath + "/config/" + newName
+
+        if (not os.path.isdir(newFilePath) and
+            len(newName) > 2 and
+            newName.find('.') == len(newName) - 2 and 
+            newName[-1] == 'h' and
+            newName.find('/') == -1 and
+            newName.find('\\') == -1):
+
+            if os.path.isfile(newFilePath):
+                createButton.set_label('Overwrite')
+            else:
+                createButton.set_label('Create')
+            createButton.set_sensitive(True)
+        else:
+            createButton.set_sensitive(False)
+            createButton.set_label('Create')
+
+    box1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    templateConfigCombo = GuiFunctions.creatComboBox(configs[0], configs, getLowLev=True)
+    templateConfigCombo = GuiFunctions.addTopLabelTo('<b>From template</b>', templateConfigCombo[0]), templateConfigCombo[1]
+    box1.pack_start(templateConfigCombo[0], False, False, 0)
+    newNodeNrSpinButton = GuiFunctions.creatSpinButton(1, 1, 255, 1, getLowLev=True)
+    newNodeNrSpinButton = GuiFunctions.addTopLabelTo('<b>With new node number</b>', newNodeNrSpinButton[0]), newNodeNrSpinButton[1]
+    box1.pack_start(newNodeNrSpinButton[0], False, False, 0)
+    box.pack_start(box1, False, False, 0)
+
+    gearingEntry = GuiFunctions.createEntry('', getLowLev=True)
+    gearingEntry = GuiFunctions.addTopLabelTo('<b>Gear ratio</b>\n Ex: 10 / 1 * 11 / 62 * 14 / 48 * 13 / 45 * 1 / 42', gearingEntry[0]), gearingEntry[1]
+    box.pack_start(gearingEntry[0], False, False, 0)
+
+    potentiometerRangeSpinButton = GuiFunctions.creatSpinButton(220, -360, 360, 1, getLowLev=True)
+
+    encoderTypes = ['Potentiometer', 'Magnetic']
+
+    def onEncoderTypeComboChange(widget):
+        if widget.get_active() == 0:
+            potentiometerRangeSpinButton[0].show_all()
+        else:
+            potentiometerRangeSpinButton[0].hide()
+
+    box2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    encoderTypeCombo = GuiFunctions.creatComboBox(encoderTypes[0], encoderTypes, onChangeFun=onEncoderTypeComboChange, getLowLev=True)
+    encoderTypeCombo = GuiFunctions.addTopLabelTo('<b>Output encoder type</b>', encoderTypeCombo[0]), encoderTypeCombo[1]
+    box2.pack_start(encoderTypeCombo[0], False, False, 0)
+    potentiometerRangeSpinButton = GuiFunctions.addTopLabelTo('<b>Potentiometer range</b>', potentiometerRangeSpinButton[0]), potentiometerRangeSpinButton[1]
+    box2.pack_start(potentiometerRangeSpinButton[0], False, False, 0)
+    box.pack_start(box2, False, False, 0)
+
+    newConfigurationNameEntry = GuiFunctions.createEntry('', onEdit=onNewConfiNameEntryChange, getLowLev=True)
+    newConfigurationNameEntry = GuiFunctions.addTopLabelTo('<b>Enter new name</b>\n (*.h)', newConfigurationNameEntry[0]), newConfigurationNameEntry[1]
+    box.pack_start(newConfigurationNameEntry[0], False, False, 0)
+
+    box.show_all()
+
+    def getTemplateConfig():
+        templateStr = templateConfigCombo[1].get_model()[templateConfigCombo[1].get_active()][0]
+        descStartIndex = templateStr.find(' : ')
+        if descStartIndex != -1:
+            return templateStr[0: descStartIndex], templateStr[descStartIndex + 3:]
+        return '', ''
+
+    def getTemplateConfigClassString(configName, configClassName):
+        configFilePath = parent.ArduinoSketchPath + "/config/" + configName
+        configFileAsString = ''
+
+        with open(configFilePath, "r") as configFile:
+            configFileAsString = configFile.read()
+
+        configClassString = Helper.getConfigClassString(configFileAsString, configClassName)
+
+        return configClassString
+
+    def onTemplateConfigComboChange(widget):
+        templateConfig = getTemplateConfig()
+        configName = templateConfig[0]
+        configClassName = templateConfig[1]
+        configClassString = getTemplateConfigClassString(configName, configClassName)
+
+        try:
+            gearingStr = Helper.getConfiguredGearRatio(configClassString)
+            gearingEntry[1].set_text(gearingStr)
+
+            magneticEncoder, unitsPerRev = Helper.getConfiguredOutputEncoderData(configClassString)
+            encoderTypeCombo[1].set_active(1 if magneticEncoder else 0)
+            potentiometerRangeSpinButton[1].set_value(round(unitsPerRev / 4096 * 360))
+
+            gearingEntry[0].show()
+            encoderTypeCombo[0].show()
+            potentiometerRangeSpinButton[0].show()
+        except Exception as e:
+            gearingEntry[0].hide()
+            encoderTypeCombo[0].hide()
+            potentiometerRangeSpinButton[0].hide()
+
+    onTemplateConfigComboChange(None)
+    templateConfigCombo[1].connect('changed', onTemplateConfigComboChange)
+
+    createdConfigName = ''
+    if dialog.run() == Gtk.ResponseType.OK:
+        templateConfig = getTemplateConfig()
+        configName = templateConfig[0]
+        configClassName = templateConfig[1]
+        configClassString = getTemplateConfigClassString(configName, configClassName)
+
+        if gearingEntry[0].get_visible():
+            configClassString = Helper.setConfiguredGearRatio(configClassString, gearingEntry[1].get_text())
+
+            magneticEncoder = encoderTypeCombo[1].get_active() == 1
+            unitsPerRev = potentiometerRangeSpinButton[1].get_value() / 360 * 4096
+            configClassString = Helper.setConfiguredOutputEncoderData(configClassString, magneticEncoder, unitsPerRev)
+
+        newConfigFileAsString = Helper.newConfigFileAsString(configClassString, newNodeNrSpinButton[1].get_value(), configClassName)
+        if newConfigFileAsString != '':
+            configName = newConfigurationNameEntry[1].get_text()
+            newConfigFilePath = parent.ArduinoSketchPath + "/config/" + configName
+            with open(newConfigFilePath, "w") as configFile:
+                configFile.write(newConfigFileAsString)
+                createdConfigName = configName
+
+    dialog.destroy()
+
+    return createdConfigName
+
 class GuiWindow(Gtk.Window):
     def __init__(self, ArduinoSketchPath):
         Gtk.Window.__init__(self, title="Servo configuration", default_height=900, default_width=800)
@@ -96,6 +238,7 @@ class GuiWindow(Gtk.Window):
             for c in self.getConfigurations():
                 configs.append(c)
             configs.sort()
+            configs = [c for c in configs if c != 'default.h']
 
             activeIndex = 0
             items = activeConfigCombo[1].get_model()
@@ -121,6 +264,53 @@ class GuiWindow(Gtk.Window):
         loadConfigs(None, None)
         activeConfigCombo[0].connect('enter-notify-event', loadConfigs)
         activeConfigCombo[1].connect('focus', loadConfigs)
+
+        def onCreateConfigClicked(widget):
+            configs = []
+            for c in self.getConfigurations():
+                nodeNrList, configClassNames = self.getNodeNrAndClassNames(c)
+                for className in configClassNames:
+                    configs.append(f'{c} : {className}')
+            configs.sort()
+
+            newConfigName = openCreateConfigDialog(self, configs)
+            if newConfigName != '':
+                loadConfigs(None, None)
+                selectActiveConfig(newConfigName)
+
+        def onDeleteConfigClicked(widget):
+            configName = ''
+            activeIter = activeConfigCombo[1].get_active_iter()
+            if activeIter is not None:
+                model = activeConfigCombo[1].get_model()
+                configName = model[activeIter][0]
+
+            if configName == '':
+                return
+
+            configFilePath = self.ArduinoSketchPath + "/config/" + configName
+            os.remove(configFilePath)
+            selectActiveConfig('')
+            loadConfigs(None, None)
+
+        box2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        box2.add(activeConfigCombo[0])
+        activeConfigCombo = box2, activeConfigCombo[1]
+
+        creatNewConfigButton = GuiFunctions.createButton('Create new', onClickFun=onCreateConfigClicked, width=10, getLowLev=True)
+        creatNewConfigButton[1].set_margin_start(0)
+        creatNewConfigButton[1].set_margin_end(10)
+        creatNewConfigButton[1].set_margin_top(10)
+        creatNewConfigButton[1].set_margin_bottom(8)
+        box2.add(creatNewConfigButton[0])
+
+        deleteConfigButton = GuiFunctions.createButton('Delete', onClickFun=onDeleteConfigClicked, width=10, getLowLev=True)
+        deleteConfigButton[1].set_margin_start(0)
+        deleteConfigButton[1].set_margin_end(10)
+        deleteConfigButton[1].set_margin_top(10)
+        deleteConfigButton[1].set_margin_bottom(8)
+        deleteConfigButton[1].set_sensitive(False)
+        box2.add(deleteConfigButton[0])
 
         activeNodeNrCombo = GuiFunctions.creatComboBox('', [''], getLowLev=True)
 
@@ -257,6 +447,7 @@ class GuiWindow(Gtk.Window):
                         box1.remove(calibrationBox)
 
                 if configName == '':
+                    deleteConfigButton[1].set_sensitive(False)
                     transferToTargetButton[1].set_sensitive(False)
                     items = Gtk.ListStore(str)
                     for i, name in enumerate(['']):
@@ -268,6 +459,7 @@ class GuiWindow(Gtk.Window):
                     activeNodeNrCombo[1].set_active(0)
                     return
 
+                deleteConfigButton[1].set_sensitive(True)
                 transferToTargetButton[1].set_sensitive(True)
 
                 self.setActiveConfig(configName)

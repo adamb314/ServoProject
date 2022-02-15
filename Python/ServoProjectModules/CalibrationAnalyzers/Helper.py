@@ -99,3 +99,113 @@ def sign(v):
     if v >= 0:
         return 1.0
     return -1.0
+
+def getConfigClassString(configFileAsString, configClassName):
+    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+    temp = classPattern.search(configFileAsString)
+    if not temp:
+        return ''
+
+    return temp.group(0)
+
+def setConfigClassString(configFileAsString, configClassName, classString):
+    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+    temp = classPattern.search(configFileAsString)
+    if not temp:
+        return ''
+
+    configFileAsString = re.sub(classPattern, classString, configFileAsString)
+
+    return configFileAsString
+
+def newConfigFileAsString(configClassString, nodeNr, configClassName):
+    out = ''
+    out += '#ifndef CONFIG_HOLDER_H\n'
+    out += '#define CONFIG_HOLDER_H\n'
+    out += '\n'
+    out += '#include "../defaultConfigHolder.h"'
+    out += ''
+    out += configClassString + ';\n'
+    out += '\n'
+    out += 'class ConfigHolder\n'
+    out += '{\n'
+    out += 'public:\n'
+    out += '    static std::unique_ptr<Communication> getCommunicationHandler()\n'
+    out += '    {\n'
+    out += '        Serial.begin(115200);\n'
+    out += '        Serial1.begin(115200);\n'
+    out += '        auto com = std::make_unique<Communication>(SerialComOptimizer(&Serial1, &Serial));\n'
+    out += '        com->addCommunicationNode(\n'
+    out += f'                std::make_unique<DCServoCommunicationHandler>({int(nodeNr)}, createDCServo<{configClassName}>()));\n'
+    out += '\n'
+    out += '        return com;\n'
+    out += '    }\n'
+    out += '};\n'
+    out += '\n'
+    out += '#endif\n'
+    return out
+
+wrapAroundAndUnitPerRevPattern = re.compile(r'(?P<beg>return\s+std::make_unique\s*<\s*)(?P<encoderType>\w*)(?P<mid>\s*>\s*\((\w+\s*,\s*))(?P<units>[^;]*)(?P<end>,\s*compVec\s*\)\s*;)')
+
+def getConfiguredOutputEncoderData(configClassString):
+    temp = wrapAroundAndUnitPerRevPattern.search(configClassString)
+    
+    magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
+    unitsPerRev = 4096
+    if not magneticEncoder:
+        unitsStr = wrapAroundAndUnitPerRevPattern.search(configClassString).group('units')
+
+        unitsStr = re.sub(r'f', '', unitsStr)
+        unitsPerRev = eval(unitsStr)
+
+    return magneticEncoder, unitsPerRev
+
+def setConfiguredOutputEncoderData(configClassString, magneticEncoder, unitsPerRev):
+    encoderTypeStr = ('EncoderHandler' if magneticEncoder else 'ResistiveEncoderHandler')
+
+    unitsStr = '4096.0f'
+    if not magneticEncoder:
+        unitsStr = f'4096.0f * {unitsPerRev / 4096 * 360 :0.1f}f / 360'
+
+    configClassString = re.sub(wrapAroundAndUnitPerRevPattern,
+            r'\g<beg>' + encoderTypeStr +
+            r'\g<mid>' + unitsStr + r'\g<end>', configClassString)
+
+    return configClassString
+
+parmeterPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\()(?P<params>[^;]*)(?P<end>\s*\)\s*;)')
+unitsPattern = re.compile(r'(?P<beg>(\w+\s*,\s*){4}\s*)(?P<units>.*)')
+gearRatioPattern = re.compile(r'(4096\.0f?\s*\*\s*)(?P<gearRatio>.*)')
+
+def getConfiguredGearRatio(configClassString):
+    temp = parmeterPattern.search(configClassString)
+
+    paramStr = temp.group('params')
+    temp = unitsPattern.search(paramStr)
+
+    unitsStr = temp.group('units')
+    unitsStr = re.sub(r'f', '', unitsStr)
+
+    gearRatioStr = ''
+    temp = gearRatioPattern.search(unitsStr)
+    if temp:
+        gearRatioStr = temp.group('gearRatio')
+        gearRatioStr = re.sub(r'f', '', gearRatioStr)
+
+    if gearRatioStr == '':
+        return str(eval(unitsStr) / 4096)
+
+    return gearRatioStr
+
+def setConfiguredGearRatio(configClassString, gearRatioStr):
+    temp = parmeterPattern.search(configClassString)
+    if not temp:
+        return ''
+
+    gearRatioStr = re.sub(r'(?P<digit>\d\.\d+)(?P<end>\s*/)', r'\g<digit>f\g<end>', gearRatioStr)
+    gearRatioStr = re.sub(r'(?P<digit>\d)(?P<end>\s*/)', r'\g<digit>.0f\g<end>', gearRatioStr)
+    paramStr = temp.group('params')
+    paramStr = re.sub(unitsPattern, r'\g<beg>4096.0f * ' + gearRatioStr, paramStr)
+    configClassString = re.sub(parmeterPattern, r'\g<beg>' + paramStr + r'\g<end>', configClassString)
+
+    return configClassString
