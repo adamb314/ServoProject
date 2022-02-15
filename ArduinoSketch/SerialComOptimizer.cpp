@@ -11,11 +11,13 @@ SerialComOptimizer::SerialComOptimizer(Stream* serial, Stream* secSerial) :
     {
         serialVec.push_back(secSerial);
     }
+    comLastActiveTimestamp = millis();
 }
 
 SerialComOptimizer::SerialComOptimizer(const SerialComOptimizer& in) :
     serial(in.serial),
     serialVec(in.serialVec),
+    comLastActiveTimestamp(in.comLastActiveTimestamp),
     bridgeSerialVec(in.bridgeSerialVec),
     readBuffer(in.readBuffer),
     readBufferGetIt((in.readBufferGetIt - in.readBuffer.begin()) + readBuffer.begin()),
@@ -85,16 +87,23 @@ void SerialComOptimizer::collectReadData()
         return;
     }
 
-    int32_t availableInHardwarBuffer = 0;
+    int32_t availableInHardwarBuffer = serial->available();
 
-    for (auto s : serialVec)
+    if (availableInHardwarBuffer != 0)
     {
-        availableInHardwarBuffer = s->available();
-
-        if (availableInHardwarBuffer != 0)
+        comLastActiveTimestamp = millis();
+    }
+    if (millis() - comLastActiveTimestamp > 1000)
+    {
+        for (auto s : serialVec)
         {
-            serial = s;
-            break;
+            availableInHardwarBuffer = s->available();
+
+            if (availableInHardwarBuffer != 0)
+            {
+                serial = s;
+                break;
+            }
         }
     }
 

@@ -33,6 +33,7 @@ private:
 
     Stream* serial;
     std::vector<Stream*> serialVec;
+    uint32_t comLastActiveTimestamp;
     std::vector<Stream*> bridgeSerialVec;
 
     std::array<uint8_t, 32> readBuffer;
