@@ -177,7 +177,10 @@ def shiftVec(vec, shift):
     return temp[-shift:] + temp[0:-shift]
 
 class OpticalEncoderDataVectorGenerator:
-    def __init__(self, data, classString = '', segment = 3000,
+    _aVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*aVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
+    _bVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
+
+    def __init__(self, data, configFileAsString = '', configClassName = '', segment = 3000,
             constVelIndex = 10000, noiseDepresMemLenght = 5,
             shouldAbort=None, updateProgress=None):
 
@@ -352,16 +355,15 @@ class OpticalEncoderDataVectorGenerator:
         self.oldAVec = None
         self.oldBVec = None
 
-        if classString != '':
-            aVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*aVec\s*=\s*)\{([\d\s,]*)\};')
-            bVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*bVec\s*=\s*)\{([\d\s,]*)\};')
-            
-            temp1 = aVecPattern.search(classString)
-            temp2 = bVecPattern.search(classString)
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        if configClassString != '':
+            temp1 = OpticalEncoderDataVectorGenerator._aVecPattern.search(configClassString)
+            temp2 = OpticalEncoderDataVectorGenerator._bVecPattern.search(configClassString)
 
             if temp1 != None and temp2 != None:
-                oldAVecStr = temp1.group(3)
-                oldBVecStr = temp2.group(3)
+                oldAVecStr = temp1.group('vec')
+                oldBVecStr = temp2.group('vec')
                 oldAVecStr = '[' + oldAVecStr + ']'
                 oldBVecStr = '[' + oldBVecStr + ']'
 
@@ -659,17 +661,19 @@ class OpticalEncoderDataVectorGenerator:
 
         box.show_all()
 
-    def writeVectorsToConfigClassString(self, configClassString):
-        aVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*aVec\s*=\s*)\{[\d\s,]*\};')
-        bVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*bVec\s*=\s*)\{[\d\s,]*\};')
-        
+    def writeVectorsToConfigFileString(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+        aVecPattern = OpticalEncoderDataVectorGenerator._aVecPattern
+        bVecPattern = OpticalEncoderDataVectorGenerator._bVecPattern
+
         temp1 = aVecPattern.search(configClassString)
         temp2 = bVecPattern.search(configClassString)
         if temp1 != None and temp2 != None:
             configClassString = re.sub(aVecPattern, r'\g<beg>' + '2048' + r'\g<end>' + intArrayToString(self.aVecShifted), configClassString)
             configClassString = re.sub(bVecPattern, r'\g<beg>' + '2048' + r'\g<end>' + intArrayToString(self.bVecShifted), configClassString)
 
-            return configClassString
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+            return configFileAsString
 
         return ''
 
@@ -680,16 +684,30 @@ class OpticalEncoderDataVectorGenerator:
 
         return out
 
-def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, manualMovement):
+def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
+
+    limitMovementButton = GuiFunctions.createToggleButton('Lock', getLowLev=True)
+    limitMovementButton = GuiFunctions.addTopLabelTo('<b>Limit movement</b>\n Only move around locked position to avoid end limits', limitMovementButton[0]), limitMovementButton[1]
+    calibrationBox.pack_start(limitMovementButton[0], False, False, 0)
+
+    startPos = None
+
+    def onLockPosition(widget):
+        nonlocal startPos
+        if widget.get_active():
+            with createRobot(nodeNr, getPortFun()) as r:
+                startPos = r.servoArray[0].getPosition(True)
+        else:
+            startPos = None
+
+    limitMovementButton[1].connect('toggled', onLockPosition)
+
     pwmValue = 0
-    if not manualMovement:
-        pwmValue = 1
     pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
     pwmScale = GuiFunctions.addTopLabelTo('<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]), pwmScale[1]
-    if not manualMovement:
-        calibrationBox.pack_start(pwmScale[0], False, False, 0)
+    calibrationBox.pack_start(pwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
@@ -719,6 +737,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
         calibrationBox.remove(recordingProgressBar[0])
         calibrationBox.remove(analyzingProgressBar[0])
         pwmScale[1].set_sensitive(True)
+        limitMovementButton[1].set_sensitive(True)
 
     runThread = False
     def testPwmRun(nodeNr, port):
@@ -730,11 +749,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
 
             t = 0.0
             doneRunning = False
+            pwmDir = 1
+            moveDir = 0
 
             def sendCommandHandlerFunction(dt, robot):
                 nonlocal t
                 nonlocal pwmValue
                 nonlocal threadMutex
+                nonlocal pwmDir
+                nonlocal moveDir
 
                 servo = robot.servoArray[0]
 
@@ -742,7 +765,17 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
                 with threadMutex:
                     pwm = pwmValue
 
-                servo.setOpenLoopControlSignal(pwm, True)
+                pos = servo.getPosition(True)
+
+                if startPos != None:
+                    if pos - startPos < -1 and moveDir != -1:
+                        moveDir = -1
+                        pwmDir *= -1
+                    elif pos - startPos > 1 and moveDir != 1:
+                        moveDir = 1
+                        pwmDir *= -1
+
+                servo.setOpenLoopControlSignal(pwm * pwmDir, True)
 
             out = []
 
@@ -833,6 +866,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
 
         if widget.get_label() == 'Test pwm value':
             startButton[1].set_sensitive(False)
+            limitMovementButton[1].set_sensitive(False)
             widget.set_label('Stop pwm test')
             with threadMutex:
                 runThread = True
@@ -845,8 +879,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
 
 
     testButton[1].connect('clicked', onTestPwm)
-    if not manualMovement:
-        calibrationBox.pack_start(testButton[0], False, False, 0)
+    calibrationBox.pack_start(testButton[0], False, False, 0)
 
     recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
     analyzingProgressBar = GuiFunctions.creatProgressBar(label='Analyzing', getLowLev=True)
@@ -862,28 +895,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
         analyzingProgressBar[1].set_fraction(fraction)
     
     def startCalibrationRun(nodeNr, port):
-        nonlocal configClassName
-
         nonlocal runThread
         nonlocal pwmValue
         nonlocal threadMutex
 
-        configClassString = ''
-
-        with open(configFilePath, "r") as configFile:
-            configFileAsString = configFile.read()
-
-            classPattern =re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
-            temp = classPattern.search(configFileAsString)
-            if temp != None:
-                configClassString = temp.group(0)
-
         with createRobot(nodeNr, port) as robot:
 
             def handleResults(opticalEncoderDataVectorGenerator):
-                nonlocal configClassString
-                nonlocal configFileAsString
-
                 dialog = Gtk.MessageDialog(
                         transient_for=parent,
                         flags=0,
@@ -895,16 +913,21 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
                     "Should the configuration be updated with the new data?"
                 )
                 opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area())
+                dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
                 response = dialog.run()
                 dialog.destroy()
 
                 if response == Gtk.ResponseType.YES:
-                    configClassString = opticalEncoderDataVectorGenerator.writeVectorsToConfigClassString(configClassString)
-                    if configClassString != '':
-                        configFileAsString = re.sub(classPattern, configClassString, configFileAsString)
-                        with open(configFilePath, "w") as configFile:
-                            configFile.write(configFileAsString)
-                            GuiFunctions.transferToTargetMessage(parent)
+                    configClassString = ''
+
+                    with open(configFilePath, "r") as configFile:
+                        configFileAsString = configFile.read()
+                        configFileAsString = opticalEncoderDataVectorGenerator.writeVectorsToConfigFileString(configFileAsString, configClassName)
+
+                        if configFileAsString != '':
+                            with open(configFilePath, "w") as configFile:
+                                configFile.write(configFileAsString)
+                                GuiFunctions.transferToTargetMessage(parent)
 
                             return
 
@@ -939,43 +962,64 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
                 dialog.destroy()
 
             t = 0.0
+            dirChangeWait = 0.0
             doneRunning = False
+            pwmDir = 1
+            moveDir = 0
 
             runTime = 110.0
-            if manualMovement:
-                runTime = 40.0
 
             def sendCommandHandlerFunction(dt, robot):
                 nonlocal t
+                nonlocal dirChangeWait
                 nonlocal pwmValue
                 nonlocal threadMutex
                 nonlocal runTime
+                nonlocal startPos
+                nonlocal pwmDir
+                nonlocal moveDir
 
                 servo = robot.servoArray[0]
-
-                if manualMovement:
-                    return
 
                 pwm = 0
                 with threadMutex:
                     pwm = pwmValue
-                if t < (runTime - 10.0) * 0.5:
-                    servo.setOpenLoopControlSignal(min(pwm, 0.25 * t * pwm), True)
-                else:
-                    servo.setOpenLoopControlSignal(-pwm, True)
 
+                pos = servo.getPosition(True)
+
+                print(f'{pos = :0.3f}', end = '\r')
+
+                if startPos != None:
+                    if pos - startPos < -1:
+                        dirChangeWait = 1.0
+                        if moveDir != -1:
+                            moveDir = -1
+                            pwmDir *= -1
+                    elif pos - startPos > 1:
+                        dirChangeWait = 1.0
+                        if moveDir != 1:
+                            moveDir = 1
+                            pwmDir *= -1
+
+                if t > (runTime - 10) * 0.5 and moveDir == 0:
+                    moveDir = 1
+                    pwmDir *= -1
+                    dirChangeWait = 4.0
+
+                servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
 
             out = []
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
+                nonlocal dirChangeWait
                 nonlocal runThread
                 nonlocal doneRunning
                 nonlocal runTime
 
                 servo = robot.servoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
-                if t > 0.1 and (t < (runTime - 10.0) * 0.5 or t > (runTime - 10.0) * 0.5 + 10.0 or manualMovement):
+                if t > 0.1 and dirChangeWait <= 0.0:
                     out.append([t,
                             opticalEncoderData.a,
                             opticalEncoderData.b,
@@ -993,7 +1037,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
                     robot.removeHandlerFunctions()
                     doneRunning = True
 
-                t += dt
+                if dirChangeWait > 0.0:
+                    dirChangeWait -= dt
+                else:
+                    t += dt
 
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
@@ -1026,8 +1073,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
 
             if not shouldAbort():
                 try:
+                    configFileAsString = ''
+                    with open(configFilePath, "r") as configFile:
+                        configFileAsString = configFile.read()
+
                     opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                            data[:, 1:3], configClassString, constVelIndex=4000, segment = 2 * 2048, noiseDepresMemLenght= 8,
+                            data[:, 1:3], configFileAsString, configClassName, constVelIndex=4000, segment = 2 * 2048, noiseDepresMemLenght= 8,
                             shouldAbort=shouldAbort,
                             updateProgress=updateProgress)
 
@@ -1051,15 +1102,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ma
         if widget.get_label() == 'Start calibration':
             widget.set_label('Abort calibration')
 
-            if manualMovement:
-                GuiFunctions.startManuallyCalibrationMessage(parent, '200 seconds')
-
             recordingProgressBar[1].set_fraction(0.0)
             analyzingProgressBar[1].set_fraction(0.0)
             testButton[1].set_sensitive(False)
             calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
             calibrationBox.pack_start(analyzingProgressBar[0], False, False, 0)
             pwmScale[1].set_sensitive(False)
+            limitMovementButton[1].set_sensitive(False)
 
             calibrationBox.show_all()
 

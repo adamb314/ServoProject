@@ -150,6 +150,23 @@ def createButton(text, onClickFun = nullFunEvent, width = 500, getLowLev = False
 
     return box
 
+def createToggleButton(text, onClickFun = nullFunEvent, width = 500, getLowLev = False):
+    button = Gtk.ToggleButton(label=text)
+    button.connect("toggled", onClickFun)
+    button.set_margin_start(40)
+    button.set_margin_end(50)
+    button.set_margin_top(8)
+    button.set_margin_bottom(10)
+    button.set_property("width-request", width)
+
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+    box.add(button)
+
+    if getLowLev:
+        return box, button
+
+    return box
+
 def createEntry(initText, onEdit = nullFunEvent, width = 500, getLowLev = False):
     entry = Gtk.Entry()
     entry.set_text(initText)
