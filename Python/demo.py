@@ -70,6 +70,8 @@ def playTrajectory(robot, trajectory):
     robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
     while not doneRunning:
+        if not robot.isAlive():
+            break
         time.sleep(0.1)
 
 def addLinearMove(trajectory, endPos, duration):
@@ -108,34 +110,26 @@ def addWait(trajectory, duration):
     return trajectory
 
 def main():
-    robot = createRobot('/dev/ttyACM0')
+    with createRobot('/dev/ttyACM0') as robot:
+        trajectory = []
+        trajectory.append(robot.getPosition())
 
-    trajectory = []
-    trajectory.append(robot.getPosition())
+        trajectory = addSmoothMove(trajectory, [0.0, 0.0], 1.0)
+        trajectory = addWait(trajectory, 10.0)
 
-    trajectory = addSmoothMove(trajectory, [0.0, 0.0], 1.0)
-    trajectory = addWait(trajectory, 10.0)
+        for i in range(0, 3):
+            #trajectory = addSmoothMove(trajectory, [2.0, 2.0], 0.2)
+            trajectory = addSmoothMove(trajectory, [-10.0, -10.0], 1.0)
+            trajectory = addSmoothMove(trajectory, [0.0, 0.0], 3.0)
+            trajectory = addWait(trajectory, 3.0)
+            #trajectory = addSmoothMove(trajectory, [-2.0, -2.0], 0.2)
+            trajectory = addSmoothMove(trajectory, [10.0, 10.0], 1.0)
+            trajectory = addSmoothMove(trajectory, [0.0, 0.0], 3.0)
+            trajectory = addWait(trajectory, 3.0)
 
-    for i in range(0, 3):
-        #trajectory = addSmoothMove(trajectory, [2.0, 2.0], 0.2)
-        trajectory = addSmoothMove(trajectory, [-10.0, -10.0], 1.0)
-        trajectory = addSmoothMove(trajectory, [0.0, 0.0], 3.0)
-        trajectory = addWait(trajectory, 3.0)
-        #trajectory = addSmoothMove(trajectory, [-2.0, -2.0], 0.2)
-        trajectory = addSmoothMove(trajectory, [10.0, 10.0], 1.0)
-        trajectory = addSmoothMove(trajectory, [0.0, 0.0], 3.0)
-        trajectory = addWait(trajectory, 3.0)
+        trajectory = addWait(trajectory, 7.0)
 
-    trajectory = addWait(trajectory, 7.0)
-    
-
-    try:
         playTrajectory(robot, trajectory)
-    except Exception as e:
-        print(e)
-
-    robot.shutdown()
-
 
 if __name__ == '__main__':
     main()

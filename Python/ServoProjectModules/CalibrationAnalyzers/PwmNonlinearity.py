@@ -247,9 +247,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
         nonlocal runThread
         nonlocal threadMutex
 
-        try:
-            robot = createRobot(nodeNr, port)
-
+        with createRobot(nodeNr, port) as robot:
             t = 0.0
             doneRunning = False
             pwm = 0
@@ -308,6 +306,8 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
+                if not robot.isAlive():
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
@@ -336,8 +336,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                     plt.show()
 
             GLib.idle_add(plotData, data)
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 
@@ -427,9 +425,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
         nonlocal maxOscillationFrq
         nonlocal maxPwmValue
 
-        try:
-            robot = createRobot(nodeNr, port)
-
+        with createRobot(nodeNr, port) as robot:
             with threadMutex:
                 highResStep = min(25, int(midPwmValue - minPwmValue / 10.0))
                 temp = [v for v in range(int(minPwmValue), int(midPwmValue), highResStep)]
@@ -521,6 +517,9 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
+                if not robot.isAlive():
+                    runThread = False
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
@@ -528,9 +527,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             if runThread == True:
                 data = np.array(out)
                 GLib.idle_add(handleResults, data)
-
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 

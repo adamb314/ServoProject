@@ -377,9 +377,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
         nonlocal runThread
         nonlocal threadMutex
 
-        try:
-            robot = createRobot(nodeNr, port)
-
+        with createRobot(nodeNr, port) as robot:
             t = 0.0
             doneRunning = False
 
@@ -415,6 +413,8 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
+                if not robot.isAlive():
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
@@ -441,8 +441,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
                     plt.show()
 
             GLib.idle_add(plotData, data)
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 
@@ -544,9 +542,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
         nonlocal maxPwmValue
         nonlocal motorSettleTime
 
-        try:
-            robot = createRobot(nodeNr, port, 0.018)
-
+        with createRobot(nodeNr, port, 0.018) as robot:
             pwmSampleValues = []
             nr = 10
             for i in range(1, nr + 1):
@@ -603,6 +599,9 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
+                if not robot.isAlive():
+                    runThread = False
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
@@ -610,9 +609,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             if runThread == True:
                 data = np.array(out)
                 GLib.idle_add(handleResults, data)
-
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 

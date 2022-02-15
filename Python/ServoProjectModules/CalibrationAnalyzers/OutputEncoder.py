@@ -349,16 +349,14 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
         nonlocal threadMutex
         nonlocal controlSpeedScale
 
-        try:
-            controlSpeedScale[1].set_sensitive(False)
-            controlSpeed = controlSpeedScale[1].get_value()
-            def initFun(robot):
-                nonlocal controlSpeed
-                robot.servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
-                robot.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
+        controlSpeedScale[1].set_sensitive(False)
+        controlSpeed = controlSpeedScale[1].get_value()
+        def initFun(robot):
+            nonlocal controlSpeed
+            robot.servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+            robot.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-            robot = createRobot(nodeNr, port, dt=0.018, initFunction=initFun)
-
+        with createRobot(nodeNr, port, dt=0.003, initFunction=initFun) as robot:
             t = -6.2
             doneRunning = False
             refPos = 0.0
@@ -480,6 +478,9 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
             while not doneRunning:
+                if not robot.isAlive():
+                    runThread = False
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
@@ -487,9 +488,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName):
             if runThread == True:
                 data = np.array(out)
                 GLib.idle_add(handleResults, data)
-
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 

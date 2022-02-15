@@ -142,13 +142,11 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advanced
 
         positionOffset = positionOffsetScale[1].get_value()
 
-        try:
-            def initFun(robot):
-                robot.servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
-                robot.servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
+        def initFun(robot):
+            robot.servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
+            robot.servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
 
-            robot = createRobot(nodeNr, port, dt=0.018, initFunction=initFun)
-
+        with createRobot(nodeNr, port, dt=0.018, initFunction=initFun) as robot:
             t = 0.0
             doneRunning = False
 
@@ -205,15 +203,15 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, advanced
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
+                if not robot.isAlive():
+                    runThread = False
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
 
             data = np.array(out)
             GLib.idle_add(handleResults, data)
-
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 

@@ -574,12 +574,14 @@ class Robot(object):
 
         self.cycleSleepTime = 0
 
-        self.shuttingDown = False
+        self.shuttingDown = True
 
-        self.t = threading.Thread(target=self.run)
+        self.exception = None
+
         self.handlerFunctionMutex = threading.Lock()
-        self.sendCommandHandlerFunction = lambda cycleTime, robot : cycleTime
-        self.readResultHandlerFunction = lambda cycleTime, robot : cycleTime
+        self.sendCommandHandlerFunction = lambda cycleTime, robot : None
+        self.readResultHandlerFunction = lambda cycleTime, robot : None
+        self.errorHandlerFunction = lambda exception : None
 
         initFunction(self)
 
@@ -596,46 +598,81 @@ class Robot(object):
         for s in self.servoArray:
             self.currentPosition.append(s.getPosition())
 
-        self.t.start()
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.shutdown()
 
     def run(self):
-        sleepUntilTimePoint = time.time();
+        try:
+            sleepUntilTimePoint = time.time();
 
-        while not self.shuttingDown:
-            self.cycleSleepTime = sleepUntilTimePoint - time.time()
-            time.sleep(max(0, sleepUntilTimePoint - time.time()))
-            sleepUntilTimePoint += self.cycleTime
+            while not self.shuttingDown:
+                self.cycleSleepTime = sleepUntilTimePoint - time.time()
+                time.sleep(max(0, sleepUntilTimePoint - time.time()))
+                sleepUntilTimePoint += self.cycleTime
 
+                with self.handlerFunctionMutex:
+                    tempSendHandlerFunction = self.sendCommandHandlerFunction
+                    tempReadHandlerFunction = self.readResultHandlerFunction
+
+                tempSendHandlerFunction(self.cycleTime, self)
+
+                for s in self.servoArray:
+                    s.run()
+
+                for i, s in enumerate(self.servoArray):
+                    self.currentPosition[i] = s.getPosition()
+
+                tempReadHandlerFunction(self.cycleTime, self)
+        except Exception as e:
             with self.handlerFunctionMutex:
-                tempSendHandlerFunction = self.sendCommandHandlerFunction
-                tempReadHandlerFunction = self.readResultHandlerFunction
-
-            tempSendHandlerFunction(self.cycleTime, self)
-
-            for s in self.servoArray:
-                s.run()
-
-            for i, s in enumerate(self.servoArray):
-                self.currentPosition[i] = s.getPosition()
-
-            tempReadHandlerFunction(self.cycleTime, self)
+                if self.errorHandlerFunction:
+                    self.errorHandlerFunction(e)
+                else:
+                    self.exception = e
+                    raise e
+        finally:
+            self.shuttingDown = True
 
     def getPosition(self):
         return self.currentPosition
 
-    def setHandlerFunctions(self, newSendCommandHandlerFunction, newReadResultHandlerFunction):
+    def setHandlerFunctions(self, newSendCommandHandlerFunction, newReadResultHandlerFunction, newErrorHandlerFunction = None):
         with self.handlerFunctionMutex:
             self.sendCommandHandlerFunction = newSendCommandHandlerFunction
             self.readResultHandlerFunction = newReadResultHandlerFunction
-
+            self.errorHandlerFunction = newErrorHandlerFunction
 
     def removeHandlerFunctions(self):
         self.setHandlerFunctions(lambda cycleTime, robot : cycleTime, lambda cycleTime, robot : cycleTime)
+
+    def start(self):
+        if self.shuttingDown:
+            self.shuttingDown = False
+            self.t = threading.Thread(target=self.run)
+            self.t.start()
 
     def shutdown(self):
         if not self.shuttingDown:
             self.shuttingDown = True
             self.t.join()
+
+    def getUnhandledException(self):
+        e = None
+        with self.handlerFunctionMutex:
+            e = self.exception
+            self.exception = None
+        return e
+
+    def isAlive(self, raiseException = True):
+        if raiseException:
+            e = self.getUnhandledException()
+            if e != None:
+                raise e
+        return not self.shuttingDown
 
     def getCycleSleepTime(self):
         return self.cycleSleepTime

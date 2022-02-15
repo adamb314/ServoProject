@@ -726,8 +726,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
         nonlocal pwmValue
         nonlocal threadMutex
         
-        try:
-            robot = createRobot(nodeNr, port)
+        with createRobot(nodeNr, port) as robot:
 
             t = 0.0
             doneRunning = False
@@ -774,6 +773,8 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
+                if not robot.isAlive():
+                    break
                 time.sleep(0.1)
 
             robot.shutdown()
@@ -816,9 +817,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                     plt.show()
 
             GLib.idle_add(plotData, data)
-
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
 
@@ -880,8 +878,7 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             if temp != None:
                 configClassString = temp.group(0)
 
-        try:
-            robot = createRobot(nodeNr, port)
+        with createRobot(nodeNr, port) as robot:
 
             def handleResults(opticalEncoderDataVectorGenerator):
                 nonlocal configClassString
@@ -1001,6 +998,9 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
             robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
             while not doneRunning:
+                if not robot.isAlive():
+                    runThread = False
+                    break
                 time.sleep(0.1)
 
             data = np.array(out)
@@ -1034,9 +1034,6 @@ def createGuiBox(parent, nodeNr, port, configFilePath, configClassName, manualMo
                     GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
                 except Exception as e:
                     GLib.idle_add(handleAnalyzeError, format(e))
-
-        except Exception as e:
-            print(format(e))
 
         GLib.idle_add(resetGuiAfterCalibration)
     
