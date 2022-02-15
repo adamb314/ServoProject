@@ -15,6 +15,7 @@ def transferToTargetMessage(parent):
     )
     response = dialog.run()
     dialog.destroy()
+    parent.setFocusOnTranferButton()
 
 def disconnectMotorFromGearboxMessage(parent):
     dialog = Gtk.MessageDialog(
