@@ -251,8 +251,8 @@ class DCServo
     float feedForwardU{0};
 
     float Ivel{0.0f};
-    float vControlRef{0.0};
-    int16_t pwm{0.0};
+    float vControlRef{0.0f};
+    int16_t pwm{0};
 
     std::unique_ptr<CurrentController> currentController;
     std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;

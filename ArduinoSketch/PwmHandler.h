@@ -113,7 +113,7 @@ protected:
     const LinearizeFunctionType linearizeFunction;
 
     const uint16_t tickPerUs{F_CPU / 1000000ul};
-    const uint16_t switchTransientTime{4 * tickPerUs};
+    const uint16_t switchTransientTime{(uint16_t)(4 * tickPerUs)};
     const uint8_t freqDiv{2};
 };
 
