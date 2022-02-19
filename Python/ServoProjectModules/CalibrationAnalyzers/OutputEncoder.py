@@ -111,25 +111,20 @@ class OutputEncoderCalibrationGenerator(object):
     def isInverted(self):
         return OutputEncoderCalibrationGenerator.checkForInvertedEncoder(self.data)
 
-    _compVecPattern = re.compile(r'(.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*([^\}]*)\s*\};')
+    _compVecPattern = re.compile(r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
+    _unitPerRevPattern = re.compile(r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*(?P<encoderType>\w*)\s*>\s*\([^,]*,\s*)(?P<units>[^,]*)(?P<end>,\s*compVec\s*\)\s*;)')
 
     def getConfiguredOutputEncoderData(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
-        wrapAroundAndUnitPerRevPattern = re.compile(r'return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\(([^;]*)\s*compVec\s*\)\s*;')
-
-        temp = wrapAroundAndUnitPerRevPattern.search(configClassString)
+        temp = OutputEncoderCalibrationGenerator._unitPerRevPattern.search(configClassString)
         
-        magneticEncoder = temp.group(1) == 'EncoderHandler'
+        magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
         unitsPerRev = 4096
         if not magneticEncoder:
-            paramStr = wrapAroundAndUnitPerRevPattern.search(configClassString).group(2)
-            i = paramStr.find(',')
-            paramStr = paramStr[i + 1:]
-            i = paramStr.find(',')
-            paramStr = paramStr[0:i]
-            paramStr = re.sub(r'f', '', paramStr)
-            unitsPerRev = eval(paramStr)
+            unitsPerRevStr = temp.group('units')
+            unitsPerRevStr = re.sub(r'f', '', unitsPerRevStr)
+            unitsPerRev = eval(unitsPerRevStr)
 
         return magneticEncoder, unitsPerRev
 
@@ -138,14 +133,14 @@ class OutputEncoderCalibrationGenerator(object):
 
         temp = OutputEncoderCalibrationGenerator._compVecPattern.search(configClassString)
         if temp != None:
-            if temp.group(3) != '0':
+            if temp.group('vec') != '0':
                 return True
 
         return False
 
     def resetPreviousCalibration(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
-        configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\1{0};', configClassString)
+        configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\g<beg>{0};', configClassString)
         configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
 
         return configFileAsString
@@ -168,7 +163,7 @@ class OutputEncoderCalibrationGenerator(object):
         
         temp = OutputEncoderCalibrationGenerator._compVecPattern.search(configClassString)
         if temp != None:
-            configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\1' + intArrayToString(self.meanList), configClassString)
+            configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\g<beg>' + intArrayToString(self.meanList), configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -183,9 +178,8 @@ class OutputEncoderCalibrationGenerator(object):
 
     def invertOutputEncoder(self, configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
-        unitPerRevPattern = re.compile(r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*\w*\s*>\s*\([^,]*,\s*)(?P<units>[^,]*)(?P<end>,\s*compVec\s*\)\s*;)')
 
-        temp = unitPerRevPattern.search(configClassString)
+        temp = OutputEncoderCalibrationGenerator._unitPerRevPattern.search(configClassString)
 
         if temp != None:
             unitsPerRevStr = temp.group('units')
@@ -194,7 +188,7 @@ class OutputEncoderCalibrationGenerator(object):
             while unitsPerRevStr.find('-(-(') == 0:
                 unitsPerRevStr = unitsPerRevStr[4:-2]
 
-            configClassString = re.sub(unitPerRevPattern, r'\g<beg>' + unitsPerRevStr + r'\g<end>', configClassString)
+            configClassString = re.sub(OutputEncoderCalibrationGenerator._unitPerRevPattern, r'\g<beg>' + unitsPerRevStr + r'\g<end>', configClassString)
         
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString

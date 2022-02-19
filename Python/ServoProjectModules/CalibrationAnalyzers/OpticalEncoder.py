@@ -177,8 +177,8 @@ def shiftVec(vec, shift):
     return temp[-shift:] + temp[0:-shift]
 
 class OpticalEncoderDataVectorGenerator:
-    _aVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*aVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
-    _bVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
+    _aVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*aVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
+    _bVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
 
     def __init__(self, data, configFileAsString = '', configClassName = '', segment = 3000,
             constVelIndex = 10000, noiseDepresMemLenght = 5,
