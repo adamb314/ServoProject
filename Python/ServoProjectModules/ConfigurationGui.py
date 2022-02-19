@@ -13,6 +13,7 @@ import ServoProjectModules.CalibrationAnalyzers.MotorCoggingTorque as MotorCoggi
 import ServoProjectModules.CalibrationAnalyzers.TestControlLoop as TestControlLoopAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.Helper as Helper
 import ServoProjectModules.ArduinoManager as ArduinoManager
+ArduinoManager.__init__()
 
 def openCreateConfigDialog(parent, configs):
     dialog = Gtk.MessageDialog(

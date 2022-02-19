@@ -3,11 +3,8 @@ import ServoProjectModules.Communication as ServoComModule
 from ServoProjectModules.Communication import pi
 
 import numpy as np
-import threading
 import time
 import math
-import random
-import matplotlib.pyplot as plt
 
 dt = 0.018
 
