@@ -159,13 +159,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
         statusLabel.set_label(string)
 
     def resetGuiAfterCalibration():
-        nonlocal startButton
-        nonlocal controlSpeedScale
-        nonlocal velControlSpeedScale
-        nonlocal filterSpeedScale
-        nonlocal backlashControlSpeedScale
-        nonlocal refPosScale
-
         startButton[1].set_label('Start test')
         startButton[1].set_sensitive(True)
         controlSpeedScale[1].set_sensitive(True)
@@ -219,7 +212,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
     def startTestRun(nodeNr, port):
         nonlocal runThread
-        nonlocal threadMutex
 
         controlSpeed = int(controlSpeedScale[1].get_value())
         velControlSpeed = controlSpeed * 4
@@ -256,7 +248,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal runThread
                 nonlocal doneRunning
 
                 t += dt

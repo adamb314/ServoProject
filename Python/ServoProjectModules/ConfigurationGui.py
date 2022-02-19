@@ -233,7 +233,6 @@ class GuiWindow(Gtk.Window):
 
         activeConfigCombo = GuiFunctions.creatComboBox('', [''], getLowLev=True)
         def loadConfigs(widget, event):
-            nonlocal activeConfigCombo
             configs = ['']
             for c in self.getConfigurations():
                 configs.append(c)
@@ -427,8 +426,6 @@ class GuiWindow(Gtk.Window):
         def onActiveConfigChange(widget):
             nonlocal lastActiveConfig
             nonlocal calibrationCombo
-            nonlocal activeNodeNrCombo
-            nonlocal calibrationBox
 
             activeIter = widget.get_active_iter()
             if activeIter is not None:
@@ -505,7 +502,7 @@ class GuiWindow(Gtk.Window):
 
                 def onCaribrationTypeChange(widget):
                     nonlocal calibrationBox
-                    nonlocal box1
+
                     calibrationType = ''
                     activeIter = widget.get_active_iter()
                     if activeIter is not None:

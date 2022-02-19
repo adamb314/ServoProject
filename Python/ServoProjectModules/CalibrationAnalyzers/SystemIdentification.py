@@ -370,16 +370,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def motorSettleTimeChanged(widget):
         nonlocal motorSettleTime
-        nonlocal threadMutex
 
         with threadMutex:
             motorSettleTime = widget.get_value()
 
     def minPwmValueChanged(widget):
-        nonlocal maxPwmScale
         nonlocal minPwmValue
         nonlocal testPwmValue
-        nonlocal threadMutex
 
         with threadMutex:
             minPwmValue = widget.get_value()
@@ -389,10 +386,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             maxPwmScale[1].set_value(minPwmValue)
 
     def maxPwmValueChanged(widget):
-        nonlocal minPwmScale
         nonlocal maxPwmValue
         nonlocal testPwmValue
-        nonlocal threadMutex
 
         with threadMutex:
             maxPwmValue = widget.get_value()
@@ -406,13 +401,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     maxPwmScale[1].connect('value-changed', maxPwmValueChanged)
 
     def resetGuiAfterCalibration():
-        nonlocal startButton
-        nonlocal testButton
-        nonlocal calibrationBox
-        nonlocal recordingProgressBar
-        nonlocal minPwmScale
-        nonlocal maxPwmScale
-
         testButton[1].set_label('Test pwm value')
         testButton[1].set_sensitive(True)
         dtSpinButton[1].set_sensitive(True)
@@ -427,7 +415,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
     def testPwmRun(nodeNr, port):
         nonlocal runThread
-        nonlocal threadMutex
 
         with createRobot(nodeNr, port) as robot:
             t = 0.0
@@ -436,8 +423,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             moveDir = 0
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal threadMutex
                 nonlocal pwmDir
                 nonlocal moveDir
 
@@ -459,7 +444,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal runThread
                 nonlocal doneRunning
 
                 t += dt
@@ -512,12 +496,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     testThread = None
 
     def onTestPwm(widget):
-        nonlocal calibrationBox
-        nonlocal startButton
-
         nonlocal testThread
         nonlocal runThread
-        nonlocal threadMutex
 
         if widget.get_label() == 'Test pwm value':
             dtSpinButton[1].set_sensitive(False)
@@ -537,8 +517,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         outputModelDt = widget.get_value()
 
     def updateRecordingProgressBar(fraction):
-        nonlocal recordingProgressBar
-
         recordingProgressBar[1].set_fraction(fraction)
 
     def handleResults(data):
@@ -594,10 +572,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
-        nonlocal threadMutex
-        nonlocal minPwmValue
-        nonlocal maxPwmValue
-        nonlocal motorSettleTime
 
         with createRobot(nodeNr, port, 0.018) as robot:
             pwmSampleValues = []
@@ -625,7 +599,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal runThread
                 nonlocal doneRunning
                 nonlocal pwm
                 nonlocal i
@@ -706,15 +679,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def onStartCalibration(widget):
         nonlocal testThread
-        nonlocal threadMutex
         nonlocal runThread
-
-        nonlocal calibrationBox
-        nonlocal motorSettleTimeScale
-        nonlocal minPwmScale
-        nonlocal maxPwmScale
-        nonlocal recordingProgressBar
-        nonlocal testButton
 
         if widget.get_label() == 'Start calibration':
             widget.set_label('Abort calibration')

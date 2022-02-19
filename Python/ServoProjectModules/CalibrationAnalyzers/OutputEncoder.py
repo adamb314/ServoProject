@@ -219,11 +219,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     testThread = None
 
     def resetGuiAfterCalibration():
-        nonlocal startButton
-        nonlocal calibrationBox
-        nonlocal recordingProgressBar
-        nonlocal directionLabel
-
         controlSpeedScale[1].set_sensitive(True)
         startButton[1].set_label('Start calibration')
         startButton[1].set_sensitive(True)
@@ -233,8 +228,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
 
     def updateRecordingProgressBar(fraction, pos):
-        nonlocal recordingProgressBar
-        nonlocal directionLabel
         stepsStr = []
         stepsStr.append('1) Move the servo-output-shaft over its range of motion.\n')
         stepsStr.append('2) Leave it someware in the middle.\n')
@@ -359,13 +352,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
-        nonlocal threadMutex
-        nonlocal controlSpeedScale
 
         controlSpeedScale[1].set_sensitive(False)
         controlSpeed = controlSpeedScale[1].get_value()
         def initFun(robot):
-            nonlocal controlSpeed
             robot.servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
             robot.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
@@ -379,7 +369,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             def sendCommandHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal threadMutex
                 nonlocal refPos
                 nonlocal minPos
                 nonlocal maxPos
@@ -417,7 +406,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal runThread
                 nonlocal doneRunning
                 nonlocal encPos
                 nonlocal refPos
@@ -514,12 +502,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def onStartCalibration(widget):
         nonlocal testThread
-        nonlocal threadMutex
         nonlocal runThread
-
-        nonlocal calibrationBox
-        nonlocal recordingProgressBar
-        nonlocal directionLabel
 
         if widget.get_label() == 'Start calibration':
             with open(configFilePath, "r") as configFile:

@@ -715,7 +715,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     threadMutex = threading.Lock()
     def updatePwmValue(widget):
         nonlocal pwmValue
-        nonlocal threadMutex
 
         with threadMutex:
             pwmValue = widget.get_value()
@@ -723,13 +722,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     pwmScale[1].connect('value-changed', updatePwmValue)
 
     def resetGuiAfterCalibration():
-        nonlocal startButton
-        nonlocal testButton
-        nonlocal calibrationBox
-        nonlocal recordingProgressBar
-        nonlocal analyzingProgressBar
-        nonlocal pwmScale
-
         testButton[1].set_label('Test pwm value')
         testButton[1].set_sensitive(True)
         startButton[1].set_label('Start calibration')
@@ -742,20 +734,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
     def testPwmRun(nodeNr, port):
         nonlocal runThread
-        nonlocal pwmValue
-        nonlocal threadMutex
-        
-        with createRobot(nodeNr, port) as robot:
 
+        with createRobot(nodeNr, port) as robot:
             t = 0.0
             doneRunning = False
             pwmDir = 1
             moveDir = 0
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
-                nonlocal pwmValue
-                nonlocal threadMutex
                 nonlocal pwmDir
                 nonlocal moveDir
 
@@ -781,7 +767,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
-                nonlocal runThread
                 nonlocal doneRunning
 
                 t += dt
@@ -854,15 +839,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         GLib.idle_add(resetGuiAfterCalibration)
 
     testThread = None
-
     def onTestPwm(widget):
-        nonlocal calibrationBox
-        nonlocal startButton
-
         nonlocal testThread
         nonlocal runThread
-        nonlocal pwmValue
-        nonlocal threadMutex
 
         if widget.get_label() == 'Test pwm value':
             startButton[1].set_sensitive(False)
@@ -885,19 +864,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     analyzingProgressBar = GuiFunctions.creatProgressBar(label='Analyzing', getLowLev=True)
 
     def updateRecordingProgressBar(fraction):
-        nonlocal recordingProgressBar
-
         recordingProgressBar[1].set_fraction(fraction)
 
     def updateAnalyzingProgressBar(fraction):
-        nonlocal analyzingProgressBar
-
         analyzingProgressBar[1].set_fraction(fraction)
     
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
-        nonlocal pwmValue
-        nonlocal threadMutex
 
         with createRobot(nodeNr, port) as robot:
 
@@ -970,12 +943,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             runTime = 110.0
 
             def sendCommandHandlerFunction(dt, robot):
-                nonlocal t
                 nonlocal dirChangeWait
-                nonlocal pwmValue
-                nonlocal threadMutex
-                nonlocal runTime
-                nonlocal startPos
                 nonlocal pwmDir
                 nonlocal moveDir
 
@@ -1013,9 +981,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             def readResultHandlerFunction(dt, robot):
                 nonlocal t
                 nonlocal dirChangeWait
-                nonlocal runThread
                 nonlocal doneRunning
-                nonlocal runTime
 
                 servo = robot.servoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
@@ -1055,8 +1021,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             robot.shutdown()
 
             def shouldAbort():
-                nonlocal runThread
-                nonlocal threadMutex
 
                 with threadMutex:
                     if runThread == False:
@@ -1090,14 +1054,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     
     def onStartCalibration(widget):
         nonlocal testThread
-        nonlocal threadMutex
         nonlocal runThread
-
-        nonlocal calibrationBox
-        nonlocal pwmScale
-        nonlocal recordingProgressBar
-        nonlocal analyzingProgressBar
-        nonlocal testButton
 
         if widget.get_label() == 'Start calibration':
             widget.set_label('Abort calibration')
