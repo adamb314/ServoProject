@@ -97,7 +97,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
 
     def handleResults(data):
-        #np.savetxt('compData_new.txt', data, delimiter=',')
         dialog = Gtk.MessageDialog(
                 transient_for=parent,
                 flags=0,
@@ -138,8 +137,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             plt.plot(np.array(data[:, 6]), data[:, 5], 'g+')
 
             plt.show()
-
-        data = np.loadtxt('compData.txt', delimiter=',')
 
         with open(configFilePath, "r") as configFile:
             configFileAsString = configFile.read()
