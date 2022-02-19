@@ -58,21 +58,17 @@ class PwmNonlinearityIdentifier(object):
         x = np.arange(0, 1024, 1)
         ywSum = np.zeros(1024)
         wSum = np.zeros(1024)
+        self.quadraticCurveList = []
         for i in range(1, len(self.compList) - 1):
             q = QuadraticCurve(self.compListPwm, self.compList, i)
-            v = self.compListPwm[i]
-            xSeg = np.arange(v - 150, v + 150, 10)
-            plt.plot(xSeg, q.getY(xSeg), 'y')
             ywSum, wSum = q.addToWeightedAveraged(x, ywSum, wSum)
+            self.quadraticCurveList.append(q)
 
         self.compListQuadInter = np.array([max(0, d[0]) / d[1] for d in zip(ywSum, wSum)])
-        plt.plot(self.compListQuadInter, 'm')
-        plt.plot(self.compListPwm, self.compList, 'r+')
-        plt.show()
 
-        s = 1023 / self.compListQuadInter[-1]
-        self.compListQuadInter *= s
-        self.compList = list([d * s for d in self.compList])
+        self.quadraticCurveScaling = 1023 / self.compListQuadInter[-1]
+        self.compListQuadInter *= self.quadraticCurveScaling
+        self.compList = list([d * self.quadraticCurveScaling for d in self.compList])
 
 
         self.pwmNonlinearityCompLookUp = []
@@ -115,8 +111,13 @@ class PwmNonlinearityIdentifier(object):
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
+        for i, q in enumerate(self.quadraticCurveList):
+            v = self.compListPwm[i + 1]
+            x = np.arange(v - 150, v + 150, 10)
+            y = np.array(q.getY(x)) * self.quadraticCurveScaling
+            ax.plot(y, x, 'y,')
         ax.plot(range(0, 1024, self.lookUpStepSize), range(0, 1024, self.lookUpStepSize), 'k-')
-        ax.plot(range(0, 1024, self.lookUpStepSize), self.pwmNonlinearityCompLookUp, 'g+-')
+        ax.plot(range(0, 1024, self.lookUpStepSize), self.pwmNonlinearityCompLookUp, 'g-')
         ax.plot(self.compList, self.compListPwm, 'c.')
 
         canvas = FigureCanvas(fig)

@@ -486,7 +486,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 dialog.destroy()
 
                 if response == Gtk.ResponseType.YES:
-                    plt.figure(1)
+                    fig = plt.figure(1)
+                    fig.suptitle('Velocity')
                     plt.plot(data[:, 0], data[:, 1], 'r')
                     plt.show()
 

@@ -30,7 +30,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
     refPosScale = GuiFunctions.creatHScale(refPos, -1.0, 1.0, 0.01, getLowLev=True)
     refPosScale = GuiFunctions.addTopLabelTo('<b>Set position offset</b>\n in radians', refPosScale[0]), refPosScale[1]
-    refPosScale[1].set_sensitive(False)
 
     startButton = GuiFunctions.createButton('Start test', getLowLev=True)
 
@@ -74,7 +73,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             filterSpeedScale[1].set_sensitive(True)
 
         backlashControlSpeedScale[1].set_sensitive(True)
-        refPosScale[1].set_sensitive(False)
         refPosScale[1].set_value(0.0)
 
     runThread = False
@@ -115,6 +113,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             fig = plt.figure(5)
             fig.suptitle('Control signal')
             plt.plot(time, data[:, 5])
+
+            fig = plt.figure(6)
+            fig.suptitle('Control signal over motor position')
+            plt.plot(np.array(data[:, 6]), data[:, 5], 'g+')
+
             plt.show()
 
     def startTestRun(nodeNr, port):
@@ -208,7 +211,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
     testThread = None
 
-    def onStartCalibration(widget):
+    def onStartTest(widget):
         nonlocal testThread
         nonlocal runThread
 
@@ -220,7 +223,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                 velControlSpeedScale[1].set_sensitive(False)
                 filterSpeedScale[1].set_sensitive(False)
             backlashControlSpeedScale[1].set_sensitive(False)
-            refPosScale[1].set_sensitive(True)
 
             calibrationBox.show_all()
 
@@ -233,6 +235,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                 runThread = False
             testThread.join()
 
-    startButton[1].connect('clicked', onStartCalibration)
+    startButton[1].connect('clicked', onStartTest)
 
     return calibrationBox

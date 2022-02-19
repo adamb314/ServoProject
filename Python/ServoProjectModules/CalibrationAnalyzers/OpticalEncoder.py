@@ -563,11 +563,13 @@ class OpticalEncoderDataVectorGenerator:
 
             return (bestI, bestCost)
 
-        plt.figure(1)
+        fig = plt.figure(1)
+        fig.suptitle('Merged sensor characteristic vectors')
         plt.plot(self.mergedAVectors, 'r-')
         plt.plot(self.mergedBVectors, 'g-')
 
-        plt.figure(2)
+        fig = plt.figure(2)
+        fig.suptitle('Partial sensor characteristic vectors')
         for d in zip(self.aVecList, self.bVecList):
             x = np.arange(len(d[0])) * len(self.aVec) / len(d[0])
             plt.plot(x, d[0])
@@ -597,19 +599,24 @@ class OpticalEncoderDataVectorGenerator:
             diffs.append(diff - int(round(diff / 2048)) * 2048)
             lastPos = pos
 
-        plt.figure(3)
+        fig = plt.figure(3)
+        fig.suptitle('Encoder position')
         plt.plot(positions)
 
-        plt.figure(4)
+        fig = plt.figure(4)
+        fig.suptitle('Min fitting cost')
         plt.plot(minCosts)
 
-        plt.figure(5)
+        fig = plt.figure(5)
+        fig.suptitle('Encoder pfosition diff between samples')
         plt.plot(diffs)
 
-        plt.figure(6)
+        fig = plt.figure(6)
+        fig.suptitle('Min fitting cost over encoder position')
         plt.plot(positions, minCosts, ',')
 
-        plt.figure(7)
+        fig = plt.figure(7)
+        fig.suptitle('Position diff between samples over encoder position')
         plt.plot(positions, diffs, ',')
 
         a = self.data[:,0]
@@ -617,13 +624,15 @@ class OpticalEncoderDataVectorGenerator:
         c = []
         for d in zip(a, b):
             c.append(math.sqrt((d[0]**2 + d[1]**2) / 2))
-        plt.figure(8)
+        fig = plt.figure(8)
+        fig.suptitle('Sensor values (red and green) and expected values from characteristic vectors')
         plt.plot(a, 'r')
         plt.plot(b, 'g')
         plt.plot(chA, 'm')
         plt.plot(chB, 'c')
 
-        plt.figure(9)
+        fig = plt.figure(9)
+        fig.suptitle('Diff between real sensor values and expected values')
         plt.plot(chADiffs, 'r')
         plt.plot(chBDiffs, 'g')
 
@@ -634,8 +643,6 @@ class OpticalEncoderDataVectorGenerator:
         ax = fig.add_subplot()
 
         labelStr = 'Red is channel A and green is channel B. A good result\nis indicated by all points cohering to a smooth curve.'
-        
-        self.showAdditionalDiagnosticPlots()
 
         ax.plot(self.aVecShifted, 'r-')
         ax.plot(self.bVecShifted, 'g-')
@@ -711,7 +718,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.pack_start(pwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
+    calibrationBox.pack_start(testButton[0], False, False, 0)
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
+    calibrationBox.pack_start(startButton[0], False, False, 0)
+
+    recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
+    analyzingProgressBar = GuiFunctions.creatProgressBar(label='Analyzing', getLowLev=True)
+    statusLabel = GuiFunctions.createLabel('')
 
     threadMutex = threading.Lock()
     def updatePwmValue(widget):
@@ -729,8 +742,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         startButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
         calibrationBox.remove(analyzingProgressBar[0])
+        calibrationBox.remove(statusLabel)
         pwmScale[1].set_sensitive(True)
         limitMovementButton[1].set_sensitive(True)
+
+    def updateStatusLabel(statusStr):
+        statusLabel.set_label(statusStr)
 
     runThread = False
     def testPwmRun(nodeNr, port):
@@ -780,6 +797,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         opticalEncoderData.minCost,
                         servo.getVelocity()])
 
+                GLib.idle_add(updateStatusLabel,
+                        f'Sensor A: {opticalEncoderData.a}\n'
+                        f'Sensor B: {opticalEncoderData.b}\n'
+                        f'Encoder position: {opticalEncoderData.minCostIndex}'
+                )
+
                 stop = False
                 with threadMutex:
                     if runThread == False:
@@ -815,22 +838,28 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 dialog.destroy()
 
                 if response == Gtk.ResponseType.YES:
-                    plt.figure(1)
+                    fig = plt.figure(1)
+                    fig.suptitle('Sensor A and B values')
                     plt.plot(data[:, 0], data[:, 1], 'r')
                     plt.plot(data[:, 0], data[:, 2], 'g')
                     
-                    plt.figure(2)
+                    fig = plt.figure(2)
+                    fig.suptitle('Encoder position')
                     plt.plot(data[:, 0], data[:, 3])
-                    plt.figure(3)
+                    fig = plt.figure(3)
+                    fig.suptitle('Min fitting cost')
                     plt.plot(data[:, 0], data[:, 4])
-                    plt.figure(4)
+                    fig = plt.figure(4)
+                    fig.suptitle('Min fitting cost over encoder position')
                     plt.plot(data[:, 3], data[:, 4], 'r-')
                     plt.plot(data[:, 3], data[:, 4], 'g+')
-                    plt.figure(5)
+                    fig = plt.figure(5)
+                    fig.suptitle('Velocity over encoder position')
                     plt.plot(data[:, 3], data[:, 5], 'r-')
                     plt.plot(data[:, 3], data[:, 5], 'g+')
 
-                    plt.figure(6)
+                    fig = plt.figure(6)
+                    fig.suptitle('Sensor values over encoder position')
                     plt.plot(data[:, 3], data[:, 1], 'r')
                     plt.plot(data[:, 3], data[:, 2], 'g')
                     plt.show()
@@ -847,6 +876,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         if widget.get_label() == 'Test pwm value':
             startButton[1].set_sensitive(False)
             limitMovementButton[1].set_sensitive(False)
+            calibrationBox.pack_start(statusLabel, False, False, 0)
+
+            calibrationBox.show_all()
+
             widget.set_label('Stop pwm test')
             with threadMutex:
                 runThread = True
@@ -859,10 +892,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
 
     testButton[1].connect('clicked', onTestPwm)
-    calibrationBox.pack_start(testButton[0], False, False, 0)
-
-    recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
-    analyzingProgressBar = GuiFunctions.creatProgressBar(label='Analyzing', getLowLev=True)
 
     def updateRecordingProgressBar(fraction):
         recordingProgressBar[1].set_fraction(fraction)
@@ -876,6 +905,22 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with createRobot(nodeNr, port) as robot:
 
             def handleResults(opticalEncoderDataVectorGenerator):
+                dialog = Gtk.MessageDialog(
+                        transient_for=parent,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO,
+                        buttons=Gtk.ButtonsType.YES_NO,
+                        text='Optical encoder calibration done!',
+                )
+                dialog.format_secondary_text(
+                    "Do you want to plot extended data?"
+                )
+                response = dialog.run()
+                dialog.destroy()
+
+                if response == Gtk.ResponseType.YES:
+                    opticalEncoderDataVectorGenerator.showAdditionalDiagnosticPlots()
+
                 dialog = Gtk.MessageDialog(
                         transient_for=parent,
                         flags=0,
@@ -955,8 +1000,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     pwm = pwmValue
 
                 pos = servo.getPosition(True)
-
-                print(f'{pos = :0.3f}', end = '\r')
 
                 if startPos != None:
                     if pos - startPos < -1:
@@ -1081,7 +1124,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
 
     startButton[1].connect('clicked', onStartCalibration)
-    calibrationBox.pack_start(startButton[0], False, False, 0)
 
     calibrationBox.show_all()
     return calibrationBox
