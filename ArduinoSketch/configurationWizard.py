@@ -10,6 +10,15 @@ def setWorkingDirToScriptDir():
 
     sys.path.insert(1, '../Python')
 
+def checkPip():
+    try:
+        out = subprocess.check_output([sys.executable, "-m", "pip"])
+        return True
+    except Exception as e:
+        pass
+
+    return False
+
 def install(package):
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
@@ -58,6 +67,10 @@ def main():
             missingPackage = e.name
 
         if not missingPackage:
+            break
+
+        if not checkPip():
+            print(f'Could not find python pip. Please install pip manually')
             break
 
         missingPackageData = getPackageData(missingPackage)
