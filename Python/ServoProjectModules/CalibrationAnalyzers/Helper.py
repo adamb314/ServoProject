@@ -209,3 +209,97 @@ def setConfiguredGearRatio(configClassString, gearRatioStr):
     configClassString = re.sub(parmeterPattern, r'\g<beg>' + paramStr + r'\g<end>', configClassString)
 
     return configClassString
+
+class SmoothMoveHandler:
+    def __init__(self, startPos, minMoveTime = 0.1):
+        self.minMoveTime = minMoveTime
+        self.p = startPos
+        self.endP = self.p
+        self.newEndP = None
+        self.maxV = 0.0
+        self.w = 0.0
+        self.d = 0.0
+
+    def set(self, endP, maxV):
+        oldNewEndP = self.newEndP
+        oldEndP = self.endP
+        if (endP - self.p) * self.d < 0.0:
+            self.newEndP = endP
+        elif self.newEndP == None:
+            oldNewEndP = self.endP
+            self.endP = endP
+
+        if endP != self.p and oldNewEndP != endP:
+            self.maxV = min(maxV, abs(endP - self.p) / self.minMoveTime / 2 * math.pi)
+
+        if oldEndP == self.endP:
+            return
+
+        if self.w > math.pi * 0.5:
+            self.w = math.pi - self.w
+
+        self.d = (self.endP - self.p) / (1.0 + math.cos(self.w))
+
+    def getNextRef(self, dt):
+        if self.w == math.pi:
+            self.w = 0.0
+            self.d = 0.0
+            if self.newEndP != None:
+                temp = self.newEndP
+                self.newEndP = None
+                self.set(temp, self.maxV)
+
+        eps = 1.0e-100
+        if abs(self.d) > eps:
+            a = abs(self.maxV / self.d)
+        else:
+            a = abs(self.maxV / eps)
+
+        self.w = min(self.w + a * dt, math.pi)
+        self.p = self.endP - self.d * (1.0 + math.cos(self.w))
+        v = self.d * a * math.sin(self.w)
+        return self.p, v
+
+def main():
+    moveHandler = SmoothMoveHandler(0.0, 0.4)
+    moveHandler.set(0.0, 0.2)
+
+    refV = 1.0
+    r = 1.0
+    moveHandler.set(r, refV)
+
+    p, v = moveHandler.getNextRef(0.0)
+
+    pVec = [p]
+    vVec = [v]
+    rVec = [r]
+    for i in range(0, 100):
+        p, v = moveHandler.getNextRef(0.01)
+        pVec.append(p)
+        vVec.append(v)
+        rVec.append(r)
+
+    r = 1.5
+
+    for i in range(0, 100):
+        moveHandler.set(r, refV)
+        p, v = moveHandler.getNextRef(0.01)
+        pVec.append(p)
+        vVec.append(v)
+        rVec.append(r)
+
+    for i in range(0, 500):
+        r = 0.5 + min(0.3, i * 0.001)
+        moveHandler.set(r, refV)
+        p, v = moveHandler.getNextRef(0.01)
+        pVec.append(p)
+        vVec.append(v)
+        rVec.append(r)
+
+    plt.plot(pVec, 'g+')
+    plt.plot(vVec, 'y+')
+    plt.plot(rVec, 'r+')
+    plt.show()
+
+if __name__ == '__main__':
+    main()

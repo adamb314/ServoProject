@@ -9,6 +9,7 @@ import ServoProjectModules.CalibrationAnalyzers.OpticalEncoder as OpticalEncoder
 import ServoProjectModules.CalibrationAnalyzers.PwmNonlinearity as PwmNonlinearityAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.SystemIdentification as SystemIdentificationAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.OutputEncoder as OutputEncoderAnalyzer
+import ServoProjectModules.CalibrationAnalyzers.MotorCoggingTorque as MotorCoggingTorqueAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.TestControlLoop as TestControlLoopAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.Helper as Helper
 import ServoProjectModules.ArduinoManager as ArduinoManager
@@ -488,6 +489,7 @@ class GuiWindow(Gtk.Window):
                             'Optical encoder',
                             'System identification',
                             'Output encoder calibration',
+                            'Motor cogging torque',
                             'Test control loop',
                             'Test control loop (Advanced)']
 
@@ -540,6 +542,12 @@ class GuiWindow(Gtk.Window):
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
                         calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+
+                    elif calibrationType == 'Motor cogging torque':
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = MotorCoggingTorqueAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
                     elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
                         advancedMode = False
