@@ -185,6 +185,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
+    calibrationBox.set_margin_bottom(100)
 
     testListBox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
     testListBox.set_margin_start(0)

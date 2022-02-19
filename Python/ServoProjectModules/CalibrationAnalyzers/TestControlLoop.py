@@ -3,6 +3,7 @@ from ServoProjectModules.CalibrationAnalyzers.Helper import *
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, advancedMode):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
+    calibrationBox.set_margin_bottom(100)
 
     controlSpeedScale = GuiFunctions.creatHScale(14, 0, 100, 1, getLowLev=True)
     controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]

@@ -308,6 +308,7 @@ class ServoModel(object):
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
+    calibrationBox.set_margin_bottom(100)
 
     limitMovementButton = GuiFunctions.createToggleButton('Lock', getLowLev=True)
     limitMovementButton = GuiFunctions.addTopLabelTo('<b>Limit movement</b>\n Only move around locked position to avoid end limits', limitMovementButton[0]), limitMovementButton[1]
