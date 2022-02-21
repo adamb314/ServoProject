@@ -64,6 +64,7 @@ def playTrajectory(servoManager, trajectory):
 
     def readResultHandlerFunction(dt, servoManager):
         pos = servoManager.getPosition()
+        print(f'{pos[0] = :0.4f}, {pos[1] = :0.4f}', end='\r')
         return
 
     def errorHandlerFunction(e):

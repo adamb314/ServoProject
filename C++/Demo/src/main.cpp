@@ -141,7 +141,9 @@ void playTrajectory(ServoManager& manager,
     {
         std::vector<double> pos = manager.getPosition();
 
-        std::cout << pos[0] << ", " << pos[1] << "\n";
+        std::cout << std::fixed << std::setprecision(4);
+        std::cout << "pos[0] = " << std::setw(7) << pos[0]
+                << ", pos[1] = " << std::setw(7) << pos[1] << "\r" << std::flush;
     };
 
     auto errorHandlerFunction = [&manager](std::exception_ptr e){
