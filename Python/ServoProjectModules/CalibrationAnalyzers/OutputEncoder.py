@@ -350,9 +350,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
         controlSpeedScale[1].set_sensitive(False)
         controlSpeed = controlSpeedScale[1].get_value()
-        def initFun(servoManager):
-            servoManager.servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
-            servoManager.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
+        def initFun(servoArray):
+            servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+            servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
         with createServoManager(nodeNr, port, dt=0.003, initFunction=initFun) as servoManager:
             t = -6.2

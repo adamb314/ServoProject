@@ -9,7 +9,7 @@ import math
 dt = 0.018
 
 def createServoManager(port = '/dev/ttyACM0'):
-    def createServoFunction(servoManager):
+    def createServosFunction():
         simCom = ServoComModule.SimulateCommunication()
         if port != '':
             com = ServoComModule.SerialCommunication(port)
@@ -28,7 +28,7 @@ def createServoManager(port = '/dev/ttyACM0'):
         newServo.setOffsetAndScaling(180.0 / 1900.0, 0.0, 0.0)
         servoArray.append(newServo)
 
-        servoManager.servoArray = servoArray
+        return servoArray
 
     servoManager = ServoComModule.ServoManager(cycleTime=dt, initFunction=createServoFunction)
 
