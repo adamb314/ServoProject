@@ -350,11 +350,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
         controlSpeedScale[1].set_sensitive(False)
         controlSpeed = controlSpeedScale[1].get_value()
-        def initFun(robot):
-            robot.servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
-            robot.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
+        def initFun(servoManager):
+            servoManager.servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+            servoManager.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-        with createRobot(nodeNr, port, dt=0.003, initFunction=initFun) as robot:
+        with createServoManager(nodeNr, port, dt=0.003, initFunction=initFun) as servoManager:
             t = -6.2
             doneRunning = False
             refPos = 0.0
@@ -362,14 +362,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             maxPos = None
             direction = 1
 
-            def sendCommandHandlerFunction(dt, robot):
+            def sendCommandHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal refPos
                 nonlocal minPos
                 nonlocal maxPos
                 nonlocal direction
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
 
                 if t < 0:
                     servo.setOpenLoopControlSignal(0, True)
@@ -392,14 +392,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             filteredVel = 0.0
 
             if port == '':
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
                 p = servo.getPosition(True)
                 minPos = p - 1.5
                 maxPos = p + 1.5
                 out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 2 / servo.getScaling()])
                 out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), -2 / servo.getScaling()])
 
-            def readResultHandlerFunction(dt, robot):
+            def readResultHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal doneRunning
                 nonlocal encPos
@@ -409,7 +409,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 nonlocal filteredVel
                 nonlocal out
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
 
                 runTime = 120.0
 
@@ -475,19 +475,19 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     if runThread == False:
                         stop = True
                 if stop or parent.isClosed:
-                    robot.removeHandlerFunctions()
+                    servoManager.removeHandlerFunctions()
                     doneRunning = True
                     return
 
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
             while not doneRunning:
-                if not robot.isAlive():
+                if not servoManager.isAlive():
                     runThread = False
                     break
                 time.sleep(0.1)
 
-            robot.shutdown()
+            servoManager.shutdown()
 
             if runThread == True:
                 data = np.array(out)

@@ -196,16 +196,16 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
         controlSpeed = int(controlSpeedScale[1].get_value())
 
-        def initFun(robot):
-            robot.servoArray[0].setControlSpeed(controlSpeed)
-            robot.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
+        def initFun(servoManager):
+            servoManager.servoArray[0].setControlSpeed(controlSpeed)
+            servoManager.servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-        with createRobot(nodeNr, port, dt=0.018, initFunction=initFun) as robot:
+        with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
             t = 0.0
             doneRunning = False
 
-            robot.servoArray[0].getPosition(False)
-            refP = robot.servoArray[0].getPosition()
+            servoManager.servoArray[0].getPosition(False)
+            refP = servoManager.servoArray[0].getPosition()
             moveHandler = SmoothMoveHandler(refP, 0.4)
             refV = 0.0
 
@@ -222,14 +222,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             endPos = -maxDist + posOffset
             moveHandler.set(endPos, maxVel)
 
-            def sendCommandHandlerFunction(dt, robot):
+            def sendCommandHandlerFunction(dt, servoManager):
                 nonlocal testState
                 nonlocal refP
                 nonlocal refV
                 nonlocal lastRefP
                 nonlocal endPos
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
 
                 refP, refV = moveHandler.getNextRef(dt)
 
@@ -268,7 +268,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             abortCalibration = False
 
-            def readResultHandlerFunction(dt, robot):
+            def readResultHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal doneRunning
                 nonlocal abortCalibration
@@ -280,11 +280,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         abortCalibration = True
 
                 if abortCalibration or parent.isClosed or testState == 4:
-                    robot.removeHandlerFunctions()
+                    servoManager.removeHandlerFunctions()
                     doneRunning = True
                     return
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
 
                 p = servo.getPosition(True)
                 v = servo.getVelocity()
@@ -302,15 +302,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 GLib.idle_add(updateProgress, t / ((0.5 * 2 / maxRecordVel + 0.25 * 2 / maxVel) * (math.pi / 2)))
 
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
-                if not robot.isAlive():
+                if not servoManager.isAlive():
                     runThread = False
                     break
                 time.sleep(0.1)
 
-            robot.shutdown()
+            servoManager.shutdown()
 
             if not abortCalibration:
                 data = np.array(out)

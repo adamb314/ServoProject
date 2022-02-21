@@ -596,7 +596,7 @@ class DCServoCommunicator(object):
         elif pos - self.startPosition < -(2048 / 2):
             self.offset += (4096 / 2) * self.scale
 
-class Robot(object):
+class ServoManager(object):
     def __init__(self, cycleTime = 0.018, initFunction=lambda robot: robot):
         self.servoArray = []
 

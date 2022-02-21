@@ -8,8 +8,8 @@ import math
 
 dt = 0.018
 
-def createRobot(port = '/dev/ttyACM0'):
-    def createServoFunction(robot):
+def createServoManager(port = '/dev/ttyACM0'):
+    def createServoFunction(servoManager):
         simCom = ServoComModule.SimulateCommunication()
         if port != '':
             com = ServoComModule.SerialCommunication(port)
@@ -28,16 +28,16 @@ def createRobot(port = '/dev/ttyACM0'):
         newServo.setOffsetAndScaling(180.0 / 1900.0, 0.0, 0.0)
         servoArray.append(newServo)
 
-        robot.servoArray = servoArray
+        servoManager.servoArray = servoArray
 
-    robot = ServoComModule.Robot(cycleTime=dt, initFunction=createServoFunction)
+    servoManager = ServoComModule.ServoManager(cycleTime=dt, initFunction=createServoFunction)
 
-    return robot
+    return servoManager
 
-def playTrajectory(robot, trajectory):
+def playTrajectory(servoManager, trajectory):
     doneRunning = False
     index = 0
-    def sendCommandHandlerFunction(dt, robot):
+    def sendCommandHandlerFunction(dt, servoManager):
         nonlocal index
         nonlocal doneRunning
 
@@ -51,23 +51,23 @@ def playTrajectory(robot, trajectory):
             pos = trajectory[-1]
             vel = [0.0] * len(pos)
 
-        for i, servo in enumerate(robot.servoArray):
+        for i, servo in enumerate(servoManager.servoArray):
             servo.setReference(pos[i], vel[i], 0.0)
 
         index += 1
         if index == len(trajectory):
-            robot.removeHandlerFunctions()
+            servoManager.removeHandlerFunctions()
             doneRunning = True
         return
 
-    def readResultHandlerFunction(dt, robot):
-        pos = robot.getPosition()
+    def readResultHandlerFunction(dt, servoManager):
+        pos = servoManager.getPosition()
         return
 
-    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+    servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
     while not doneRunning:
-        if not robot.isAlive():
+        if not servoManager.isAlive():
             break
         time.sleep(0.1)
 
@@ -107,9 +107,9 @@ def addWait(trajectory, duration):
     return trajectory
 
 def main():
-    with createRobot('/dev/ttyACM0') as robot:
+    with createServoManager('/dev/ttyACM0') as servoManager:
         trajectory = []
-        trajectory.append(robot.getPosition())
+        trajectory.append(servoManager.getPosition())
 
         trajectory = addSmoothMove(trajectory, [0.0, 0.0], 1.0)
         trajectory = addWait(trajectory, 10.0)
@@ -126,7 +126,7 @@ def main():
 
         trajectory = addWait(trajectory, 7.0)
 
-        playTrajectory(robot, trajectory)
+        playTrajectory(servoManager, trajectory)
 
 if __name__ == '__main__':
     main()

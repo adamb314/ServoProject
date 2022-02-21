@@ -133,20 +133,20 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             filterSpeedScale[1].set_value(filterSpeed)
         backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
-        def initFun(robot):
-            robot.servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
-            robot.servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
+        def initFun(servoManager):
+            servoManager.servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
+            servoManager.servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
 
-        with createRobot(nodeNr, port, dt=0.018, initFunction=initFun) as robot:
+        with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
             t = 0.0
             doneRunning = False
 
-            robot.servoArray[0].getPosition(False)
-            posOffset = robot.servoArray[0].getPosition()
+            servoManager.servoArray[0].getPosition(False)
+            posOffset = servoManager.servoArray[0].getPosition()
             moveHandler = SmoothMoveHandler(posOffset, 0.4)
 
-            def sendCommandHandlerFunction(dt, robot):
-                servo = robot.servoArray[0]
+            def sendCommandHandlerFunction(dt, servoManager):
+                servo = servoManager.servoArray[0]
 
                 with threadMutex:
                     moveHandler.set(refPos + posOffset, refVel)
@@ -156,7 +156,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
             out = []
 
-            def readResultHandlerFunction(dt, robot):
+            def readResultHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal doneRunning
 
@@ -168,11 +168,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                         stop = True
 
                 if stop or parent.isClosed:
-                    robot.removeHandlerFunctions()
+                    servoManager.removeHandlerFunctions()
                     doneRunning = True
                     return
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
                 p = servo.getPosition(True)
                 v = servo.getVelocity()
                 u = servo.getControlSignal()
@@ -194,15 +194,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                         f'control signal: {u:0.4f}\n'
                         f'Loop time: {servo.getLoopTime()}')
 
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
-                if not robot.isAlive():
+                if not servoManager.isAlive():
                     runThread = False
                     break
                 time.sleep(0.1)
 
-            robot.shutdown()
+            servoManager.shutdown()
 
             data = np.array(out)
             GLib.idle_add(plotData, data)

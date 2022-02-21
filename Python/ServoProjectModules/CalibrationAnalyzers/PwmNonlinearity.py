@@ -299,9 +299,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         for b in buttons:
             testListBox.remove(b[0])
 
-        robot = None
+        servoManager = None
         def onTestButtonPressed(widget):
-            nonlocal robot
+            nonlocal servoManager
 
             index = getIndexOfWidget(widget)
 
@@ -350,13 +350,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 pwm = int(widget.get_label())
 
-                robot = createRobot(nodeNr, getPortFun())
+                servoManager = createServoManager(nodeNr, getPortFun())
 
-                def sendCommandHandlerFunction(dt, robot):
-                    robot.servoArray[0].setOpenLoopControlSignal(pwm, True)
+                def sendCommandHandlerFunction(dt, servoManager):
+                    servoManager.servoArray[0].setOpenLoopControlSignal(pwm, True)
 
-                def readResultHandlerFunction(dt, robot):
-                    pos = robot.servoArray[0].getPosition()
+                def readResultHandlerFunction(dt, servoManager):
+                    pos = servoManager.servoArray[0].getPosition()
                     print(f'{pos}', end = '\r')
                     return
 
@@ -364,20 +364,20 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     GLib.idle_add(guiErrorHandler, exception)
 
                 def guiErrorHandler(exception):
-                    nonlocal robot
+                    nonlocal servoManager
                     print(f'{exception!r}')
-                    robot.shutdown()
-                    robot = None
+                    servoManager.shutdown()
+                    servoManager = None
                     widget.set_active(False)
 
-                robot.setHandlerFunctions(sendCommandHandlerFunction, 
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, 
                         readResultHandlerFunction, errorHandlerFunction)
-                robot.start()
-            elif robot:
-                robot.removeHandlerFunctions()
-                robot.shutdown()
+                servoManager.start()
+            elif servoManager:
+                servoManager.removeHandlerFunctions()
+                servoManager.shutdown()
                 buttons[index][2].grab_focus()
-                robot = None
+                servoManager = None
 
         def onResultEntryEdit(widget):
             if not onResultEntryEdit.firstLevelEvent:

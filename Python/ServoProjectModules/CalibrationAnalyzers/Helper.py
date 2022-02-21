@@ -16,13 +16,13 @@ import re
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
 
-def createRobot(nodeNr, port, dt=0.004, initFunction=lambda a: a):
+def createServoManager(nodeNr, port, dt=0.004, initFunction=lambda a: a):
     if port != '':
         com = ServoComModule.SerialCommunication(port)
     else:
         com = ServoComModule.SimulateCommunication()
 
-    def createServoFunction(robot):
+    def createServoFunction(servoManager):
         nonlocal nodeNr
         nonlocal com
         servo = ServoComModule.DCServoCommunicator(nodeNr, com)
@@ -33,13 +33,14 @@ def createRobot(nodeNr, port, dt=0.004, initFunction=lambda a: a):
         servo.setBacklashControlSpeed(0, 3.0, 0.00)
         servo.setFrictionCompensation(0)
 
-        robot.servoArray.append(servo)
+        servoManager.servoArray.append(servo)
 
-        initFunction(robot)
+        initFunction(servoManager)
 
-    robot = ServoComModule.Robot(cycleTime=dt, initFunction=createServoFunction)
 
-    return robot
+    servoManager = ServoComModule.ServoManager(cycleTime=dt, initFunction=createServoFunction)
+
+    return servoManager
 
 def shrinkArray(a, size, median = False):
     if len(a) <= size:

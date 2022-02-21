@@ -705,7 +705,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def onLockPosition(widget):
         nonlocal startPos
         if widget.get_active():
-            with createRobot(nodeNr, getPortFun()) as r:
+            with createServoManager(nodeNr, getPortFun()) as r:
                 startPos = r.servoArray[0].getPosition(True)
         else:
             startPos = None
@@ -753,17 +753,17 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def testPwmRun(nodeNr, port):
         nonlocal runThread
 
-        with createRobot(nodeNr, port) as robot:
+        with createServoManager(nodeNr, port) as servoManager:
             t = 0.0
             doneRunning = False
             pwmDir = 1
             moveDir = 0
 
-            def sendCommandHandlerFunction(dt, robot):
+            def sendCommandHandlerFunction(dt, servoManager):
                 nonlocal pwmDir
                 nonlocal moveDir
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
 
                 pwm = 0
                 with threadMutex:
@@ -783,12 +783,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             out = []
 
-            def readResultHandlerFunction(dt, robot):
+            def readResultHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal doneRunning
 
                 t += dt
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
                 out.append([t,
                         opticalEncoderData.a,
@@ -809,17 +809,17 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         stop = True
 
                 if stop or parent.isClosed:
-                    robot.removeHandlerFunctions()
+                    servoManager.removeHandlerFunctions()
                     doneRunning = True
 
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
             while not doneRunning:
-                if not robot.isAlive():
+                if not servoManager.isAlive():
                     break
                 time.sleep(0.1)
 
-            robot.shutdown()
+            servoManager.shutdown()
 
             data = np.array(out)
 
@@ -902,7 +902,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
 
-        with createRobot(nodeNr, port) as robot:
+        with createServoManager(nodeNr, port) as servoManager:
 
             def handleResults(opticalEncoderDataVectorGenerator):
                 dialog = Gtk.MessageDialog(
@@ -988,12 +988,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             runTime = 110.0
 
-            def sendCommandHandlerFunction(dt, robot):
+            def sendCommandHandlerFunction(dt, servoManager):
                 nonlocal dirChangeWait
                 nonlocal pwmDir
                 nonlocal moveDir
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
 
                 pwm = 0
                 with threadMutex:
@@ -1022,12 +1022,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             out = []
 
-            def readResultHandlerFunction(dt, robot):
+            def readResultHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal dirChangeWait
                 nonlocal doneRunning
 
-                servo = robot.servoArray[0]
+                servo = servoManager.servoArray[0]
                 opticalEncoderData = servo.getOpticalEncoderChannelData()
                 if t > 0.1 and dirChangeWait <= 0.0:
                     out.append([t,
@@ -1044,7 +1044,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         stop = True
 
                 if stop or parent.isClosed:
-                    robot.removeHandlerFunctions()
+                    servoManager.removeHandlerFunctions()
                     doneRunning = True
 
                 if dirChangeWait > 0.0:
@@ -1052,17 +1052,17 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 else:
                     t += dt
 
-            robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
             while not doneRunning:
-                if not robot.isAlive():
+                if not servoManager.isAlive():
                     runThread = False
                     break
                 time.sleep(0.1)
 
             data = np.array(out)
 
-            robot.shutdown()
+            servoManager.shutdown()
 
             def shouldAbort():
 
