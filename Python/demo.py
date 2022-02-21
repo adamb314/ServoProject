@@ -1,5 +1,7 @@
 #!/bin/python3
 import ServoProjectModules.Communication as ServoComModule
+from ServoProjectModules.Communication import CommunicationError as CommunicationError
+
 from ServoProjectModules.Communication import pi
 
 import numpy as np
@@ -64,7 +66,18 @@ def playTrajectory(servoManager, trajectory):
         pos = servoManager.getPosition()
         return
 
-    servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+    def errorHandlerFunction(e):
+        try:
+            raise e
+        except CommunicationError as e:
+            if e.code == CommunicationError.ErrorCode.COULD_NOT_SEND:
+                raise e
+            else:
+                print('exception triggered: restarting communication...')
+                servoManager.shutdown();
+                servoManager.start()
+
+    servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction, errorHandlerFunction)
 
     while not doneRunning:
         if not servoManager.isAlive():

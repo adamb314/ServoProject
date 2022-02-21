@@ -6,6 +6,8 @@
 RobotJogging::RobotJogging(Robot& r) :
     robot{r}
 {
+    robot.enableDelayedExceptions();
+
     set_border_width(10);
     set_default_size(800, 600);
 
@@ -348,6 +350,29 @@ void RobotJogging::setMoveToPositionPosFromString(const std::string& str)
 
 bool RobotJogging::onTimeout()
 {
+    auto robotExc = robot.getUnhandledException();
+    if (robotExc)
+    {
+        try
+        {
+             std::rethrow_exception(robotExc);
+        }
+        catch (CommunicationError& comExc)
+        {
+            std::cout << comExc.what() << "\n";
+            if (comExc.code != CommunicationError::COULD_NOT_SEND)
+            {
+                std::cout << "exception triggered: restarting communication...\n";
+                robot.shutdown();
+                robot.start();
+            }
+            else
+            {
+                throw;
+            }
+        }
+    }
+
     int temp1;
     int temp2;
     if (currentPosEntry->get_selection_bounds(temp1, temp2) && currentPosEntry->has_focus())

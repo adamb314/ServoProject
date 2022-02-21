@@ -144,7 +144,28 @@ void playTrajectory(ServoManager& manager,
         std::cout << pos[0] << ", " << pos[1] << "\n";
     };
 
-    manager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+    auto errorHandlerFunction = [&manager](std::exception_ptr e){
+            try
+            {
+                 std::rethrow_exception(e);
+            }
+            catch (CommunicationError& comExc)
+            {
+                std::cout << comExc.what() << "\n";
+                if (comExc.code != CommunicationError::COULD_NOT_SEND)
+                {
+                    std::cout << "exception triggered: restarting communication...\n";
+                    manager.shutdown();
+                    manager.start();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        };
+
+    manager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction, errorHandlerFunction);
 
     while (!doneRunning)
     {

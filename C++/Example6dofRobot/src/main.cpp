@@ -157,7 +157,24 @@ void playPath(Robot& robot,
             }
         };
 
-    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+    auto errorHandlerFunction = [&robot](std::exception_ptr e){
+            try
+            {
+                 std::rethrow_exception(e);
+            }
+            catch (CommunicationError& comExc)
+            {
+                std::cout << comExc.what() << "\n";
+                if (comExc.code != CommunicationError::COULD_NOT_SEND)
+                {
+                    std::cout << "exception triggered: restarting communication...\n";
+                    robot.shutdown();
+                    robot.start();
+                }
+            }
+        };
+
+    robot.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction, errorHandlerFunction);
 
     while(!doneRunning)
     {
