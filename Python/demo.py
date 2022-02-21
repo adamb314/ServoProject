@@ -10,7 +10,7 @@ import math
 
 dt = 0.018
 
-def createServoManager(port = '/dev/ttyACM0'):
+def createServoManager(port):
     def createServosFunction():
         simCom = ServoComModule.SimulateCommunication()
         if port != '':
@@ -121,7 +121,8 @@ def addWait(trajectory, duration):
     return trajectory
 
 def main():
-    with createServoManager('/dev/ttyACM0') as servoManager:
+    port = '' #'/dev/ttyACM0'
+    with createServoManager(port) as servoManager:
         trajectory = []
         trajectory.append(servoManager.getPosition())
 
