@@ -87,15 +87,15 @@ Eigen::Matrix<double, Robot::dof, 1> Robot::getPosition() const
     return out;
 }
 
-void Robot::setHandlerFunctions(const std::function<void(double, Robot*)>& newSendCommandHandlerFunction,
-        const std::function<void(double, Robot*)>& newReadResultHandlerFunction,
-        const std::function<void(std::exception& e)>& newErrorHandlerFunction)
+void Robot::setHandlerFunctions(const std::function<void(double, Robot&)>& newSendCommandHandlerFunction,
+        const std::function<void(double, Robot&)>& newReadResultHandlerFunction,
+        const std::function<void(std::exception_ptr e)>& newErrorHandlerFunction)
 {
     std::function<void(double, ServoManager& manager)> sendFunc = [this, newSendCommandHandlerFunction](double dt, ServoManager& manager){
-        newSendCommandHandlerFunction(dt, this);
+        newSendCommandHandlerFunction(dt, *this);
     };
     std::function<void(double, ServoManager& manager)> readFunc = [this, newReadResultHandlerFunction](double dt, ServoManager& manager){
-        newReadResultHandlerFunction(dt, this);
+        newReadResultHandlerFunction(dt, *this);
     };
 
     servoManager.setHandlerFunctions(sendFunc, readFunc, newErrorHandlerFunction);
@@ -116,7 +116,12 @@ void Robot::shutdown()
     servoManager.shutdown();
 }
 
-std::exception Robot::getUnhandledException()
+void Robot::enableDelayedExceptions(bool enable)
+{
+    servoManager.enableDelayedExceptions(enable);
+}
+
+std::exception_ptr Robot::getUnhandledException()
 {
     return servoManager.getUnhandledException();
 }

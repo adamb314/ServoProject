@@ -5,6 +5,7 @@
 
 #include "gui.h"
 
+#include <iostream>
 #include <numeric>
 #include <cmath>
 
@@ -63,9 +64,9 @@ void playPath(Robot& robot,
                 return Robot::Reference(outJ, gripperPosKp1);
             }, dt);
 
-    auto sendCommandHandlerFunction = [&sampler, &activeMove](double dt, Robot* robot)
+    auto sendCommandHandlerFunction = [&sampler, &activeMove](double dt, Robot& robot)
         {
-            auto& servos = robot->dcServoArray;
+            auto& servos = robot.dcServoArray;
 
             auto refObj = sampler.getSample();
             sampler.increment(dt);
@@ -81,15 +82,15 @@ void playPath(Robot& robot,
             if (activeMove[6])
             {
                 double pos = asin(1.998 * refObj.gripperPos - 0.999);
-                robot->gripperServo->setReference(pos, 0.0, 0.0);
+                robot.gripperServo->setReference(pos, 0.0, 0.0);
             }
         };
 
     double t = 0;
     EigenVectord6 lastTempC;
-    auto readResultHandlerFunction = [&t, &lastTempC, &doneRunning, &reachedEndOfTrajectory, &pwm, &outStream](double dt, Robot* robot)
+    auto readResultHandlerFunction = [&t, &lastTempC, &doneRunning, &reachedEndOfTrajectory, &pwm, &outStream](double dt, Robot& robot)
         {
-            auto& servos = robot->dcServoArray;
+            auto& servos = robot.dcServoArray;
 
             bool communicationError = std::any_of(std::begin(servos), std::end(servos), [](auto& d)
                     {
@@ -151,7 +152,7 @@ void playPath(Robot& robot,
 
             if (reachedEndOfTrajectory || communicationError)
             {
-                robot->removeHandlerFunctions();
+                robot.removeHandlerFunctions();
                 doneRunning = true;
             }
         };

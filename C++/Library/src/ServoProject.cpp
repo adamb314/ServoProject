@@ -1,5 +1,48 @@
 #include "ServoProject.h"
 
+CommunicationError::CommunicationError(unsigned char nodeNr, ErrorCode code) :
+        nodeNr(nodeNr), code(code)
+{
+    std::stringstream stringStream;
+    stringStream << "Communication error: ";
+
+    switch (code)
+    {
+        case COULD_NOT_SEND:
+            stringStream << "Could not send to port";
+            break;
+        case NO_RESPONSE:
+            stringStream << "No response from node " << static_cast<int>(nodeNr);
+            break;
+        case PARTIAL_RESPONSE_TYPE_1:
+        case PARTIAL_RESPONSE_TYPE_2:
+        case PARTIAL_RESPONSE_TYPE_3:
+        case PARTIAL_RESPONSE_TYPE_4:
+            stringStream << "Partial response from node " << static_cast<int>(nodeNr) << ", "
+                    << "error code " << code;
+            break;
+        case UNEXPECTED_RESPONSE:
+            stringStream << "Unexpected response from node " << static_cast<int>(nodeNr);
+            break;
+        case CHECKSUM_ERROR:
+            stringStream << "Checksum error from node " << static_cast<int>(nodeNr);
+            break;
+    }
+    whatString = stringStream.str();
+}
+
+const char* CommunicationError::what() const throw()
+{
+    try
+    {
+        return whatString.c_str();
+    }
+    catch (...)
+    {
+        return "Communication Error";
+    }
+}
+
 SerialCommunication::SerialCommunication(std::string devName) :
         io(), port(io), reader(port, 50)
 {
@@ -55,7 +98,7 @@ short int SerialCommunication::getLastReadInt(unsigned char nr)
     return intArray.at(nr);
 }
 
-bool SerialCommunication::execute()
+void SerialCommunication::execute()
 {
     unsigned char checksum = 0;
     unsigned char messageLenght = 0;
@@ -98,7 +141,7 @@ bool SerialCommunication::execute()
     size_t bytesSent = ::write(port.lowest_layer().native_handle(), &sendBuffer[0], sendBuffer.size());
     if (bytesSent != sendBuffer.size())
     {
-        throw -1;
+        throw CommunicationError(nodeNr, CommunicationError::COULD_NOT_SEND);
     }
 
     commandArray.clear();
@@ -113,9 +156,8 @@ bool SerialCommunication::execute()
         error = !reader.read_char(c);
         if (error)
         {
-            std::cout << "error1\n";
             reader.read_char(c);
-            return false;
+            throw CommunicationError(nodeNr, CommunicationError::NO_RESPONSE);
         }
 
         if (*it == c)
@@ -125,18 +167,16 @@ bool SerialCommunication::execute()
                 error = !reader.read_char(c);
                 if (error)
                 {
-                    std::cout << "error2\n";
                     reader.read_char(c);
-                    return false;
+                    throw CommunicationError(nodeNr, CommunicationError::PARTIAL_RESPONSE_TYPE_1);
                 }
                 short value = static_cast<unsigned char>(c);
 
                 error = !reader.read_char(c);
                 if (error)
                 {
-                    std::cout << "error3\n";
                     reader.read_char(c);
-                    return false;
+                    throw CommunicationError(nodeNr, CommunicationError::PARTIAL_RESPONSE_TYPE_2);
                 }
                 value += static_cast<unsigned char>(c) * static_cast<unsigned short>(256);
                 intArray.at(*it - 64) = value;
@@ -146,17 +186,14 @@ bool SerialCommunication::execute()
                 error = !reader.read_char(c);
                 if (error)
                 {
-                    std::cout << "error4\n";
                     reader.read_char(c);
-                    return false;
+                    throw CommunicationError(nodeNr, CommunicationError::PARTIAL_RESPONSE_TYPE_3);
                 }
                 charArray.at(*it) = c;
             }
         }
         else
         {
-            std::cout << "error5\n";
-
             while (true)
             {
                 error = !reader.read_char(c);
@@ -166,20 +203,20 @@ bool SerialCommunication::execute()
                     break;
                 }
             }
+
+            throw CommunicationError(nodeNr, CommunicationError::UNEXPECTED_RESPONSE);
         }
     }
     error = !reader.read_char(c);
     if (error)
     {
         reader.read_char(c);
-        return false;
+        throw CommunicationError(nodeNr, CommunicationError::PARTIAL_RESPONSE_TYPE_4);
     }
     if (static_cast<unsigned char>(c) != 0xff)
     {
-        return false;
+        throw CommunicationError(nodeNr, CommunicationError::CHECKSUM_ERROR);
     }
-
-    return true;
 }
 
 void SerialCommunication::blocking_reader::read_complete(const boost::system::error_code& error,
@@ -252,8 +289,13 @@ bool SerialCommunication::blocking_reader::read_char(char& val)
     return !read_error;
 }
 
-bool SimulateCommunication::execute()
+void SimulateCommunication::execute()
 {
+    while (servoSims.size() < nodeNr)
+    {
+        servoSims.push_back(ServoSim());
+    }
+
     auto& servo = servoSims.at(nodeNr - 1);
     servo.run();
 
@@ -298,8 +340,6 @@ bool SimulateCommunication::execute()
             charArray.at(*it) = value;
         }
     }
-
-    return true;
 }
 
 DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus)
@@ -577,75 +617,72 @@ void DCServoCommunicator::run()
         bus->write(8, static_cast<char>(backlashSize));
     }
 
-    communicationIsOk = bus->execute();
+    bus->execute();
 
-    if (communicationIsOk)
+    for (size_t i = 0; i < activeIntReads.size(); i++)
     {
-        for (size_t i = 0; i < activeIntReads.size(); i++)
+        if (activeIntReads[i])
         {
-            if (activeIntReads[i])
-            {
-
-                if (isInitComplete())
-                {
-                    activeIntReads[i] = false;
-                }
-                intReadBuffer[i] = bus->getLastReadInt(i);
-            }
-        }
-
-        if (isInitComplete())
-        {
-            intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
-            intReadBufferIndex10Upscaling.update(intReadBuffer[10]);
-            intReadBufferIndex11Upscaling.update(intReadBuffer[11]);
-        }
-        else
-        {
-            intReadBufferIndex3Upscaling.set(intReadBuffer[3]);
-            intReadBufferIndex10Upscaling.set(intReadBuffer[10]);
-            intReadBufferIndex11Upscaling.set(intReadBuffer[11]);
-        }
-        
-        backlashEncoderPos = intReadBufferIndex3Upscaling.get() * (1.0 / positionUpscaling);
-        encoderPos = intReadBufferIndex10Upscaling.get() * (1.0 / positionUpscaling);
-        backlashCompensation = intReadBufferIndex11Upscaling.get() * (1.0 / positionUpscaling);
-
-        encoderVel = intReadBuffer[4];
-        controlSignal = intReadBuffer[5];
-        current = intReadBuffer[6];
-        pwmControlSignal = intReadBuffer[7];
-        cpuLoad = intReadBuffer[8];
-        loopTime = intReadBuffer[9];
-        opticalEncoderChannelData.a = intReadBuffer[12];
-        opticalEncoderChannelData.b = intReadBuffer[13];
-        opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
-        opticalEncoderChannelData.minCost = intReadBuffer[15];
-
-        if (!isInitComplete())
-        {
-            ++initState;
-
-            float pos;
-            if (!backlashControlDisabled)
-            {
-                pos = backlashEncoderPos;
-            }
-            else
-            {
-                pos = encoderPos;
-            }
-
-            activeRefPos[0] = pos * positionUpscaling;
-            activeRefPos[1] = activeRefPos[0];
-            activeRefPos[2] = activeRefPos[1];
-            activeRefPos[3] = activeRefPos[2];
-            activeRefPos[4] = activeRefPos[3];
 
             if (isInitComplete())
             {
-                updateOffset();
+                activeIntReads[i] = false;
             }
+            intReadBuffer[i] = bus->getLastReadInt(i);
+        }
+    }
+
+    if (isInitComplete())
+    {
+        intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
+        intReadBufferIndex10Upscaling.update(intReadBuffer[10]);
+        intReadBufferIndex11Upscaling.update(intReadBuffer[11]);
+    }
+    else
+    {
+        intReadBufferIndex3Upscaling.set(intReadBuffer[3]);
+        intReadBufferIndex10Upscaling.set(intReadBuffer[10]);
+        intReadBufferIndex11Upscaling.set(intReadBuffer[11]);
+    }
+    
+    backlashEncoderPos = intReadBufferIndex3Upscaling.get() * (1.0 / positionUpscaling);
+    encoderPos = intReadBufferIndex10Upscaling.get() * (1.0 / positionUpscaling);
+    backlashCompensation = intReadBufferIndex11Upscaling.get() * (1.0 / positionUpscaling);
+
+    encoderVel = intReadBuffer[4];
+    controlSignal = intReadBuffer[5];
+    current = intReadBuffer[6];
+    pwmControlSignal = intReadBuffer[7];
+    cpuLoad = intReadBuffer[8];
+    loopTime = intReadBuffer[9];
+    opticalEncoderChannelData.a = intReadBuffer[12];
+    opticalEncoderChannelData.b = intReadBuffer[13];
+    opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
+    opticalEncoderChannelData.minCost = intReadBuffer[15];
+
+    if (!isInitComplete())
+    {
+        ++initState;
+
+        float pos;
+        if (!backlashControlDisabled)
+        {
+            pos = backlashEncoderPos;
+        }
+        else
+        {
+            pos = encoderPos;
+        }
+
+        activeRefPos[0] = pos * positionUpscaling;
+        activeRefPos[1] = activeRefPos[0];
+        activeRefPos[2] = activeRefPos[1];
+        activeRefPos[3] = activeRefPos[2];
+        activeRefPos[4] = activeRefPos[3];
+
+        if (isInitComplete())
+        {
+            updateOffset();
         }
     }
 }
@@ -685,14 +722,14 @@ ServoManager::~ServoManager()
 
 void ServoManager::run()
 {
-    try
-    {
-        using namespace std::chrono;
-        high_resolution_clock::time_point sleepUntilTimePoint = high_resolution_clock::now();
-        high_resolution_clock::duration clockDurationCycleTime(
-                duration_cast<high_resolution_clock::duration>(duration<double>(cycleTime)));
+    using namespace std::chrono;
+    high_resolution_clock::time_point sleepUntilTimePoint = high_resolution_clock::now();
+    high_resolution_clock::duration clockDurationCycleTime(
+            duration_cast<high_resolution_clock::duration>(duration<double>(cycleTime)));
 
-        while (!shuttingDown)
+    while (!shuttingDown)
+    {
+        try
         {
             cycleSleepTime = std::chrono::duration<double>(sleepUntilTimePoint - high_resolution_clock::now()).count();
             std::this_thread::sleep_until(sleepUntilTimePoint);
@@ -727,21 +764,31 @@ void ServoManager::run()
                 tempReadHandlerFunction(cycleTime, *this);
             }
         }
-    }
-    catch (std::exception& e)
-    {
-        shuttingDown = true;
-
-        const std::lock_guard<std::mutex> lock(handlerFunctionMutex);
-
-        if (errorHandlerFunction)
+        catch (...)
         {
-            errorHandlerFunction(e);
-        }
-        else
-        {
-            exception = std::make_unique<std::exception>(e);
-            throw e;
+            auto e = std::current_exception();
+
+            std::function<void(std::exception_ptr e)> tempErrorHandlerFunction;
+
+            {
+                const std::lock_guard<std::mutex> lock(handlerFunctionMutex);
+                tempErrorHandlerFunction = errorHandlerFunction;
+            }
+
+            if (tempErrorHandlerFunction)
+            {
+                shutdown();
+                tempErrorHandlerFunction(e);
+            }
+            else if (delayedExceptionsEnabled)
+            {
+                registerUnhandledException(e);
+                shutdown();
+            }
+            else
+            {
+                std::rethrow_exception(e);
+            }
         }
     }
 }
@@ -753,7 +800,7 @@ std::vector<double> ServoManager::getPosition() const
 
 void ServoManager::setHandlerFunctions(std::function<void(double, ServoManager&)> newSendCommandHandlerFunction, 
         std::function<void(double, ServoManager&)> newReadResultHandlerFunction,
-        std::function<void(std::exception& e)> newErrorHandlerFunction)
+        std::function<void(std::exception_ptr e)> newErrorHandlerFunction)
 {
     const std::lock_guard<std::mutex> lock(handlerFunctionMutex);
 
@@ -770,29 +817,50 @@ void ServoManager::removeHandlerFunctions()
 
 void ServoManager::start()
 {
-    if (shuttingDown)
+    shuttingDown = false;
+    if (t.get_id() == std::this_thread::get_id())
     {
-        shuttingDown = false;
+        return;
+    }
+
+    if (!t.joinable())
+    {
         t = std::thread{&ServoManager::run, this};
     }
 }
 
 void ServoManager::shutdown()
 {
-    if (!shuttingDown)
+    shuttingDown = true;
+    if (t.get_id() == std::this_thread::get_id())
     {
-        shuttingDown = true;
+        return;
+    }
+
+    if (t.joinable())
+    {
         t.join();
     }
 }
 
-std::exception ServoManager::getUnhandledException()
+void ServoManager::registerUnhandledException(std::exception_ptr e)
 {
     const std::lock_guard<std::mutex> lock(handlerFunctionMutex);
-    
-    auto e = *exception.get();
-    exception.reset();
 
+    exception = e;
+}
+
+void ServoManager::enableDelayedExceptions(bool enable)
+{
+    delayedExceptionsEnabled = enable;
+}
+
+std::exception_ptr ServoManager::getUnhandledException()
+{
+    const std::lock_guard<std::mutex> lock(handlerFunctionMutex);
+
+    auto e = exception;
+    exception = std::exception_ptr();
     return e;
 }
 
@@ -800,11 +868,14 @@ bool ServoManager::isAlive(bool raiseException)
 {
     if (raiseException)
     {
-        const std::lock_guard<std::mutex> lock(handlerFunctionMutex);
-
-        if (exception)
+        auto e = std::exception_ptr();
+        if (shuttingDown)
         {
-            throw getUnhandledException();
+            e = getUnhandledException();
+        }
+        if (e)
+        {
+            std::rethrow_exception(e);
         }
     }
     return !shuttingDown;

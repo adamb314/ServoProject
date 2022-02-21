@@ -1,6 +1,8 @@
 //#include <type_traits>
-#include <iostream>
 #include <array>
+#include <vector>
+#include <exception>
+#include <sstream>
 
 #include <boost/asio.hpp>
 #include <boost/asio/serial_port.hpp> 
@@ -8,6 +10,33 @@
 
 #ifndef SERVO_PROJECT_H
 #define SERVO_PROJECT_H
+
+class CommunicationError : public std::exception
+{
+public:
+    enum ErrorCode
+    {
+        COULD_NOT_SEND = 1,
+        NO_RESPONSE,
+        PARTIAL_RESPONSE_TYPE_1,
+        PARTIAL_RESPONSE_TYPE_2,
+        PARTIAL_RESPONSE_TYPE_3,
+        PARTIAL_RESPONSE_TYPE_4,
+        UNEXPECTED_RESPONSE,
+        CHECKSUM_ERROR
+    };
+
+    CommunicationError(unsigned char nodeNr, ErrorCode code);
+
+    virtual ~CommunicationError() throw(){};
+
+    virtual const char*
+    what() const throw();
+
+    std::string whatString;
+    unsigned char nodeNr;
+    ErrorCode code;
+};
 
 class Communication
 {
@@ -29,7 +58,7 @@ public:
 
     virtual short int getLastReadInt(unsigned char nr) = 0;
 
-    virtual bool execute() = 0;
+    virtual void execute() = 0;
 };
 
 class SerialCommunication : public Communication
@@ -55,7 +84,7 @@ public:
 
     virtual short int getLastReadInt(unsigned char nr);
 
-    virtual bool execute();
+    virtual void execute();
 
 protected:
     class blocking_reader
@@ -106,7 +135,7 @@ public:
     {
     }
 
-    virtual bool execute() override;
+    virtual void execute() override;
 
     class ServoSim
     {
@@ -123,7 +152,7 @@ public:
         std::array<short int, 16> intArray{0};
     };
 
-    std::array<ServoSim, 7> servoSims{};
+    std::vector<ServoSim> servoSims;
 };
 
 template <typename T, typename U>
@@ -294,7 +323,7 @@ public:
 
     void setHandlerFunctions(std::function<void(double, ServoManager&)> newSendCommandHandlerFunction, 
             std::function<void(double, ServoManager&)> newReadResultHandlerFunction,
-            std::function<void(std::exception& e)> newErrorHandlerFunction = std::function<void(std::exception& e)>());
+            std::function<void(std::exception_ptr e)> newErrorHandlerFunction = std::function<void(std::exception_ptr e)>());
 
     void removeHandlerFunctions();
 
@@ -302,7 +331,9 @@ public:
 
     void shutdown();
 
-    std::exception getUnhandledException();
+    void enableDelayedExceptions(bool enable = true);
+
+    std::exception_ptr getUnhandledException();
 
     bool isAlive(bool raiseException = true);
 
@@ -312,18 +343,21 @@ public:
 
 protected:
 
+    void registerUnhandledException(std::exception_ptr e);
+
     std::vector<double> currentPosition;
 
     double cycleTime;
     double cycleSleepTime{0.0};
     bool shuttingDown{true};
-    std::unique_ptr<std::exception> exception;
+    bool delayedExceptionsEnabled{false};
+    std::exception_ptr exception;
 
     std::thread t;
     std::mutex handlerFunctionMutex;
     std::function<void(double, ServoManager&)> sendCommandHandlerFunction;
     std::function<void(double, ServoManager&)> readResultHandlerFunction;
-    std::function<void(std::exception&)> errorHandlerFunction;
+    std::function<void(std::exception_ptr)> errorHandlerFunction;
 };
 
 #endif

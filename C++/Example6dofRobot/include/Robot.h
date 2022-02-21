@@ -30,9 +30,9 @@ public:
 
     Eigen::Matrix<double, dof, 1> getPosition() const;
 
-    void setHandlerFunctions(const std::function<void(double, Robot*)>& newSendCommandHandlerFunction,
-            const std::function<void(double, Robot*)>& newReadResultHandlerFunction,
-            const std::function<void(std::exception& e)>& newErrorHandlerFunction = [](std::exception& e){});
+    void setHandlerFunctions(const std::function<void(double, Robot&)>& newSendCommandHandlerFunction,
+            const std::function<void(double, Robot&)>& newReadResultHandlerFunction,
+            const std::function<void(std::exception_ptr e)>& newErrorHandlerFunction = std::function<void(std::exception_ptr e)>());
 
     void removeHandlerFunctions();
 
@@ -40,7 +40,9 @@ public:
 
     void shutdown();
 
-    std::exception getUnhandledException();
+    void enableDelayedExceptions(bool enable = true);
+
+    std::exception_ptr getUnhandledException();
 
     bool isAlive(bool raiseException = true);
 

@@ -3,8 +3,43 @@ import threading
 import time
 import math
 import random
+from enum import Enum
 
 pi = 3.1415926535
+
+class CommunicationError(Exception):
+    class ErrorCode(Enum):
+        COULD_NOT_SEND = 1
+        NO_RESPONSE = 2
+        PARTIAL_RESPONSE_TYPE_1 = 3
+        PARTIAL_RESPONSE_TYPE_2 = 4
+        PARTIAL_RESPONSE_TYPE_3 = 5
+        PARTIAL_RESPONSE_TYPE_4 = 6
+        UNEXPECTED_RESPONSE = 7
+        CHECKSUM_ERROR = 8
+
+    def __init__(self, nodeNr, code):
+        self.nodeNr = nodeNr
+        self.code = code
+
+        self.message = f'Communication error: '
+        
+        if self.code == CommunicationError.ErrorCode.COULD_NOT_SEND:
+            self.message += f'Could not send to port'
+        elif self.code == CommunicationError.ErrorCode.NO_RESPONSE:
+            self.message += f'No response from node {self.nodeNr}'
+        elif (self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_1 or
+                 self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2 or
+                 self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_3 or
+                 self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_4):
+            self.message += f'Partial response from node {self.nodeNr}, error code {self.code}'
+        elif self.code == CommunicationError.ErrorCode.UNEXPECTED_RESPONSE:
+            self.message += f'Unexpected response from node {self.nodeNr}'
+        elif self.code == CommunicationError.ErrorCode.CHECKSUM_ERROR:
+            self.message += f'Checksum error from node {self.nodeNr}'
+
+        super().__init__(self.message)
+
 
 def removeIntWraparound(newVal, oldVal, bitLenght):
     diff = (newVal - oldVal) % (2**bitLenght)
@@ -96,7 +131,7 @@ class SerialCommunication(object):
 
         bytesSent = self.port.write(bytes(self.sendBuffer))
         if bytesSent != len(self.sendBuffer):
-            raise Exception('all data not sent error')
+            raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.COULD_NOT_SEND)
 
         self.commandArray = []
 
@@ -109,56 +144,49 @@ class SerialCommunication(object):
         for d in receiveArrayCopy:
             readBytes = self.port.read()
             if len(readBytes) < 1:
-                print("error1\n")
                 self.port.read()
-                return False
+                raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.NO_RESPONSE)
             c = readBytes[0]
 
             if d == c:
                 if d >= 64:
                     readBytes = self.port.read()
                     if len(readBytes) < 1:
-                        print("error2\n")
                         self.port.read()
-                        return False
+                        raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_1)
                     c = readBytes[0]
                     value = int(c)
 
                     readBytes = self.port.read()
                     if len(readBytes) < 1:
-                        print("error3\n")
                         self.port.read()
-                        return False
+                        raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2)
                     c = readBytes[0]
                     value += int(c) * 256;
                     self.intArray[d - 64] = value;
                 else:
                     readBytes = self.port.read()
                     if len(readBytes) < 1:
-                        print("error4\n")
                         self.port.read()
-                        return False
+                        raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_3)
                     c = readBytes[0]
                     self.charArray[d] = c;
 
             else:
-                print("error5\n")
-
                 while True:
                     readBytes = self.port.read()
                     if len(readBytes) < 1:
                         self.port.read()
                         break
+                raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.UNEXPECTED_RESPONSE)
 
         readBytes = self.port.read()
         if len(readBytes) < 1:
             self.port.read()
-            return False
+            raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_4)
         c = readBytes[0]
         if c != 0xff:
-            return False
-
-        return True
+            raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.CHECKSUM_ERROR)
 
 class SimulateCommunication(SerialCommunication):
     class ServoSim(object):
@@ -233,10 +261,9 @@ class SimulateCommunication(SerialCommunication):
         super(SimulateCommunication, self).__init__('')
         self.servoSims = []
 
-        for i in range(0, 7):
-            self.servoSims.append(self.ServoSim())
-
     def execute(self):
+        while len(self.servoSims) < self.nodeNr:
+            self.servoSims.append(self.ServoSim())
         servo = self.servoSims[self.nodeNr - 1]
         servo.run()
 
@@ -280,8 +307,6 @@ class SimulateCommunication(SerialCommunication):
                 self.charArray[receiveArrayCopy[i]] = value
 
             i += 1
-
-        return True
 
 class ContinuousValueUpCaster(object):
     def __init__(self, inbutBitLenght):
@@ -526,66 +551,65 @@ class DCServoCommunicator(object):
             self.bus.writeChar(7, self.backlashCompensationSpeedVelDecrease)
             self.bus.writeChar(8, self.backlashSize)
 
-        self.communicationIsOk = self.bus.execute()
+        self.bus.execute()
 
-        if self.communicationIsOk:
-            for i, d in enumerate(self.activeIntReads):
-                if d:
-                    if self.isInitComplete():
-                        self.activeIntReads[i] = False
-                    self.intReadBuffer[i] = self.bus.getLastReadInt(i)
+        for i, d in enumerate(self.activeIntReads):
+            if d:
+                if self.isInitComplete():
+                    self.activeIntReads[i] = False
+                self.intReadBuffer[i] = self.bus.getLastReadInt(i)
 
-            for i, d in enumerate(self.activeCharReads):
-                if d:
-                    if self.isInitComplete():
-                        self.activeCharReads[i] = False
-                    self.charReadBuffer[i] = self.bus.getLastReadChar(i)
+        for i, d in enumerate(self.activeCharReads):
+            if d:
+                if self.isInitComplete():
+                    self.activeCharReads[i] = False
+                self.charReadBuffer[i] = self.bus.getLastReadChar(i)
+
+        if self.isInitComplete():
+            self.intReadBufferIndex3Upscaling.update(self.intReadBuffer[3])
+            self.intReadBufferIndex10Upscaling.update(self.intReadBuffer[10])
+            self.intReadBufferIndex11Upscaling.update(self.intReadBuffer[11])
+        else:
+            upscaledPos = (self.intReadBuffer[3] % (256 * 256)) + (self.charReadBuffer[9] % 256) * 256 * 256
+            if upscaledPos >= 256**3 / 2:
+                upscaledPos -= 256**3
+
+            self.intReadBufferIndex3Upscaling.set(upscaledPos)
+            self.intReadBufferIndex10Upscaling.set(self.intReadBuffer[10])
+            self.intReadBufferIndex11Upscaling.set(self.intReadBuffer[11])
+        
+        self.backlashEncoderPos = self.intReadBufferIndex3Upscaling.get() * (1.0 / self.positionUpscaling)
+        self.encoderPos = self.intReadBufferIndex10Upscaling.get() * (1.0 / self.positionUpscaling)
+        self.backlashCompensation = self.intReadBufferIndex11Upscaling.get() * (1.0 / self.positionUpscaling)
+
+        self.encoderVel = self.intReadBuffer[4]
+        self.controlSignal = self.intReadBuffer[5]
+        self.current = self.intReadBuffer[6]
+        self.pwmControlSignal = self.intReadBuffer[7]
+        self.cpuLoad = self.intReadBuffer[8]
+        self.loopTime = self.intReadBuffer[9]
+        self.opticalEncoderChannelData.a = self.intReadBuffer[12]
+        self.opticalEncoderChannelData.b = self.intReadBuffer[13]
+        self.opticalEncoderChannelData.minCostIndex = self.intReadBuffer[14]
+        self.opticalEncoderChannelData.minCost = self.intReadBuffer[15]
+
+        if not self.isInitComplete():
+            self.initState += 1
+
+            pos = 0.0
+            if not self.backlashControlDisabled:
+                pos = self.backlashEncoderPos
+            else:
+                pos = self.encoderPos
+
+            self.activeRefPos[0] = pos * self.positionUpscaling
+            self.activeRefPos[1] = self.activeRefPos[0]
+            self.activeRefPos[2] = self.activeRefPos[1]
+            self.activeRefPos[3] = self.activeRefPos[2]
+            self.activeRefPos[4] = self.activeRefPos[3]
 
             if self.isInitComplete():
-                self.intReadBufferIndex3Upscaling.update(self.intReadBuffer[3])
-                self.intReadBufferIndex10Upscaling.update(self.intReadBuffer[10])
-                self.intReadBufferIndex11Upscaling.update(self.intReadBuffer[11])
-            else:
-                upscaledPos = (self.intReadBuffer[3] % (256 * 256)) + (self.charReadBuffer[9] % 256) * 256 * 256
-                if upscaledPos >= 256**3 / 2:
-                    upscaledPos -= 256**3
-
-                self.intReadBufferIndex3Upscaling.set(upscaledPos)
-                self.intReadBufferIndex10Upscaling.set(self.intReadBuffer[10])
-                self.intReadBufferIndex11Upscaling.set(self.intReadBuffer[11])
-            
-            self.backlashEncoderPos = self.intReadBufferIndex3Upscaling.get() * (1.0 / self.positionUpscaling)
-            self.encoderPos = self.intReadBufferIndex10Upscaling.get() * (1.0 / self.positionUpscaling)
-            self.backlashCompensation = self.intReadBufferIndex11Upscaling.get() * (1.0 / self.positionUpscaling)
-
-            self.encoderVel = self.intReadBuffer[4]
-            self.controlSignal = self.intReadBuffer[5]
-            self.current = self.intReadBuffer[6]
-            self.pwmControlSignal = self.intReadBuffer[7]
-            self.cpuLoad = self.intReadBuffer[8]
-            self.loopTime = self.intReadBuffer[9]
-            self.opticalEncoderChannelData.a = self.intReadBuffer[12]
-            self.opticalEncoderChannelData.b = self.intReadBuffer[13]
-            self.opticalEncoderChannelData.minCostIndex = self.intReadBuffer[14]
-            self.opticalEncoderChannelData.minCost = self.intReadBuffer[15]
-
-            if not self.isInitComplete():
-                self.initState += 1
-
-                pos = 0.0
-                if not self.backlashControlDisabled:
-                    pos = self.backlashEncoderPos
-                else:
-                    pos = self.encoderPos
-
-                self.activeRefPos[0] = pos * self.positionUpscaling
-                self.activeRefPos[1] = self.activeRefPos[0]
-                self.activeRefPos[2] = self.activeRefPos[1]
-                self.activeRefPos[3] = self.activeRefPos[2]
-                self.activeRefPos[4] = self.activeRefPos[3]
-
-                if self.isInitComplete():
-                    self.updateOffset()
+                self.updateOffset()
 
     def updateOffset(self):
         pos = self.getPosition() / self.scale
@@ -597,9 +621,7 @@ class DCServoCommunicator(object):
             self.offset += (4096 / 2) * self.scale
 
 class ServoManager(object):
-    def __init__(self, cycleTime = 0.018, initFunction=lambda robot: robot):
-        self.servoArray = []
-
+    def __init__(self, cycleTime, initFunction):
         self.cycleTime = cycleTime
 
         self.cycleSleepTime = 0
@@ -608,12 +630,14 @@ class ServoManager(object):
 
         self.exception = None
 
-        self.handlerFunctionMutex = threading.Lock()
-        self.sendCommandHandlerFunction = lambda cycleTime, robot : None
-        self.readResultHandlerFunction = lambda cycleTime, robot : None
-        self.errorHandlerFunction = lambda exception : None
+        self.t = None
 
-        initFunction(self)
+        self.handlerFunctionMutex = threading.Lock()
+        self.sendCommandHandlerFunction = None
+        self.readResultHandlerFunction = None
+        self.errorHandlerFunction = None
+
+        self.servoArray = initFunction()
 
         while True:
             allDone = True
@@ -636,10 +660,10 @@ class ServoManager(object):
         self.shutdown()
 
     def run(self):
-        try:
-            sleepUntilTimePoint = time.time();
+        sleepUntilTimePoint = time.time();
 
-            while not self.shuttingDown:
+        while not self.shuttingDown:
+            try:
                 self.cycleSleepTime = sleepUntilTimePoint - time.time()
                 time.sleep(max(0, sleepUntilTimePoint - time.time()))
                 sleepUntilTimePoint += self.cycleTime
@@ -648,7 +672,8 @@ class ServoManager(object):
                     tempSendHandlerFunction = self.sendCommandHandlerFunction
                     tempReadHandlerFunction = self.readResultHandlerFunction
 
-                tempSendHandlerFunction(self.cycleTime, self)
+                if tempSendHandlerFunction:
+                    tempSendHandlerFunction(self.cycleTime, self)
 
                 for s in self.servoArray:
                     s.run()
@@ -656,16 +681,20 @@ class ServoManager(object):
                 for i, s in enumerate(self.servoArray):
                     self.currentPosition[i] = s.getPosition()
 
-                tempReadHandlerFunction(self.cycleTime, self)
-        except Exception as e:
-            with self.handlerFunctionMutex:
-                if self.errorHandlerFunction:
-                    self.errorHandlerFunction(e)
+                if tempReadHandlerFunction:
+                    tempReadHandlerFunction(self.cycleTime, self)
+
+            except Exception as e:
+                with self.handlerFunctionMutex:
+                    tempErrorHandlerFunction = self.errorHandlerFunction
+
+                if tempErrorHandlerFunction:
+                    self.shutdown()
+                    tempErrorHandlerFunction(e)
                 else:
                     self.exception = e
+                    self.shutdown()
                     raise e
-        finally:
-            self.shuttingDown = True
 
     def getPosition(self):
         return self.currentPosition
@@ -677,29 +706,42 @@ class ServoManager(object):
             self.errorHandlerFunction = newErrorHandlerFunction
 
     def removeHandlerFunctions(self):
-        self.setHandlerFunctions(lambda cycleTime, robot : cycleTime, lambda cycleTime, robot : cycleTime)
+        self.setHandlerFunctions(lambda cycleTime, servoManager : cycleTime, lambda cycleTime, servoManager : cycleTime)
 
     def start(self):
-        if self.shuttingDown:
-            self.shuttingDown = False
+        self.shuttingDown = False
+
+        if self.t != None and threading.current_thread() == self.t:
+            return
+
+        if self.t == None or not self.t.is_alive():
             self.t = threading.Thread(target=self.run)
             self.t.start()
 
     def shutdown(self):
-        if not self.shuttingDown:
-            self.shuttingDown = True
-            self.t.join()
+        self.shuttingDown = True
+
+        if self.t != None and threading.current_thread() == self.t:
+            return
+
+        self.t.join()
+
+    def registerUnhandledException(self, e):
+        with self.handlerFunctionMutex:
+            self.exception = e
 
     def getUnhandledException(self):
-        e = None
         with self.handlerFunctionMutex:
             e = self.exception
             self.exception = None
-        return e
+            return e
 
     def isAlive(self, raiseException = True):
         if raiseException:
-            e = self.getUnhandledException()
+            e = None
+            if self.shuttingDown:
+                e = self.getUnhandledException()
+
             if e != None:
                 raise e
         return not self.shuttingDown

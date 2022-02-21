@@ -1,4 +1,6 @@
 #include "ServoProject.h"
+#include <iostream>
+#include <iomanip>
 #include <cmath>
 
 void playTrajectory(ServoManager& manager,

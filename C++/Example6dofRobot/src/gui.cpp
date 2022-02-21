@@ -60,7 +60,7 @@ RobotJogging::RobotJogging(Robot& r) :
     Glib::signal_timeout().connect(my_slot,
           100);
 
-    auto sendCommandHandlerFunction = [&](double dt, Robot* robotPointer)
+    auto sendCommandHandlerFunction = [&](double dt, Robot& robot)
     {
         if (!controlEnabled)
         {
@@ -163,37 +163,37 @@ RobotJogging::RobotJogging(Robot& r) :
             {
                 if (validCurrentPosition)
                 {
-                    robotPointer->dcServoArray[i]->setReference(currentPosition[i], velInJ[i], 0.0);
+                    robot.dcServoArray[i]->setReference(currentPosition[i], velInJ[i], 0.0);
                 }
             }
             else
             {
-                robotPointer->dcServoArray[i]->setOpenLoopControlSignal(0, true);
+                robot.dcServoArray[i]->setOpenLoopControlSignal(0, true);
             }
         }
 
         if (enableTimer > 6 * 0.1)
         {
             double pos = asin(2.0 * gripperPos - 1.0);
-            robotPointer->gripperServo->setReference(pos, 0.0, 0.0);
+            robot.gripperServo->setReference(pos, 0.0, 0.0);
         }
     };
 
-    auto readResultHandlerFunction = [&](double dt, Robot* robotPointer)
+    auto readResultHandlerFunction = [&](double dt, Robot& robot)
     {
         robotThreadMutex.lock();
         for (int i = 0; i != currentPosition.size(); ++i)
         {
             if (enableTimer <= i * 0.1)
             {
-                currentPosition[i] = robotPointer->dcServoArray[i]->getPosition();
+                currentPosition[i] = robot.dcServoArray[i]->getPosition();
             }
         }
         robotThreadMutex.unlock();
 
         if (shutdown)
         {
-            robotPointer->removeHandlerFunctions();
+            robot.removeHandlerFunctions();
         }
     };
 
@@ -202,6 +202,8 @@ RobotJogging::RobotJogging(Robot& r) :
 
 RobotJogging::~RobotJogging()
 {
+    robot.enableDelayedExceptions(false);
+
     shutdown = true;
     robot.shutdown();
 }
