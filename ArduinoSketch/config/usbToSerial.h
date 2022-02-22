@@ -14,8 +14,12 @@ public:
         serialComOptimizer.addBridge(&Serial1);
         auto com = std::make_unique<Communication>(serialComOptimizer);
 
-        com->addCommunicationNode(
-                std::make_unique<ServoCommunicationHandler>(2, 7));
+        // Optional.
+        // By adding ServoCommunicationHandler nodes here you can control regular servos 
+        // in the same way as if they were fully modified ServoProject servos.
+
+        //com->addCommunicationNode(
+        //        std::make_unique<ServoCommunicationHandler>(nodeNr, servoPin));
 
         return com;
     }

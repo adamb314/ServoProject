@@ -98,6 +98,14 @@ Holds a minimal python demo project.
 
 Holds all python modules for the project.
 
+## Communication bus setup for demo projects
+
+![Robot](Doc/readmeResources/UartBusPlain.svg)
+
+PLEASE NOTE! The bus controller needs to have a low latency to get fast communication with the servos. Most standard USB to Serial converters buffer the data and only transfers every 10 ms or so. This becomes a problem since the communication protocol will wait for the response from each servo before moving on to the next, adding huge delays.
+
+To get the best communication speed it is recommended to use an "Adafruit ItsyBitsy M0 Express" (or similar ARM based Arduino) as the USB to Serial converter. Just program the Arduino with the `usbToSerial.h` configuration in the ArduinoSketch to get started. In `usbToSerial.h` you can also configure any regular servos you want to control together with the ServoProject modified ones.
+
 ## License
 Open Source License
 
