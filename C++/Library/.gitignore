@@ -1,0 +1,7 @@
+/partialCompileOutput/*
+executable
+libServoProject.a
+/*.sublime-workspace
+/tempData/*
+/*.sublime-project
+/*.txt

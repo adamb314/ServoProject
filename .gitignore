@@ -1,7 +1,10 @@
-.vscode/**
+**/.vscode/**
+**/__pycache__/**
 ArduinoSketch/enableAutoUpload
 ..*
 *.sublime-workspace
 ArduinoSketch/config/*
+CadFiles/**/*.FCStd1
 PcbDesignes/**/*-cache*
 PcbDesignes/**/*.sch-bak
+.thankyou

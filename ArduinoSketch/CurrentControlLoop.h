@@ -5,7 +5,7 @@
 #include "ThreadHandler.h"
 #include "CurrentSampler.h"
 #include "PwmHandler.h"
-#include <Eigen30.h>
+#include <ArduinoEigenDense.h>
 #include <vector>
 #include <algorithm>
 

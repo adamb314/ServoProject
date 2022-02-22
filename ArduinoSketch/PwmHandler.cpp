@@ -1,17 +1,19 @@
 #include "PwmHandler.h"
 
-HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction) :
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
     timer(TCC0),
     invert(invert),
-    linearizeFunction(linearizeFunction)
+    linearizeFunction(linearizeFunction),
+    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0f / frq + 0.5f))
 {
     connectOutput();
 }
 
-HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction) :
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
     timer(timer),
     invert(invert),
-    linearizeFunction(linearizeFunction)
+    linearizeFunction(linearizeFunction),
+    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0f / frq + 0.5f))
 {
 }
 
@@ -22,7 +24,6 @@ HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(HBridgeHighResPin11And1
     outputConnected(in.outputConnected),
     invert(in.invert),
     linearizeFunction(in.linearizeFunction)
-
 {
     in.outputConnected = false;
 }
@@ -53,11 +54,11 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
     if (output >= 0)
     {
         pin11WriteValue = 0;
-        pin12WriteValue = 2 * linearizeFunction(output);
+        pin12WriteValue = freqDiv * linearizeFunction(output);
     }
     else
     {
-        pin11WriteValue = 2 * linearizeFunction(-output);
+        pin11WriteValue = freqDiv * linearizeFunction(-output);
         pin12WriteValue = 0;
     }
 
@@ -83,8 +84,8 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
 
 void HBridgeHighResPin11And12Pwm::activateBrake()
 {
-    pin11WriteValue = 2 * 1023;
-    pin12WriteValue = 2 * 1023;
+    pin11WriteValue = freqDiv * 1023;
+    pin12WriteValue = freqDiv * 1023;
 
     if (outputConnected)
     {
@@ -148,6 +149,49 @@ void HBridgeHighResPin11And12Pwm::connectOutput()
     outputConnected = true;
 }
 
+bool HBridgeHighResPin11And12Pwm::willSwitchWithIn(int16_t period) const
+{
+    if (timer->CTRLA.bit.ENABLE == false)
+    {
+        return false;
+    }
+
+    timer->CTRLBSET.reg = TCC_CTRLBSET_CMD_READSYNC;
+
+    int minPeriodCount;
+    int maxPeriodCount;
+
+    period *= tickPerUs;
+
+    if (period >= 0)
+    {
+        minPeriodCount = 0;
+        maxPeriodCount = period;
+    }
+    else
+    {
+        minPeriodCount = period;
+        maxPeriodCount = 0;
+    }
+
+    auto maxCC = timer->CC[0].bit.CC;
+    if (maxCC < timer->CC[1].bit.CC)
+    {
+        maxCC = timer->CC[1].bit.CC;
+    }
+
+    while (timer->CTRLBSET.bit.CMD)
+    {
+    }
+    minPeriodCount += timer->COUNT.bit.COUNT;
+    maxPeriodCount += timer->COUNT.bit.COUNT;
+
+    bool switchInPeriod = maxPeriodCount > freqDiv * 1024 || minPeriodCount < switchTransientTime;
+    switchInPeriod |= maxPeriodCount > maxCC && minPeriodCount < maxCC + switchTransientTime;
+
+    return switchInPeriod;
+}
+
 void HBridgeHighResPin11And12Pwm::configTimer()
 {
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
@@ -186,7 +230,7 @@ void HBridgeHighResPin11And12Pwm::configTimer()
 
     timer->PATT.reg = TCC_PATT_RESETVALUE;
 
-    timer->PER.bit.PER = 2 * 1024;
+    timer->PER.bit.PER = freqDiv * 1024;
 
     timer->CC[0].bit.CC = pin11WriteValue;
     timer->CC[1].bit.CC = pin12WriteValue;
@@ -203,8 +247,8 @@ void HBridgeHighResPin11And12Pwm::configTimer()
     timer->CTRLA.bit.ENABLE = true;
 }
 
-HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, LinearizeFunctionType linearizeFunction) :
-    HBridgeHighResPin11And12Pwm(TCC1, invert, linearizeFunction)
+HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
+    HBridgeHighResPin11And12Pwm(TCC1, invert, linearizeFunction, frq)
 {
     connectOutput();
 }
@@ -356,4 +400,129 @@ void HBridge2WirePwm::connectOutput()
     }
 
     outputConnected = true;
+}
+
+SwitchAvoidingSynchronizer::Switcher::~Switcher()
+{
+    while(synchronizers.size() != 0)
+    {
+        bool removeCompleted = synchronizers.back()->removeSwitcher(this);
+        if (removeCompleted == false)
+        {
+            removeSynchronizer(synchronizers.back());
+        }
+    }
+}
+
+void SwitchAvoidingSynchronizer::Switcher::addSynchronizer(SwitchAvoidingSynchronizer* synchronizer)
+{
+    synchronizers.push_back(synchronizer);
+}
+
+void SwitchAvoidingSynchronizer::Switcher::removeSynchronizer(SwitchAvoidingSynchronizer* synchronizer)
+{
+    synchronizers.erase(std::remove(std::begin(synchronizers), std::end(synchronizers), synchronizer),
+        std::end(synchronizers));
+}
+
+SwitchAvoidingSynchronizer::~SwitchAvoidingSynchronizer()
+{
+    std::for_each(std::begin(switchers), std::end(switchers), [this](Switcher* switcher)
+            {
+                switcher->removeSynchronizer(this);
+            });
+    switchers.clear();
+}
+
+void SwitchAvoidingSynchronizer::addSwitcher(SwitchAvoidingSynchronizer::Switcher* switcher)
+{
+    if (std::count(std::begin(switchers), std::end(switchers), switcher) != 0)
+    {
+        return;
+    }
+
+    switchers.push_back(switcher);
+    switcher->addSynchronizer(this);
+}
+
+bool SwitchAvoidingSynchronizer::removeSwitcher(SwitchAvoidingSynchronizer::Switcher* switcher)
+{
+    auto it = std::find(std::begin(switchers), std::end(switchers), switcher);
+    if (it != std::end(switchers))
+    {
+        switchers.erase(it);
+        switcher->removeSynchronizer(this);
+        return true;
+    }
+    return false;
+}
+
+bool SwitchAvoidingSynchronizer::willSwitchWithIn(int16_t period)
+{
+    for (auto it = std::begin(switchers); it != std::end(switchers); ++it)
+    {
+        if ((*it)->willSwitchWithIn(period))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+SwitchAvoidingSumAnalogSampler::SwitchAvoidingSumAnalogSampler(uint32_t pin,
+            std::shared_ptr<SwitchAvoidingSynchronizer> synchronizer, uint16_t numberOfAdditiveSamples) :
+    AdcSamplerInstance(pin), numberOfAdditiveSamples(numberOfAdditiveSamples),
+    synchronizer(synchronizer)
+{
+}
+
+SwitchAvoidingSumAnalogSampler::~SwitchAvoidingSumAnalogSampler()
+{
+}
+
+void SwitchAvoidingSumAnalogSampler::triggerSample()
+{
+    AdcSamplerInstance::getAdcLockAndStartSampling();
+}
+
+int32_t SwitchAvoidingSumAnalogSampler::getValue()
+{
+    AdcSamplerInstance::unlockFromAdc();
+    return value;
+}
+
+void SwitchAvoidingSumAnalogSampler::loadConfigAndStart()
+{
+    value = 0;
+    sumOfAllSamples = 0;
+    samplesLeft = numberOfAdditiveSamples;
+    switchFreeSamplesTaken = 0;
+    AdcSamplerInstance::startAdcSample();
+}
+
+bool SwitchAvoidingSumAnalogSampler::handleResultAndCleanUp(int32_t result)
+{
+    sumOfAllSamples += result;
+    --samplesLeft;
+    if (!synchronizer->willSwitchWithIn(-13))
+    {
+        value += result;
+        ++switchFreeSamplesTaken;
+    }
+
+    if (samplesLeft == 0)
+    {
+        if (switchFreeSamplesTaken != 0)
+        {
+            value *= numberOfAdditiveSamples;
+            value /= switchFreeSamplesTaken;
+        }
+        else
+        {
+            value = sumOfAllSamples;
+        }
+        return true;
+    }
+
+    return false;
 }

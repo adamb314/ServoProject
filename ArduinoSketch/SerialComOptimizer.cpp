@@ -2,16 +2,23 @@
 
 SerialComOptimizer::SerialComOptimizer(Stream* serial, Stream* secSerial) :
     serial(serial),
-    serialVec({serial, secSerial}),
     readBufferGetIt(readBuffer.end() - 1),
     readBufferPutIt(readBuffer.begin()),
     writeBufferPutIt(writeBuffer.begin())
 {
+    serialVec.push_back(serial);
+    if (secSerial != nullptr)
+    {
+        serialVec.push_back(secSerial);
+    }
+    comLastActiveTimestamp = millis();
 }
 
 SerialComOptimizer::SerialComOptimizer(const SerialComOptimizer& in) :
     serial(in.serial),
     serialVec(in.serialVec),
+    comLastActiveTimestamp(in.comLastActiveTimestamp),
+    bridgeSerialVec(in.bridgeSerialVec),
     readBuffer(in.readBuffer),
     readBufferGetIt((in.readBufferGetIt - in.readBuffer.begin()) + readBuffer.begin()),
     readBufferPutIt((in.readBufferPutIt - in.readBuffer.begin()) + readBuffer.begin()),
@@ -20,9 +27,13 @@ SerialComOptimizer::SerialComOptimizer(const SerialComOptimizer& in) :
 {
 }
 
-
 SerialComOptimizer::~SerialComOptimizer()
 {
+}
+
+void SerialComOptimizer::addBridge(Stream* bridge)
+{
+    bridgeSerialVec.push_back(bridge);
 }
 
 size_t SerialComOptimizer::available()
@@ -37,19 +48,30 @@ size_t SerialComOptimizer::available()
 
 uint8_t SerialComOptimizer::read()
 {
-    ++readBufferGetIt;
-    if (readBufferGetIt == readBuffer.end())
+    auto temp = readBufferGetIt;
+    ++temp;
+    if (temp == readBuffer.end())
     {
-        readBufferGetIt = readBuffer.begin();
+        temp = readBuffer.begin();
+    }
+    if (temp != readBufferPutIt)
+    {
+        readBufferGetIt = temp;
     }
 
     return *readBufferGetIt;
 }
 
-void SerialComOptimizer::write(uint8_t byte)
+bool SerialComOptimizer::write(uint8_t byte)
 {
+    if (writeBufferPutIt == writeBuffer.end())
+    {
+        return false;
+    }
+
     *writeBufferPutIt = byte;
     ++writeBufferPutIt;
+    return true;
 }
 
 void SerialComOptimizer::collectReadData()
@@ -65,19 +87,23 @@ void SerialComOptimizer::collectReadData()
         return;
     }
 
-    int32_t availableInHardwarBuffer = 0;
+    int32_t availableInHardwarBuffer = serial->available();
 
-    for (auto s : serialVec)
+    if (availableInHardwarBuffer != 0)
     {
-        if (s != nullptr)
+        comLastActiveTimestamp = millis();
+    }
+    if (millis() - comLastActiveTimestamp > 1000)
+    {
+        for (auto s : serialVec)
         {
             availableInHardwarBuffer = s->available();
-        }
 
-        if (availableInHardwarBuffer != 0)
-        {
-            serial = s;
-            break;
+            if (availableInHardwarBuffer != 0)
+            {
+                serial = s;
+                break;
+            }
         }
     }
 
@@ -94,6 +120,8 @@ void SerialComOptimizer::collectReadData()
         readAmount = 0;
     }
 
+    repeatReceivedToBridges(tempReadBuffer, readAmount);
+
     for (auto it = tempReadBuffer.begin(); it != tempReadBuffer.begin() + readAmount; ++it)
     {
         *readBufferPutIt = *it;
@@ -108,6 +136,51 @@ void SerialComOptimizer::collectReadData()
 
 void SerialComOptimizer::sendWrittenData()
 {
+    writeBridgedResponse();
+
     serial->write(writeBuffer.data(), writeBufferPutIt - writeBuffer.begin());
     writeBufferPutIt = writeBuffer.begin();
+}
+
+void SerialComOptimizer::repeatReceivedToBridges(const std::array<char, 32>& buffer, int32_t messageLength)
+{
+    if (messageLength > 0)
+    {
+        for (auto s : bridgeSerialVec)
+        {
+            s->write(buffer.data(), messageLength);
+        }
+    }
+}
+
+void SerialComOptimizer::writeBridgedResponse()
+{
+    Stream* bridgeSerial = nullptr;
+    int32_t availableToBridge = 0;
+    for (auto s : bridgeSerialVec)
+    {
+        availableToBridge = s->available();
+
+        if (availableToBridge != 0)
+        {
+            bridgeSerial = s;
+            break;
+        }
+    }
+
+    if (availableToBridge != 0)
+    {
+        std::array<char, 32> tempReadBuffer;
+        int32_t sizeLeftInWriteBuffer = writeBuffer.end() - writeBufferPutIt;
+        int32_t readAmount = tempReadBuffer.size();
+        readAmount = std::min(readAmount, sizeLeftInWriteBuffer);
+        readAmount = std::min(readAmount, availableToBridge);
+        
+        readAmount = bridgeSerial->readBytes(tempReadBuffer.data(), readAmount);
+
+        for (int i = 0; i != readAmount; ++i)
+        {
+            this->write(tempReadBuffer[i]);
+        }
+    }
 }

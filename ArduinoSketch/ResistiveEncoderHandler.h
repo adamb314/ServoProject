@@ -3,6 +3,7 @@
 
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
+#include "PwmHandler.h"
 #include <array>
 
 class ResistiveEncoderHandler : public EncoderHandlerInterface
@@ -21,9 +22,10 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
 
   private:
     AnalogSampler sensor;
-    float sensorValue{0};
+    uint32_t sensorValue{0};
     const float scaling;
     std::array<int16_t, vecSize> compVec;
+    bool newData{false};
 };
 
 #endif

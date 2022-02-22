@@ -3,9 +3,27 @@
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
         int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
     EncoderHandlerInterface(unitsPerRev),
-    aVec(aVec), bVec(bVec), sensor1(sensor1Pin), sensor2(sensor2Pin),
-    scaling(unitsPerRev * (1.0 / 4096.0))
+    aVec(aVec), bVec(bVec),
+    sensor1(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
+    scaling(unitsPerRev * (1.0f / 4096.0f))
 {
+}
+
+OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
+        int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
+    EncoderHandlerInterface(unitsPerRev),
+    sensor1(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
+    scaling(unitsPerRev * (1.0f / 4096.0f))
+{
+    constexpr size_t s = static_cast<int>(vecSize / 512);
+    for (size_t i = 0; i != 512; ++i)
+    {
+        for (size_t j = 0; j != s; ++j)
+        {
+            this->aVec[s * i + j] = aVec[i];
+            this->bVec[s * i + j] = bVec[i];
+        }
+    }
 }
 
 OpticalEncoderHandler::~OpticalEncoderHandler()
@@ -22,26 +40,8 @@ void OpticalEncoderHandler::init()
 
 void OpticalEncoderHandler::triggerSample()
 {
-    sensor1Value = 0;
-    sensor2Value = 0;
-
-    sensor1.triggerSample();
-    sensor2.triggerSample();
-
-    const int n = 4;
-    for (int i = 0; i != n - 1; ++i)
-    {
-        sensor1Value += sensor1.getValue();
-        sensor1.triggerSample();
-        sensor2Value += sensor2.getValue();
-        sensor2.triggerSample();
-    }
-
-    sensor1Value += sensor1.getValue();
-    sensor2Value += sensor2.getValue();
-
-    sensor1Value /= n;
-    sensor2Value /= n;
+    sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
+    sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
 
     newData = true;
 }
@@ -50,6 +50,9 @@ float OpticalEncoderHandler::getValue()
 {
     if (newData)
     {
+        sensor1Value = sensor1.getValue() / 4;
+        sensor2Value = sensor2.getValue() / 4;
+
         newData = false;
         updatePosition();
     }
@@ -57,10 +60,16 @@ float OpticalEncoderHandler::getValue()
     return (value + wrapAroundCorretion) * scaling;
 }
 
+uint16_t OpticalEncoderHandler::getUnscaledRawValue()
+{
+    return diagnosticData.c * 2;
+}
 
 EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData()
 {
-    return diagnosticData;
+    auto out = diagnosticData;
+    diagnosticData.d = 0;
+    return out;
 }
 
 void OpticalEncoderHandler::updatePosition()
@@ -71,7 +80,7 @@ void OpticalEncoderHandler::updatePosition()
     sensor1Value -= offset;
     sensor2Value -= offset;
 
-    int stepSize = static_cast<int>(vecSize / 2.0 + 1);
+    int stepSize = static_cast<int>(vecSize / 2.0f + 1);
 
     int i = predictNextPos;
     uint32_t cost = calcCost(i, sensor1Value, sensor2Value);
@@ -138,7 +147,7 @@ void OpticalEncoderHandler::updatePosition()
         const uint16_t& b = bVec[bestI];
         int16_t currentOffset = (diagnosticData.a - a + diagnosticData.b - b) / 2;
 
-        sensorValueOffset = 0.95 * sensorValueOffset + 0.05 * currentOffset;
+        sensorValueOffset = 0.95f * sensorValueOffset + 0.05f * currentOffset;
     }
 
     int lastMinCostIndexChange = bestI - lastMinCostIndex;
@@ -154,9 +163,13 @@ void OpticalEncoderHandler::updatePosition()
     }
 
     diagnosticData.c = bestI;
-    diagnosticData.d = bestCost;
+    bestCost = bestCost / 16;
+    if (bestCost > diagnosticData.d)
+    {
+        diagnosticData.d = bestCost;
+    }
 
-    float newValue = bestI * (4096.0 / vecSize);
+    float newValue = bestI * (4096.0f / vecSize);
 
     if (newValue - value > 4096 / 2)
     {

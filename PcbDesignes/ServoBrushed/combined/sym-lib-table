@@ -1,0 +1,4 @@
+(sym_lib_table
+  (lib (name SAMD)(type Legacy)(uri ${KIPRJMOD}/MCU_Microchip_SAMD/MCU_Microchip_SAMD.lib)(options "")(descr ""))
+  (lib (name combined-rescue)(type Legacy)(uri ${KIPRJMOD}/combined-rescue.lib)(options "")(descr ""))
+)

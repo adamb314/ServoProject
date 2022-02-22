@@ -18,16 +18,6 @@ void DCServo::init()
 {
     uint32_t cycleTime = controlConfig->getCycleTimeUs();
 
-    threads.push_back(createThread(3, cycleTime, 0,
-        [&]()
-        {
-            mainEncoderHandler->triggerSample();
-            if (outputEncoderHandler)
-            {
-                outputEncoderHandler->triggerSample();
-            }
-        }));
-
     refInterpolator.setGetTimeInterval(cycleTime);
     refInterpolator.setLoadTimeInterval(18000);
 
@@ -71,13 +61,12 @@ void DCServo::init()
 
     kalmanFilter->reset(x);
 
-    loadNewReference(x[0], 0, 0);
+    loadNewReference(rawOutputPos, 0, 0);
 
     threads.push_back(createThread(1, cycleTime, 0,
         [&]()
         {
             controlLoop();
-            loopNumber++;
         }));
 }
 
@@ -89,18 +78,13 @@ bool DCServo::isEnabled()
 
 void DCServo::enable(bool b)
 {
-    ThreadInterruptBlocker blocker;
     if (!isEnabled() && b)
     {
         calculateAndUpdateLVector();
     }
+    ThreadInterruptBlocker blocker;
 
     controlEnabled = b;
-
-    if (!b)
-    {
-        refInterpolator.resetTiming();
-    }
 }
 
 void DCServo::openLoopMode(bool enable, bool pwmMode)
@@ -118,7 +102,14 @@ void DCServo::onlyUseMainEncoder(bool b)
 
 void DCServo::setControlSpeed(uint8_t controlSpeed)
 {
+    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 4 * 8);
+}
+
+void DCServo::setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed)
+{
     this->controlSpeed = controlSpeed;
+    this->velControlSpeed = velControlSpeed;
+    this->filterSpeed = filterSpeed;
 }
 
 void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize)
@@ -137,7 +128,11 @@ void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
 void DCServo::triggerReferenceTiming()
 {
     ThreadInterruptBlocker blocker;
-    refInterpolator.updateTiming();
+
+    if (controlEnabled)
+    {
+        refInterpolator.updateTiming();
+    }
 }
 
 float DCServo::getPosition()
@@ -174,10 +169,12 @@ int16_t DCServo::getPwmControlSignal()
     return pwmControlSIgnal;
 }
 
-uint16_t DCServo::getLoopNumber()
+uint16_t DCServo::getLoopTime()
 {
     ThreadInterruptBlocker blocker;
-    return loopNumber;
+    auto out = loopTime;
+    loopTime = 0;
+    return out;
 }
 
 float DCServo::getBacklashCompensation()
@@ -200,8 +197,39 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 
 void DCServo::controlLoop()
 {
+    mainEncoderHandler->triggerSample();
+    if (outputEncoderHandler)
+    {
+        outputEncoderHandler->triggerSample();
+    }
+
+    float posRef;
+    float velRef;
+    float feedForwardU;
+
+    if (controlEnabled)
+    {
+        if (!openLoopControlMode)
+        {
+            Ivel -= L[2] * (vControlRef - x[1]);
+            Ivel += L[3] * (pwm - currentController->getLimitedRef());
+
+            refInterpolator.getNext(posRef, velRef, feedForwardU);
+
+            if (!onlyUseMainEncoderControl)
+            {
+                const uint8_t backlashControlGainCycleDelay = 8;
+                if (backlashControlGainDelayCounter == 0)
+                {
+                    backlashControlGainDelayCounter = backlashControlGainCycleDelay;
+                    backlashControlGain = L[4] * (0.1f + 0.9f * std::max(0.0f, 1.0f - L[5] * std::abs(velRef)));
+                }
+                backlashControlGainDelayCounter--;
+            }
+        }
+    }
 #ifdef SIMULATE
-    xSim = controlConfig->getA() * xSim + controlConfig->getB() * kalmanFilterCtrlSig;
+    xSim = controlConfig->getA() * xSim + controlConfig->getB() * controlSignal;
     rawMainPos =xSim[0];
     rawOutputPos = rawMainPos;
 #else
@@ -216,30 +244,20 @@ void DCServo::controlLoop()
     }
 #endif
 
-    x = kalmanFilter->update(kalmanFilterCtrlSig, rawMainPos);
+    x = kalmanFilter->update(controlSignal, rawMainPos);
 
     if (controlEnabled)
     {
         if (!openLoopControlMode)
         {
-            uLimitDiff = 0.99 * uLimitDiff + 0.01 * (controlSignal - currentController->getLimitedRef());
-
-            Ivel += L[3] * uLimitDiff;
-
-            float posRef;
-            float velRef;
-            float feedForwardU;
-
-            refInterpolator.getNext(posRef, velRef, feedForwardU);
-
             if (!onlyUseMainEncoderControl)
             {
                 int newForceDir = forceDir;
-                if (feedForwardU > 1.0)
+                if (feedForwardU > 1.0f)
                 {
                     newForceDir = 1;
                 }
-                else if (feedForwardU < -1.0)
+                else if (feedForwardU < -1.0f)
                 {
                     newForceDir = -1;
                 }
@@ -250,9 +268,7 @@ void DCServo::controlLoop()
                 }
                 forceDir = newForceDir;
                 
-                double gain = L[4] * (0.1 + 0.9 * std::max(0.0,
-                        1.0 - L[5] * (1.0 / 255) * (1.0 / 10) * std::abs(velRef)));
-                double backlashCompensationDiff = gain * 0.0012 * (posRef - rawOutputPos);
+                double backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
                 outputPosOffset -= backlashCompensationDiff;
             }
 
@@ -260,33 +276,28 @@ void DCServo::controlLoop()
 
             float posDiff = posRef - x[0];
 
-            float vControlRef = L[0] * posDiff + velRef;
-
+            vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
 
             float u = L[1] * (vControlRef - x[1]) + Ivel + feedForwardU;
 
-            kalmanFilterCtrlSig = u;
-
-            uint16_t rawEncPos = mainEncoderHandler->getDiagnosticData().c;
-
-            u += controlConfig->getCompensationForce(rawEncPos, vControlRef);
-
             controlSignal = u;
 
+            uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
+            u = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef, x[1]);
+            pwm = u;
+
             currentController->updateVelocity(x[1]);
-            currentController->setReference(static_cast<int16_t>(controlSignal));
+            currentController->setReference(static_cast<int16_t>(pwm));
             currentController->applyChanges();
             current = currentController->getCurrent();
             pwmControlSIgnal = currentController->getFilteredPwm();
-
-            Ivel -= L[2] * (vControlRef - x[1]);
         }
         else
         {
             Ivel = 0;
-            uLimitDiff = 0;
             outputPosOffset = rawOutputPos - rawMainPos;
+            backlashControlGainDelayCounter = 0;
 
             float posRef;
             float velRef;
@@ -297,13 +308,11 @@ void DCServo::controlLoop()
             if (pwmOpenLoopMode)
             {
                 controlSignal = 0;
-                kalmanFilterCtrlSig = 0;
                 currentController->overidePwmDuty(feedForwardU);
             }
             else
             {
                 controlSignal = feedForwardU;
-                kalmanFilterCtrlSig = feedForwardU;
                 currentController->setReference(static_cast<int16_t>(controlSignal));
             }
             currentController->applyChanges();
@@ -313,23 +322,27 @@ void DCServo::controlLoop()
     }
     else
     {
-        loadNewReference(x[0], 0, 0);
+        refInterpolator.resetTiming();
+        loadNewReference(rawOutputPos, 0, 0);
         Ivel = 0;
-        uLimitDiff = 0;
         outputPosOffset = rawOutputPos - rawMainPos;
+        backlashControlGainDelayCounter = 0;
         controlSignal = 0;
-        kalmanFilterCtrlSig = 0;
         currentController->activateBrake();
         currentController->applyChanges();
         current = currentController->getCurrent();
         pwmControlSIgnal = currentController->getFilteredPwm();
     }
 
+    int32_t newLoopTime = ThreadHandler::getInstance()->getTimingError();
+    if (newLoopTime > loopTime)
+    {
+        loopTime = newLoopTime;
+    }
 }
 
 void DCServo::calculateAndUpdateLVector()
 {
-    kalmanFilter->setFilterSpeed(controlSpeed * 4 * 20);
 
     const Eigen::Matrix3f& A = controlConfig->getA();
     const Eigen::Vector3f& B = controlConfig->getB();
@@ -339,16 +352,23 @@ void DCServo::calculateAndUpdateLVector()
     float b = B(1);
 
     float posControlPole = exp(-dt * controlSpeed);
-    float velControlPole[] = {exp(-1.0 * dt * 4 * controlSpeed), exp(-0.9 * dt * 4 * controlSpeed)};
+    float velControlPole[] = {exp(-1.0f * dt * velControlSpeed), exp(-0.9f * dt * velControlSpeed)};
 
-    L[0] = (1.0 - posControlPole) / dt;
-    L[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
-    L[2] = (a - b * L[1] - velControlPole[0] * velControlPole[1]) / b;
-    L[3] = 10 * L[2];
+    auto tempL = L;
+    tempL[0] = (1.0f - posControlPole) / dt;
+    tempL[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
+    tempL[2] = (a - b * tempL[1] - velControlPole[0] * velControlPole[1]) / b;
+    tempL[3] = 10 * tempL[2];
 
-    L[4] = backlashControlSpeed;
-    L[5] = backlashControlSpeedVelGain;
-    L[6] = backlashSize;
+    tempL[4] = backlashControlSpeed * controlConfig->getCycleTime();
+    tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
+    tempL[6] = backlashSize;
+
+    auto K = kalmanFilter->calculateNewKVector(filterSpeed);
+
+    ThreadInterruptBlocker blocker;
+    L = tempL;
+    kalmanFilter->setNewKVector(K);
 }
 
 ReferenceInterpolator::ReferenceInterpolator()
@@ -357,9 +377,12 @@ ReferenceInterpolator::ReferenceInterpolator()
 
 void ReferenceInterpolator::loadNew(float position, float velocity, float feedForward)
 {
-    if (timingInvalid)
+    if (refInvalid)
     {
-        midPointTimeOffset = 0;
+        if (!timingInvalid)
+        {
+            refInvalid = false;
+        }
 
         pos[2] = position;
         vel[2] = velocity;
@@ -414,7 +437,7 @@ void ReferenceInterpolator::updateTiming()
         midPointTimeOffset += timingError / 8;
         loadTimeInterval += periodError / 16;
 
-        invertedLoadInterval = 1.0 / loadTimeInterval;
+        invertedLoadInterval = 1.0f / loadTimeInterval;
     }
 
     lastUpdateTimingTimestamp = timestamp;
@@ -423,11 +446,21 @@ void ReferenceInterpolator::updateTiming()
 void ReferenceInterpolator::resetTiming()
 {
     timingInvalid = true;
+    refInvalid = true;
 }
 
 void ReferenceInterpolator::getNext(float& position, float& velocity, float& feedForward)
 {
     lastGetTimestamp = micros();
+
+    if (refInvalid)
+    {
+        position = pos[2];
+        velocity = vel[2];
+        feedForward = feed[2];
+
+        return;
+    }
 
     if (midPointTimeOffset < 2 * loadTimeInterval)
     {
@@ -436,43 +469,44 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
 
     float t = midPointTimeOffset * invertedLoadInterval;
 
-    if (t < -1.0)
+    if (t < -1.0f)
     {
-        t = -1.0;
+        t = -1.0f;
     }
-    else if (t > 1.2)
+    else if (t > 1.2f)
     {
-        t = 1.2;
+        t = 1.2f;
     }
 
-    if (t < 0.0)
+    if (t < 0.0f)
     {
-        t += 1.0;
-        position = pos[0] + t * (pos[1] - pos[0]);
-        velocity = vel[0] + t * (vel[1] - vel[0]);
+        t += 1.0f;
         feedForward = feed[0] + t * (feed[1] - feed[0]);
+        float velDiff = vel[1] - vel[0];
+        velocity = vel[0] + t * velDiff;
+        position = pos[0] + t * (pos[1] - pos[0] + dtDiv2 * (t * velDiff - velDiff));
     }
     else
     {
-        position = pos[1] + t * (pos[2] - pos[1]);
-        velocity = vel[1] + t * (vel[2] - vel[1]);
         feedForward = feed[1] + t * (feed[2] - feed[1]);
+        float velDiff = vel[2] - vel[1];
+        velocity = vel[1] + t * velDiff;
+        position = pos[1] + t * (pos[2] - pos[1] + dtDiv2 * (t * velDiff - velDiff));
     }
 }
 
 void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
 {
-    timingInvalid = true;
+    resetTiming();
 
-    midPointTimeOffset = 0;
     getTimeInterval = interval;
 }
 
 void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
 {
-    timingInvalid = true;
-    midPointTimeOffset = 0;
+    resetTiming();
 
     loadTimeInterval = interval;
-    invertedLoadInterval = 1.0 / loadTimeInterval;
+    invertedLoadInterval = 1.0f / loadTimeInterval;
+    dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
 }

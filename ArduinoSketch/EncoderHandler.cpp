@@ -3,7 +3,7 @@
 EncoderHandler::EncoderHandler(int chipSelectPin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec) :
     EncoderHandlerInterface(unitsPerRev),
     chipSelectPin(chipSelectPin), value(0), wrapAroundCorretion(0), status(0),
-    scaling(unitsPerRev * (1.0 / 4096.0)),
+    scaling(unitsPerRev * (1.0f / 4096.0f)),
     compVec(compVec)
 {
 }
@@ -22,7 +22,7 @@ void EncoderHandler::init()
 
 void EncoderHandler::triggerSample()
 {
-    SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE1));
+    SPI.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE1));
 
     digitalWrite(chipSelectPin, LOW);
 
@@ -36,7 +36,13 @@ void EncoderHandler::triggerSample()
     digitalWrite(chipSelectPin, HIGH);
     
     received = -received;
-    float newValue = (received & 0x3fff) * 0.25;
+    float newValue = (received & 0x3fff);
+    if (scaling < 0)
+    {
+        newValue = 0x3fff - newValue;
+    }
+    newValue *= 0.25f;
+
     if (newValue - value > 4096 / 2)
     {
         wrapAroundCorretion -= 4096;
@@ -47,17 +53,17 @@ void EncoderHandler::triggerSample()
     }
     value = newValue;
 
-    float t = value * (vecSize / 4096.0);
+    float t = value * (vecSize / 4096.0f);
     int i = std::min(vecSize - 2, static_cast<int>(t));
     t -= i;
-    value -= compVec[i] * (1.0 - t) + compVec[i + 1] * t;
+    value -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
 
     status = 0;
 }
 
 float EncoderHandler::getValue()
 {
-    return (value + wrapAroundCorretion) * scaling;
+    return (value + wrapAroundCorretion) * std::abs(scaling);
 }
 
 uint16_t EncoderHandler::getStatus()

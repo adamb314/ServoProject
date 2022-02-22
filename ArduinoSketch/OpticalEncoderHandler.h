@@ -3,13 +3,16 @@
 
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
+#include "PwmHandler.h"
 #include <array>
 
 class OpticalEncoderHandler : public EncoderHandlerInterface
 {
   public:
-    static constexpr int vecSize = 512;
+    static constexpr int vecSize = 2048;
     OpticalEncoderHandler(const std::array<uint16_t, vecSize>& aVec, const std::array<uint16_t, vecSize>& bVec,
+            int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
+    OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
             int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev);
 
     ~OpticalEncoderHandler();
@@ -20,7 +23,9 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
 
     virtual float getValue() override;
 
-    virtual DiagnosticData getDiagnosticData();
+    virtual uint16_t getUnscaledRawValue() override;
+
+    virtual DiagnosticData getDiagnosticData() override;
 
   private:
     void updatePosition();
@@ -39,9 +44,9 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     AnalogSampler sensor2;
     uint16_t sensor1Value{0};
     uint16_t sensor2Value{0};
-    float sensorValueOffset{0.0};
-    float value{0.0};
-    float wrapAroundCorretion{0.0};
+    float sensorValueOffset{0.0f};
+    float value{0.0f};
+    float wrapAroundCorretion{0.0f};
     bool newData{false};
 
     const float scaling;
