@@ -33,10 +33,12 @@ libServoProject.a: $(CObjects) $(CppObjects)
 -include $(Depends)
 
 $(ObjectDir)%.o: $(SourceDir)%.cpp
-	$(CXX) $(CXXFLAGS) $< -o $@
+	mkdir --parents $(ObjectDir)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 $(DependDir)%.d: $(SourceDir)%.cpp
-	$(CC) -MM $(CXXFLAGS) $< > $(DependDir)$(notdir $*).d
+	mkdir --parents $(DependDir)
+	$(CC) -MM $(CPPFLAGS) $(CXXFLAGS) $< > $(DependDir)$(notdir $*).d
 	mv -f  $(DependDir)$(notdir $*).d  $(DependDir)$(notdir $*).d.tmp
 	sed -e 's|.*:|$(ObjectDir)$(notdir $*).o $@:|' <  $(DependDir)$(notdir $*).d.tmp >  $(DependDir)$(notdir $*).d
 	sed -e 's/.*://' -e 's/\\$$//' <  $(DependDir)$(notdir $*).d.tmp | fmt -1 | \
@@ -44,10 +46,12 @@ $(DependDir)%.d: $(SourceDir)%.cpp
 	rm -f  $(DependDir)$(notdir $*).d.tmp
 
 $(ObjectDir)%.o: $(SourceDir)%.c
+	mkdir --parents $(ObjectDir)
 	$(CC) $(CFLAGS) $< -o $@
 
 $(DependDir)%.d: $(SourceDir)%.c
-	$(CC) -MM $(CXXFLAGS) $< > $(DependDir)$(notdir $*).d
+	mkdir --parents $(DependDir)
+	$(CC) -MM $(CPPFLAGS) $(CXXFLAGS) $< > $(DependDir)$(notdir $*).d
 	mv -f  $(DependDir)$(notdir $*).d  $(DependDir)$(notdir $*).d.tmp
 	sed -e 's|.*:|$(ObjectDir)$(notdir $*).o $@:|' <  $(DependDir)$(notdir $*).d.tmp >  $(DependDir)$(notdir $*).d
 	sed -e 's/.*://' -e 's/\\$$//' <  $(DependDir)$(notdir $*).d.tmp | fmt -1 | \
@@ -57,5 +61,3 @@ $(DependDir)%.d: $(SourceDir)%.c
 .PHONY : clean
 clean:
 	$(RM) $(DLibrary) $(wildcard $(ObjectDir)*.o) $(wildcard $(DependDir)*.d) 
-
-

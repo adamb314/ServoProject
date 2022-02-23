@@ -36,9 +36,11 @@ $(DExecutable): $(CObjects) $(CppObjects) ../Library/libServoProject.a
 	cd ../Library && $(MAKE)
 
 $(ObjectDir)%.o: $(SourceDir)%.cpp
+	mkdir --parents $(ObjectDir)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 $(DependDir)%.d: $(SourceDir)%.cpp
+	mkdir --parents $(DependDir)
 	$(CC) -MM $(CPPFLAGS) $(CXXFLAGS) $< > $(DependDir)$(notdir $*).d
 	mv -f  $(DependDir)$(notdir $*).d  $(DependDir)$(notdir $*).d.tmp
 	sed -e 's|.*:|$(ObjectDir)$(notdir $*).o $@:|' <  $(DependDir)$(notdir $*).d.tmp >  $(DependDir)$(notdir $*).d
@@ -47,9 +49,11 @@ $(DependDir)%.d: $(SourceDir)%.cpp
 	rm -f  $(DependDir)$(notdir $*).d.tmp
 
 $(ObjectDir)%.o: $(SourceDir)%.c
+	mkdir --parents $(ObjectDir)
 	$(CC) $(CFLAGS) $< -o $@
 
 $(DependDir)%.d: $(SourceDir)%.c
+	mkdir --parents $(DependDir)
 	$(CC) -MM $(CPPFLAGS) $(CXXFLAGS) $< > $(DependDir)$(notdir $*).d
 	mv -f  $(DependDir)$(notdir $*).d  $(DependDir)$(notdir $*).d.tmp
 	sed -e 's|.*:|$(ObjectDir)$(notdir $*).o $@:|' <  $(DependDir)$(notdir $*).d.tmp >  $(DependDir)$(notdir $*).d

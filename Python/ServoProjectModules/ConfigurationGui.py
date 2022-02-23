@@ -2,6 +2,7 @@ import os
 import serial.tools.list_ports
 import webbrowser
 import re
+import time
 import threading
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
@@ -159,6 +160,8 @@ def openCreateConfigDialog(parent, configs):
 
 class GuiWindow(Gtk.Window):
     def __init__(self, ArduinoSketchPath):
+        self.startTime = time.time()
+
         Gtk.Window.__init__(self, title="Servo configuration", default_height=900, default_width=800)
 
         self.ArduinoSketchPath = ArduinoSketchPath
@@ -188,6 +191,9 @@ class GuiWindow(Gtk.Window):
                 f.write('Thankyou for staring the project!')
 
         def considerStaringMessage():
+            if time.time() - self.startTime < 20.0:
+                return
+
             try:
                 with open('../.thankyou', 'r') as f:
                     data = f.read()

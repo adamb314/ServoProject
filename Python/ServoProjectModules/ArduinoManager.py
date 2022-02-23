@@ -126,6 +126,9 @@ def __init__():
     dname = os.path.dirname(abspath)
     tempBinPath = dname + '/tempBin'
 
+    if not os.path.exists(tempBinPath):
+        os.mkdir(tempBinPath)
+
     if runCommand(['arduino-cli', 'version'], captureOutput=True)[0]:
         arduinoCliFilename = 'arduino-cli'
         removeAllInOtherFiles(tempBinPath, '')
