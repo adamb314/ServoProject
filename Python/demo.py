@@ -16,6 +16,7 @@ def createServoManager(port):
         if port != '':
             com = ServoComModule.SerialCommunication(port)
         else:
+            print('Simulation mode active')
             com = simCom
 
         servoArray = []
