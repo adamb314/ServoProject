@@ -32,7 +32,7 @@ def createServoManager(port):
 
         return servoArray
 
-    servoManager = ServoComModule.ServoManager(cycleTime=dt, initFunction=createServoFunction)
+    servoManager = ServoComModule.ServoManager(cycleTime=dt, initFunction=createServosFunction)
 
     return servoManager
 
