@@ -76,27 +76,29 @@ class OutputEncoderCalibrationGenerator(object):
             if i == end:
                 break
 
-        if len(noneSegList) > 1:
-            for d1 in noneSegList:
-                for d2 in d1:
-                    t = (d2 - (d1[0] - 1)) / ((d1[-1] + 1) - (d1[0] - 1))
-                    if not wrapAround and d1[0] - 1 < 0:
-                        a = self.meanList[d1[-1] + 1]
-                    else:
-                        a = self.meanList[d1[0] - 1]
-                    if not wrapAround and d1[-1] + 1 == len(self.meanList):
-                        b = self.meanList[d1[0] - 1]
-                    else:
-                        b = self.meanList[d1[-1] + 1]
-                    
-                    self.meanList[d2] = (b - a) * t + a
+        if len(noneSegList) == 1 and len(noneSegList[0]) == len(self.meanList):
+            return
 
-            if wrapAround:
-                self.meanList.append(self.meanList[0])
+        for d1 in noneSegList:
+            for d2 in d1:
+                t = (d2 - (d1[0] - 1)) / ((d1[-1] + 1) - (d1[0] - 1))
+                if not wrapAround and d1[0] - 1 < 0:
+                    a = self.meanList[d1[-1] + 1]
+                else:
+                    a = self.meanList[d1[0] - 1]
+                if not wrapAround and d1[-1] + 1 == len(self.meanList):
+                    b = self.meanList[d1[0] - 1]
+                else:
+                    b = self.meanList[d1[-1] + 1]
+                
+                self.meanList[d2] = (b - a) * t + a
 
-            self.meanList = np.array(self.meanList)
-            self.data[:, 2] -= np.mean(self.meanList)
-            self.meanList -= np.mean(self.meanList)
+        if wrapAround:
+            self.meanList.append(self.meanList[0])
+
+        self.meanList = np.array(self.meanList)
+        self.data[:, 2] -= np.mean(self.meanList)
+        self.meanList -= np.mean(self.meanList)
 
     def checkForInvertedEncoder(data):
         minPos = min(data[:, 1])
