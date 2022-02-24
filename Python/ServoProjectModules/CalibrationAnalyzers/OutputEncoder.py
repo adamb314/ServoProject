@@ -398,8 +398,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 p = servo.getPosition(True)
                 minPos = p - 1.5
                 maxPos = p + 1.5
-                out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 2 / servo.getScaling()])
-                out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), -2 / servo.getScaling()])
+                out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+                out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
 
             def readResultHandlerFunction(dt, servoManager):
                 nonlocal t

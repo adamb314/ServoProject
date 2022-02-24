@@ -210,7 +210,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             refV = 0.0
 
             maxVel = 0.2
-            maxRecordVel = 0.1
+            maxRecordVel = 0.01
             maxDist = 0.25
 
             if posOffset == None:
