@@ -22,13 +22,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
     backlashControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Backlash control speed</b>', backlashControlSpeedScale[0]), backlashControlSpeedScale[1]
     calibrationBox.pack_start(backlashControlSpeedScale[0], False, False, 0)
 
-    refVel = 0.2
+    refVel = 20.0
     refPos = 0.0
 
-    refVelScale = GuiFunctions.creatHScale(refVel, 0, 1.0, 0.01, getLowLev=True)
+    refVelScale = GuiFunctions.creatHScale(refVel, 0, 100.0, 0.1, getLowLev=True)
     refVelScale = GuiFunctions.addTopLabelTo('<b>Max Velocity</b>\n in radians per second', refVelScale[0]), refVelScale[1]
 
-    refPosScale = GuiFunctions.creatHScale(refPos, -1.0, 1.0, 0.01, getLowLev=True)
+    refPosScale = GuiFunctions.creatHScale(refPos, -90.0, 90.0, 0.1, getLowLev=True)
     refPosScale = GuiFunctions.addTopLabelTo('<b>Set position offset</b>\n in radians', refPosScale[0]), refPosScale[1]
 
     startButton = GuiFunctions.createButton('Start test', getLowLev=True)
@@ -134,8 +134,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
         backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
         def initFun(servoArray):
+            servoArray[0].setOffsetAndScaling(360.0 / 4096.0, 0.0, 0)
             servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
-            servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 3.0, 0.0)
+            servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 180.0, 0.0)
 
         with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
             t = 0.0
