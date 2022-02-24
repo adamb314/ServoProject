@@ -364,6 +364,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             maxPos = None
             direction = 1
 
+            runTime = 122.0
+
             def sendCommandHandlerFunction(dt, servoManager):
                 nonlocal t
                 nonlocal refPos
@@ -376,7 +378,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 if t < 0:
                     servo.setOpenLoopControlSignal(0, True)
                 else:
-                    refVel = (maxPos - minPos) / 20.0
+                    refVel = (maxPos - minPos) / (runTime - 2.0) * 6
+
+                    if abs(t - runTime / 2) < 1.0:
+                        refVel = 0.0
+
                     refPos += direction * refVel * dt
 
                     if refPos >= maxPos:
@@ -412,8 +418,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 nonlocal out
 
                 servo = servoManager.servoArray[0]
-
-                runTime = 120.0
 
                 newMotorPos = servo.getPosition(False)
                 newEncPos = servo.getPosition(True)
