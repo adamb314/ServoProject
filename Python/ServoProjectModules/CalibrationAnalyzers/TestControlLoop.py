@@ -26,10 +26,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
     refPos = 0.0
 
     refVelScale = GuiFunctions.creatHScale(refVel, 0, 100.0, 0.1, getLowLev=True)
-    refVelScale = GuiFunctions.addTopLabelTo('<b>Max Velocity</b>\n in radians per second', refVelScale[0]), refVelScale[1]
+    refVelScale = GuiFunctions.addTopLabelTo('<b>Max Velocity</b>\n in degrees per second', refVelScale[0]), refVelScale[1]
 
     refPosScale = GuiFunctions.creatHScale(refPos, -90.0, 90.0, 0.1, getLowLev=True)
-    refPosScale = GuiFunctions.addTopLabelTo('<b>Set position offset</b>\n in radians', refPosScale[0]), refPosScale[1]
+    refPosScale = GuiFunctions.addTopLabelTo('<b>Set position offset</b>\n in degrees', refPosScale[0]), refPosScale[1]
 
     startButton = GuiFunctions.createButton('Start test', getLowLev=True)
 
