@@ -664,11 +664,11 @@ void DCServoCommunicator::run()
     }
     else
     {
-        long int upscaledPos = static_cast<unsigned long int>(intReadBuffer[3]);
+        long int upscaledPos = static_cast<unsigned short int>(intReadBuffer[3]);
         upscaledPos += (static_cast<long int>(charReadBuffer[9]) << 16);
-        if (upscaledPos >= (2 << 23))
+        if (upscaledPos >= (1 << 23))
         {
-            upscaledPos -= (2 << 24);
+            upscaledPos -= (1 << 24);
         }
 
         long int encPosWithBacklashComp = intReadBuffer[10] + static_cast<long int>(intReadBuffer[11]);
