@@ -27,7 +27,7 @@ def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
         nonlocal com
         servo = ServoComModule.DCServoCommunicator(nodeNr, com)
 
-        servo.setOffsetAndScaling(2 * pi / 4096.0, 0.950301, 0)
+        servo.setOffsetAndScaling(2 * pi / 4096.0, 0.0, 0)
 
         servo.setControlSpeed(20)
         servo.setBacklashControlSpeed(0, 3.0, 0.00)

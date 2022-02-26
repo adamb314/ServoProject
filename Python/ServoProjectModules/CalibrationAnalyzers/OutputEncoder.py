@@ -203,7 +203,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.set_margin_bottom(100)
 
     controlSpeedScale = GuiFunctions.creatHScale(14, 0, 100, 1, getLowLev=True)
-    controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]
+    controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>\n'
+            ' Higher value results in tighter control but increases noise feedback\n'
+            '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)

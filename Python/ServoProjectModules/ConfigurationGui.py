@@ -495,8 +495,8 @@ class GuiWindow(Gtk.Window):
                             'Pwm nonlinearity',
                             'Optical encoder',
                             'System identification',
-                            'Output encoder calibration',
                             'Motor cogging torque',
+                            'Output encoder calibration',
                             'Test control loop',
                             'Test control loop (Advanced)']
 
@@ -544,17 +544,17 @@ class GuiWindow(Gtk.Window):
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
                         calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
-                    elif calibrationType == 'Output encoder calibration':
-                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
-                        getPortFun = getComPortFromCombo
-                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
-
                     elif calibrationType == 'Motor cogging torque':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
                         calibrationBox = MotorCoggingTorqueAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+
+                    elif calibrationType == 'Output encoder calibration':
+                        nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
+                        getPortFun = getComPortFromCombo
+                        configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
+                        calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
 
                     elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
                         advancedMode = False

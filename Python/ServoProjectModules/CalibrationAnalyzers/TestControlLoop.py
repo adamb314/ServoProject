@@ -6,7 +6,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
     calibrationBox.set_margin_bottom(100)
 
     controlSpeedScale = GuiFunctions.creatHScale(14, 0, 100, 1, getLowLev=True)
-    controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]
+    controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>\n'
+            ' Higher value results in tighter control but increases noise feedback\n'
+            '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
     if advancedMode == True:
@@ -18,8 +20,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
         filterSpeedScale = GuiFunctions.addTopLabelTo('<b>Filter speed</b>', filterSpeedScale[0]), filterSpeedScale[1]
         calibrationBox.pack_start(filterSpeedScale[0], False, False, 0)
 
-    backlashControlSpeedScale = GuiFunctions.creatHScale(0, 0, 50, 1, getLowLev=True)
-    backlashControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Backlash control speed</b>', backlashControlSpeedScale[0]), backlashControlSpeedScale[1]
+    backlashControlSpeedScale = GuiFunctions.creatHScale(2, 0, 50, 1, getLowLev=True)
+    backlashControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Backlash control speed</b>\n'
+        ' Lower than \'Control speed\' to avoid resonance', backlashControlSpeedScale[0]), backlashControlSpeedScale[1]
     calibrationBox.pack_start(backlashControlSpeedScale[0], False, False, 0)
 
     refVel = 20.0
