@@ -21,17 +21,19 @@ double dt = 0.018;
 int main()
 {
     std::string port = "";// "/dev/ttyACM0";
-    std::unique_ptr<Communication> com;
+    std::shared_ptr<Communication> simCom = std::make_unique<SimulateCommunication>();
+    std::shared_ptr<Communication> com;
     if (port == "")
     {
-        com = std::make_unique<SimulateCommunication>();
+        std::cout << "Simulation mode active\n";
+        com = simCom;
     }
     else
     {
-        com = std::make_unique<SerialCommunication>(port);
+        com = std::make_shared<SerialCommunication>(port);
     }
 
-    auto initFun = [&com]() {
+    auto initFun = [&com, &simCom]() {
 
         std::vector<std::unique_ptr<DCServoCommunicator> > servos;
 

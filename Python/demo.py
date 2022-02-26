@@ -22,7 +22,7 @@ def createServoManager(port):
         servoArray = []
 
         newServo = ServoComModule.DCServoCommunicator(1, com)
-        newServo.setOffsetAndScaling(360.0 / 4096.0, -111.0, 0)
+        newServo.setOffsetAndScaling(360.0 / 4096.0, -110.0, 0)
         newServo.setControlSpeed(32)
         newServo.setBacklashControlSpeed(6, 180.0, 0.00)
         servoArray.append(newServo)
