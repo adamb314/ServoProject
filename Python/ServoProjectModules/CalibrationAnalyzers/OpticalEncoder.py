@@ -705,8 +705,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def onLockPosition(widget):
         nonlocal startPos
         if widget.get_active():
-            with createServoManager(nodeNr, getPortFun()) as r:
-                startPos = r.servoArray[0].getPosition(True)
+            try:
+                with createServoManager(nodeNr, getPortFun()) as servoManager:
+                    startPos = servoManager.servoArray[0].getPosition(True)
+            except Exception as e:
+                GuiFunctions.exceptionMessage(parent, e)
+                widget.set_active(False)
+
         else:
             startPos = None
 
@@ -753,120 +758,124 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def testPwmRun(nodeNr, port):
         nonlocal runThread
 
-        with createServoManager(nodeNr, port) as servoManager:
-            t = 0.0
-            doneRunning = False
-            pwmDir = 1
-            moveDir = 0
+        try:
+            with createServoManager(nodeNr, port) as servoManager:
+                t = 0.0
+                doneRunning = False
+                pwmDir = 1
+                moveDir = 0
 
-            def sendCommandHandlerFunction(dt, servoManager):
-                nonlocal pwmDir
-                nonlocal moveDir
+                def sendCommandHandlerFunction(dt, servoManager):
+                    nonlocal pwmDir
+                    nonlocal moveDir
 
-                servo = servoManager.servoArray[0]
+                    servo = servoManager.servoArray[0]
 
-                pwm = 0
-                with threadMutex:
-                    pwm = pwmValue
+                    pwm = 0
+                    with threadMutex:
+                        pwm = pwmValue
 
-                pos = servo.getPosition(True)
+                    pos = servo.getPosition(True)
 
-                if startPos != None:
-                    if pos - startPos < -1 and moveDir != -1:
-                        moveDir = -1
-                        pwmDir *= -1
-                    elif pos - startPos > 1 and moveDir != 1:
-                        moveDir = 1
-                        pwmDir *= -1
+                    if startPos != None:
+                        if pos - startPos < -1 and moveDir != -1:
+                            moveDir = -1
+                            pwmDir *= -1
+                        elif pos - startPos > 1 and moveDir != 1:
+                            moveDir = 1
+                            pwmDir *= -1
 
-                servo.setOpenLoopControlSignal(pwm * pwmDir, True)
+                    servo.setOpenLoopControlSignal(pwm * pwmDir, True)
 
-            out = []
+                out = []
 
-            def readResultHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal doneRunning
+                def readResultHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal doneRunning
 
-                t += dt
-                servo = servoManager.servoArray[0]
-                opticalEncoderData = servo.getOpticalEncoderChannelData()
-                out.append([t,
-                        opticalEncoderData.a,
-                        opticalEncoderData.b,
-                        opticalEncoderData.minCostIndex,
-                        opticalEncoderData.minCost,
-                        servo.getVelocity()])
+                    t += dt
+                    servo = servoManager.servoArray[0]
+                    opticalEncoderData = servo.getOpticalEncoderChannelData()
+                    out.append([t,
+                            opticalEncoderData.a,
+                            opticalEncoderData.b,
+                            opticalEncoderData.minCostIndex,
+                            opticalEncoderData.minCost,
+                            servo.getVelocity()])
 
-                GLib.idle_add(updateStatusLabel,
-                        f'Sensor A: {opticalEncoderData.a}\n'
-                        f'Sensor B: {opticalEncoderData.b}\n'
-                        f'Encoder position: {opticalEncoderData.minCostIndex}'
-                )
+                    GLib.idle_add(updateStatusLabel,
+                            f'Sensor A: {opticalEncoderData.a}\n'
+                            f'Sensor B: {opticalEncoderData.b}\n'
+                            f'Encoder position: {opticalEncoderData.minCostIndex}'
+                    )
 
-                stop = False
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
+                    stop = False
+                    with threadMutex:
+                        if runThread == False:
+                            stop = True
 
-                if stop or parent.isClosed:
-                    servoManager.removeHandlerFunctions()
-                    doneRunning = True
+                    if stop or parent.isClosed:
+                        servoManager.removeHandlerFunctions()
+                        doneRunning = True
 
-            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
-            while not doneRunning:
-                if not servoManager.isAlive():
-                    break
-                time.sleep(0.1)
+                while not doneRunning:
+                    if not servoManager.isAlive():
+                        break
+                    time.sleep(0.1)
 
-            servoManager.shutdown()
+                servoManager.shutdown()
 
-            data = np.array(out)
+                data = np.array(out)
 
-            def plotData(data):
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.INFO,
-                        buttons=Gtk.ButtonsType.YES_NO,
-                        text='Pwm test done!',
-                )
-                dialog.format_secondary_text(
-                    "Do you want to plot the recorded data?"
-                )
-                response = dialog.run()
-                dialog.destroy()
+                def plotData(data):
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Pwm test done!',
+                    )
+                    dialog.format_secondary_text(
+                        "Do you want to plot the recorded data?"
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
 
-                if response == Gtk.ResponseType.YES:
-                    fig = plt.figure(1)
-                    fig.suptitle('Sensor A and B values')
-                    plt.plot(data[:, 0], data[:, 1], 'r')
-                    plt.plot(data[:, 0], data[:, 2], 'g')
-                    
-                    fig = plt.figure(2)
-                    fig.suptitle('Encoder position')
-                    plt.plot(data[:, 0], data[:, 3])
-                    fig = plt.figure(3)
-                    fig.suptitle('Min fitting cost')
-                    plt.plot(data[:, 0], data[:, 4])
-                    fig = plt.figure(4)
-                    fig.suptitle('Min fitting cost over encoder position')
-                    plt.plot(data[:, 3], data[:, 4], 'r-')
-                    plt.plot(data[:, 3], data[:, 4], 'g+')
-                    fig = plt.figure(5)
-                    fig.suptitle('Velocity over encoder position')
-                    plt.plot(data[:, 3], data[:, 5], 'r-')
-                    plt.plot(data[:, 3], data[:, 5], 'g+')
+                    if response == Gtk.ResponseType.YES:
+                        fig = plt.figure(1)
+                        fig.suptitle('Sensor A and B values')
+                        plt.plot(data[:, 0], data[:, 1], 'r')
+                        plt.plot(data[:, 0], data[:, 2], 'g')
+                        
+                        fig = plt.figure(2)
+                        fig.suptitle('Encoder position')
+                        plt.plot(data[:, 0], data[:, 3])
+                        fig = plt.figure(3)
+                        fig.suptitle('Min fitting cost')
+                        plt.plot(data[:, 0], data[:, 4])
+                        fig = plt.figure(4)
+                        fig.suptitle('Min fitting cost over encoder position')
+                        plt.plot(data[:, 3], data[:, 4], 'r-')
+                        plt.plot(data[:, 3], data[:, 4], 'g+')
+                        fig = plt.figure(5)
+                        fig.suptitle('Velocity over encoder position')
+                        plt.plot(data[:, 3], data[:, 5], 'r-')
+                        plt.plot(data[:, 3], data[:, 5], 'g+')
 
-                    fig = plt.figure(6)
-                    fig.suptitle('Sensor values over encoder position')
-                    plt.plot(data[:, 3], data[:, 1], 'r')
-                    plt.plot(data[:, 3], data[:, 2], 'g')
-                    plt.show()
+                        fig = plt.figure(6)
+                        fig.suptitle('Sensor values over encoder position')
+                        plt.plot(data[:, 3], data[:, 1], 'r')
+                        plt.plot(data[:, 3], data[:, 2], 'g')
+                        plt.show()
 
-            GLib.idle_add(plotData, data)
+                GLib.idle_add(plotData, data)
 
-        GLib.idle_add(resetGuiAfterCalibration)
+        except Exception as e:
+            GuiFunctions.exceptionMessage(parent, e)
+        finally:
+            GLib.idle_add(resetGuiAfterCalibration)
 
     testThread = None
     def onTestPwm(widget):
@@ -902,199 +911,203 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
 
-        with createServoManager(nodeNr, port) as servoManager:
+        try:
+            with createServoManager(nodeNr, port) as servoManager:
 
-            def handleResults(opticalEncoderDataVectorGenerator):
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.INFO,
-                        buttons=Gtk.ButtonsType.YES_NO,
-                        text='Optical encoder calibration done!',
-                )
-                dialog.format_secondary_text(
-                    "Do you want to plot extended data?"
-                )
-                response = dialog.run()
-                dialog.destroy()
+                def handleResults(opticalEncoderDataVectorGenerator):
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Optical encoder calibration done!',
+                    )
+                    dialog.format_secondary_text(
+                        "Do you want to plot extended data?"
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
 
-                if response == Gtk.ResponseType.YES:
-                    opticalEncoderDataVectorGenerator.showAdditionalDiagnosticPlots()
+                    if response == Gtk.ResponseType.YES:
+                        opticalEncoderDataVectorGenerator.showAdditionalDiagnosticPlots()
 
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.INFO,
-                        buttons=Gtk.ButtonsType.YES_NO,
-                        text='Optical encoder calibration done!',
-                )
-                dialog.format_secondary_text(
-                    "Should the configuration be updated with the new data?"
-                )
-                opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area())
-                dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
-                response = dialog.run()
-                dialog.destroy()
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Optical encoder calibration done!',
+                    )
+                    dialog.format_secondary_text(
+                        "Should the configuration be updated with the new data?"
+                    )
+                    opticalEncoderDataVectorGenerator.plotGeneratedVectors(dialog.get_message_area())
+                    dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
+                    response = dialog.run()
+                    dialog.destroy()
 
-                if response == Gtk.ResponseType.YES:
-                    configClassString = ''
+                    if response == Gtk.ResponseType.YES:
+                        configClassString = ''
 
-                    with open(configFilePath, "r") as configFile:
-                        configFileAsString = configFile.read()
-                        configFileAsString = opticalEncoderDataVectorGenerator.writeVectorsToConfigFileString(configFileAsString, configClassName)
+                        with open(configFilePath, "r") as configFile:
+                            configFileAsString = configFile.read()
+                            configFileAsString = opticalEncoderDataVectorGenerator.writeVectorsToConfigFileString(configFileAsString, configClassName)
 
-                        if configFileAsString != '':
-                            with open(configFilePath, "w") as configFile:
-                                configFile.write(configFileAsString)
-                                GuiFunctions.transferToTargetMessage(parent)
+                            if configFileAsString != '':
+                                with open(configFilePath, "w") as configFile:
+                                    configFile.write(configFileAsString)
+                                    GuiFunctions.transferToTargetMessage(parent)
 
-                            return
+                                return
 
+                        dialog = Gtk.MessageDialog(
+                                transient_for=parent,
+                                flags=0,
+                                message_type=Gtk.MessageType.ERROR,
+                                buttons=Gtk.ButtonsType.OK,
+                                text='Configuration format error!',
+                        )
+                        dialog.format_secondary_text(
+                            "Please past in the new aVec and bVec manually"
+                        )
+                        box = dialog.get_message_area()
+                        vecEntry = Gtk.Entry()
+                        vecEntry.set_text(opticalEncoderDataVectorGenerator.getGeneratedVectors())
+                        box.add(vecEntry)
+                        box.show_all()
+                        response = dialog.run()
+                        dialog.destroy()
+
+                def handleAnalyzeError(info):
                     dialog = Gtk.MessageDialog(
                             transient_for=parent,
                             flags=0,
                             message_type=Gtk.MessageType.ERROR,
                             buttons=Gtk.ButtonsType.OK,
-                            text='Configuration format error!',
+                            text='Calibration failed during analyzing',
                     )
-                    dialog.format_secondary_text(
-                        "Please past in the new aVec and bVec manually"
-                    )
-                    box = dialog.get_message_area()
-                    vecEntry = Gtk.Entry()
-                    vecEntry.set_text(opticalEncoderDataVectorGenerator.getGeneratedVectors())
-                    box.add(vecEntry)
-                    box.show_all()
+                    dialog.format_secondary_text(info)
                     response = dialog.run()
                     dialog.destroy()
 
-            def handleAnalyzeError(info):
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.ERROR,
-                        buttons=Gtk.ButtonsType.OK,
-                        text='Calibration failed during analyzing',
-                )
-                dialog.format_secondary_text(info)
-                response = dialog.run()
-                dialog.destroy()
+                t = 0.0
+                dirChangeWait = 0.0
+                doneRunning = False
+                pwmDir = 1
+                moveDir = 0
 
-            t = 0.0
-            dirChangeWait = 0.0
-            doneRunning = False
-            pwmDir = 1
-            moveDir = 0
+                runTime = 110.0
 
-            runTime = 110.0
+                def sendCommandHandlerFunction(dt, servoManager):
+                    nonlocal dirChangeWait
+                    nonlocal pwmDir
+                    nonlocal moveDir
 
-            def sendCommandHandlerFunction(dt, servoManager):
-                nonlocal dirChangeWait
-                nonlocal pwmDir
-                nonlocal moveDir
+                    servo = servoManager.servoArray[0]
 
-                servo = servoManager.servoArray[0]
+                    pwm = 0
+                    with threadMutex:
+                        pwm = pwmValue
 
-                pwm = 0
-                with threadMutex:
-                    pwm = pwmValue
+                    pos = servo.getPosition(True)
 
-                pos = servo.getPosition(True)
+                    if startPos != None:
+                        if pos - startPos < -1:
+                            dirChangeWait = 1.0
+                            if moveDir != -1:
+                                moveDir = -1
+                                pwmDir *= -1
+                        elif pos - startPos > 1:
+                            dirChangeWait = 1.0
+                            if moveDir != 1:
+                                moveDir = 1
+                                pwmDir *= -1
 
-                if startPos != None:
-                    if pos - startPos < -1:
-                        dirChangeWait = 1.0
-                        if moveDir != -1:
-                            moveDir = -1
-                            pwmDir *= -1
-                    elif pos - startPos > 1:
-                        dirChangeWait = 1.0
-                        if moveDir != 1:
-                            moveDir = 1
-                            pwmDir *= -1
+                    if t > (runTime - 10) * 0.5 and moveDir == 0:
+                        moveDir = 1
+                        pwmDir *= -1
+                        dirChangeWait = 4.0
 
-                if t > (runTime - 10) * 0.5 and moveDir == 0:
-                    moveDir = 1
-                    pwmDir *= -1
-                    dirChangeWait = 4.0
+                    servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
 
-                servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
+                out = []
 
-            out = []
+                def readResultHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal dirChangeWait
+                    nonlocal doneRunning
 
-            def readResultHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal dirChangeWait
-                nonlocal doneRunning
+                    servo = servoManager.servoArray[0]
+                    opticalEncoderData = servo.getOpticalEncoderChannelData()
+                    if t > 0.1 and dirChangeWait <= 0.0:
+                        out.append([t,
+                                opticalEncoderData.a,
+                                opticalEncoderData.b,
+                                opticalEncoderData.minCostIndex,
+                                opticalEncoderData.minCost])
 
-                servo = servoManager.servoArray[0]
-                opticalEncoderData = servo.getOpticalEncoderChannelData()
-                if t > 0.1 and dirChangeWait <= 0.0:
-                    out.append([t,
-                            opticalEncoderData.a,
-                            opticalEncoderData.b,
-                            opticalEncoderData.minCostIndex,
-                            opticalEncoderData.minCost])
+                    GLib.idle_add(updateRecordingProgressBar, t / runTime)
 
-                GLib.idle_add(updateRecordingProgressBar, t / runTime)
+                    stop = t >= runTime
+                    with threadMutex:
+                        if runThread == False:
+                            stop = True
 
-                stop = t >= runTime
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
+                    if stop or parent.isClosed:
+                        servoManager.removeHandlerFunctions()
+                        doneRunning = True
 
-                if stop or parent.isClosed:
-                    servoManager.removeHandlerFunctions()
-                    doneRunning = True
+                    if dirChangeWait > 0.0:
+                        dirChangeWait -= dt
+                    else:
+                        t += dt
 
-                if dirChangeWait > 0.0:
-                    dirChangeWait -= dt
-                else:
-                    t += dt
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
-            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+                while not doneRunning:
+                    if not servoManager.isAlive():
+                        runThread = False
+                        break
+                    time.sleep(0.1)
 
-            while not doneRunning:
-                if not servoManager.isAlive():
-                    runThread = False
-                    break
-                time.sleep(0.1)
+                data = np.array(out)
 
-            data = np.array(out)
+                servoManager.shutdown()
 
-            servoManager.shutdown()
+                def shouldAbort():
 
-            def shouldAbort():
+                    with threadMutex:
+                        if runThread == False:
+                            return True
+                    return False
 
-                with threadMutex:
-                    if runThread == False:
-                        return True
-                return False
+                lastFraction = 0.0
+                def updateProgress(fraction):
+                    nonlocal lastFraction
 
-            lastFraction = 0.0
-            def updateProgress(fraction):
-                nonlocal lastFraction
+                    if abs(fraction - lastFraction) > 0.01:
+                        lastFraction = fraction
+                        GLib.idle_add(updateAnalyzingProgressBar, fraction)
 
-                if abs(fraction - lastFraction) > 0.01:
-                    lastFraction = fraction
-                    GLib.idle_add(updateAnalyzingProgressBar, fraction)
+                if not shouldAbort():
+                    try:
+                        configFileAsString = ''
+                        with open(configFilePath, "r") as configFile:
+                            configFileAsString = configFile.read()
 
-            if not shouldAbort():
-                try:
-                    configFileAsString = ''
-                    with open(configFilePath, "r") as configFile:
-                        configFileAsString = configFile.read()
+                        opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
+                                data[:, 1:3], configFileAsString, configClassName, constVelIndex=4000, segment = 2 * 2048, noiseDepresMemLenght= 8,
+                                shouldAbort=shouldAbort,
+                                updateProgress=updateProgress)
 
-                    opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                            data[:, 1:3], configFileAsString, configClassName, constVelIndex=4000, segment = 2 * 2048, noiseDepresMemLenght= 8,
-                            shouldAbort=shouldAbort,
-                            updateProgress=updateProgress)
+                        GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
+                    except Exception as e:
+                        GLib.idle_add(handleAnalyzeError, format(e))
 
-                    GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
-                except Exception as e:
-                    GLib.idle_add(handleAnalyzeError, format(e))
-
-        GLib.idle_add(resetGuiAfterCalibration)
+        except Exception as e:
+            GuiFunctions.exceptionMessage(parent, e)
+        finally:
+            GLib.idle_add(resetGuiAfterCalibration)
     
     def onStartCalibration(widget):
         nonlocal testThread

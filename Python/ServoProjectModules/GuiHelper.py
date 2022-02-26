@@ -47,6 +47,20 @@ def startManuallyCalibrationMessage(parent, timeString):
     response = dialog.run()
     dialog.destroy()
 
+def exceptionMessage(parent, e):
+    def showErrorFunc(parent, e):
+        dialog = Gtk.MessageDialog(
+                transient_for=parent,
+                flags=0,
+                message_type=Gtk.MessageType.ERROR,
+                buttons=Gtk.ButtonsType.OK,
+                text='Exception',
+        )
+        dialog.format_secondary_text(f'{e!r}')
+        response = dialog.run()
+        dialog.destroy()
+    GLib.idle_add(showErrorFunc, parent, e)
+
 def nullFunEvent(widget):
     pass
 

@@ -319,8 +319,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def onLockPosition(widget):
         nonlocal startPos
         if widget.get_active():
-            with createServoManager(nodeNr, getPortFun()) as r:
-                startPos = r.servoArray[0].getPosition(True)
+            try:
+                with createServoManager(nodeNr, getPortFun()) as servoManager:
+                    startPos = servoManager.servoArray[0].getPosition(True)
+            except Exception as e:
+                GuiFunctions.exceptionMessage(parent, e)
+                widget.set_active(False)
+
         else:
             startPos = None
 
@@ -417,83 +422,87 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def testPwmRun(nodeNr, port):
         nonlocal runThread
 
-        with createServoManager(nodeNr, port) as servoManager:
-            t = 0.0
-            doneRunning = False
-            pwmDir = 1
-            moveDir = 0
+        try:
+            with createServoManager(nodeNr, port) as servoManager:
+                t = 0.0
+                doneRunning = False
+                pwmDir = 1
+                moveDir = 0
 
-            def sendCommandHandlerFunction(dt, servoManager):
-                nonlocal pwmDir
-                nonlocal moveDir
+                def sendCommandHandlerFunction(dt, servoManager):
+                    nonlocal pwmDir
+                    nonlocal moveDir
 
-                servo = servoManager.servoArray[0]
+                    servo = servoManager.servoArray[0]
 
-                pos = servo.getPosition(True)
+                    pos = servo.getPosition(True)
 
-                if startPos != None:
-                    if pos - startPos < -1 and moveDir != -1:
-                        moveDir = -1
-                        pwmDir *= -1
-                    elif pos - startPos > 1 and moveDir != 1:
-                        moveDir = 1
-                        pwmDir *= -1
+                    if startPos != None:
+                        if pos - startPos < -1 and moveDir != -1:
+                            moveDir = -1
+                            pwmDir *= -1
+                        elif pos - startPos > 1 and moveDir != 1:
+                            moveDir = 1
+                            pwmDir *= -1
 
-                servo.setOpenLoopControlSignal(testPwmValue * pwmDir, True)
+                    servo.setOpenLoopControlSignal(testPwmValue * pwmDir, True)
 
-            out = []
+                out = []
 
-            def readResultHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal doneRunning
+                def readResultHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal doneRunning
 
-                t += dt
-                servo = servoManager.servoArray[0]
-                out.append([t, servo.getVelocity()])
+                    t += dt
+                    servo = servoManager.servoArray[0]
+                    out.append([t, servo.getVelocity()])
 
-                stop = False
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
+                    stop = False
+                    with threadMutex:
+                        if runThread == False:
+                            stop = True
 
-                if stop or parent.isClosed:
-                    servoManager.removeHandlerFunctions()
-                    doneRunning = True
+                    if stop or parent.isClosed:
+                        servoManager.removeHandlerFunctions()
+                        doneRunning = True
 
-            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
-            while not doneRunning:
-                if not servoManager.isAlive():
-                    break
-                time.sleep(0.1)
+                while not doneRunning:
+                    if not servoManager.isAlive():
+                        break
+                    time.sleep(0.1)
 
-            servoManager.shutdown()
+                servoManager.shutdown()
 
-            data = np.array(out)
+                data = np.array(out)
 
-            def plotData(data):
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.INFO,
-                        buttons=Gtk.ButtonsType.YES_NO,
-                        text='Pwm test done!',
-                )
-                dialog.format_secondary_text(
-                    "Do you want to plot the recorded data?"
-                )
-                response = dialog.run()
-                dialog.destroy()
+                def plotData(data):
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Pwm test done!',
+                    )
+                    dialog.format_secondary_text(
+                        "Do you want to plot the recorded data?"
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
 
-                if response == Gtk.ResponseType.YES:
-                    fig = plt.figure(1)
-                    fig.suptitle('Velocity')
-                    plt.plot(data[:, 0], data[:, 1], 'r')
-                    plt.show()
+                    if response == Gtk.ResponseType.YES:
+                        fig = plt.figure(1)
+                        fig.suptitle('Velocity')
+                        plt.plot(data[:, 0], data[:, 1], 'r')
+                        plt.show()
 
-            GLib.idle_add(plotData, data)
+                GLib.idle_add(plotData, data)
 
-        GLib.idle_add(resetGuiAfterCalibration)
+        except Exception as e:
+            GuiFunctions.exceptionMessage(parent, e)
+        finally:
+            GLib.idle_add(resetGuiAfterCalibration)
 
     testThread = None
 
@@ -575,109 +584,113 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
 
-        with createServoManager(nodeNr, port, 0.018) as servoManager:
-            pwmSampleValues = []
-            nr = 10
-            for i in range(0, nr):
-                pwmSampleValues.append(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue)
-                pwmSampleValues.append(minPwmValue)
-                pwmSampleValues.append(-(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue))
-                pwmSampleValues.append(-minPwmValue)
+        try:
+            with createServoManager(nodeNr, port, 0.018) as servoManager:
+                pwmSampleValues = []
+                nr = 10
+                for i in range(0, nr):
+                    pwmSampleValues.append(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue)
+                    pwmSampleValues.append(minPwmValue)
+                    pwmSampleValues.append(-(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue))
+                    pwmSampleValues.append(-minPwmValue)
 
-            def sendCommandHandlerFunction(dt, servoManager):
-                return
-
-            t = 0.0
-            if startPos != None:
-                t = -float(motorSettleTime)
-
-            doneRunning = False
-            i = 0
-            pwm = None
-            pwmDir = -1
-            outEncDir = 1
-
-            out = []
-
-            def readResultHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal doneRunning
-                nonlocal pwm
-                nonlocal i
-                nonlocal pwmDir
-                nonlocal startPos
-                nonlocal outEncDir
-
-                stop = False
-
-                servo = servoManager.servoArray[0]
-
-                d = [t, servo.getPosition(False) / servo.getScaling(),
-                        pwm]
-                if pwm != None:
-                    out.append(d)
-
-                pos = servo.getPosition(True)
-
-                if t < 0:
-                    if pwmDir == -1:
-                        if abs(pos - startPos) > 1.0:
-                            pwmDir = 1
-                            if pos - startPos >= 0.0:
-                                outEncDir = -1
-                        t = -motorSettleTime
-                    elif abs(pos - startPos) > 1.0:
-                        t = -motorSettleTime
-                    else:
-                        pwmDir = 0
-
-                    servo.setOpenLoopControlSignal(maxPwmValue * pwmDir, True)
-
-                    pwm = None
-                else:
-                    i = int(t / motorSettleTime)
-                    if i < len(pwmSampleValues):
-                        pwm = pwmSampleValues[i]
-
-                        if startPos != None:
-                            if outEncDir * pwm < 0 and pos - startPos > 1.0:
-                                t -= dt
-                            if outEncDir * pwm > 0 and pos - startPos < -1.0:
-                                t -= dt
-                    else:
-                        pwm = 0
-                        stop = True
-
-                    servo.setOpenLoopControlSignal(pwm, True)
-
-                GLib.idle_add(updateRecordingProgressBar, t / (motorSettleTime * len(pwmSampleValues)))
-
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
-
-                if stop or parent.isClosed:
-                    servoManager.removeHandlerFunctions()
-                    doneRunning = True
+                def sendCommandHandlerFunction(dt, servoManager):
                     return
 
-                t += dt
+                t = 0.0
+                if startPos != None:
+                    t = -float(motorSettleTime)
 
-            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                doneRunning = False
+                i = 0
+                pwm = None
+                pwmDir = -1
+                outEncDir = 1
 
-            while not doneRunning:
-                if not servoManager.isAlive():
-                    runThread = False
-                    break
-                time.sleep(0.1)
+                out = []
 
-            servoManager.shutdown()
+                def readResultHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal doneRunning
+                    nonlocal pwm
+                    nonlocal i
+                    nonlocal pwmDir
+                    nonlocal startPos
+                    nonlocal outEncDir
 
-            if runThread == True:
-                data = np.array(out)
-                GLib.idle_add(handleResults, data)
+                    stop = False
 
-        GLib.idle_add(resetGuiAfterCalibration)
+                    servo = servoManager.servoArray[0]
+
+                    d = [t, servo.getPosition(False) / servo.getScaling(),
+                            pwm]
+                    if pwm != None:
+                        out.append(d)
+
+                    pos = servo.getPosition(True)
+
+                    if t < 0:
+                        if pwmDir == -1:
+                            if abs(pos - startPos) > 1.0:
+                                pwmDir = 1
+                                if pos - startPos >= 0.0:
+                                    outEncDir = -1
+                            t = -motorSettleTime
+                        elif abs(pos - startPos) > 1.0:
+                            t = -motorSettleTime
+                        else:
+                            pwmDir = 0
+
+                        servo.setOpenLoopControlSignal(maxPwmValue * pwmDir, True)
+
+                        pwm = None
+                    else:
+                        i = int(t / motorSettleTime)
+                        if i < len(pwmSampleValues):
+                            pwm = pwmSampleValues[i]
+
+                            if startPos != None:
+                                if outEncDir * pwm < 0 and pos - startPos > 1.0:
+                                    t -= dt
+                                if outEncDir * pwm > 0 and pos - startPos < -1.0:
+                                    t -= dt
+                        else:
+                            pwm = 0
+                            stop = True
+
+                        servo.setOpenLoopControlSignal(pwm, True)
+
+                    GLib.idle_add(updateRecordingProgressBar, t / (motorSettleTime * len(pwmSampleValues)))
+
+                    with threadMutex:
+                        if runThread == False:
+                            stop = True
+
+                    if stop or parent.isClosed:
+                        servoManager.removeHandlerFunctions()
+                        doneRunning = True
+                        return
+
+                    t += dt
+
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+
+                while not doneRunning:
+                    if not servoManager.isAlive():
+                        runThread = False
+                        break
+                    time.sleep(0.1)
+
+                servoManager.shutdown()
+
+                if runThread == True:
+                    data = np.array(out)
+                    GLib.idle_add(handleResults, data)
+
+        except Exception as e:
+            GuiFunctions.exceptionMessage(parent, e)
+        finally:
+            GLib.idle_add(resetGuiAfterCalibration)
 
     def onStartCalibration(widget):
         nonlocal testThread

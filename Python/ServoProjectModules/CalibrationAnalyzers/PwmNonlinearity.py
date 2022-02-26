@@ -350,29 +350,32 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 pwm = int(widget.get_label())
 
-                servoManager = createServoManager(nodeNr, getPortFun())
+                try:
+                    servoManager = createServoManager(nodeNr, getPortFun())
 
-                def sendCommandHandlerFunction(dt, servoManager):
-                    servoManager.servoArray[0].setOpenLoopControlSignal(pwm, True)
+                    def sendCommandHandlerFunction(dt, servoManager):
+                        servoManager.servoArray[0].setOpenLoopControlSignal(pwm, True)
 
-                def readResultHandlerFunction(dt, servoManager):
-                    pos = servoManager.servoArray[0].getPosition()
-                    print(f'{pos}', end = '\r')
-                    return
+                    def readResultHandlerFunction(dt, servoManager):
+                        pos = servoManager.servoArray[0].getPosition()
+                        return
 
-                def errorHandlerFunction(exception):
-                    GLib.idle_add(guiErrorHandler, exception)
+                    def errorHandlerFunction(exception):
+                        GuiFunctions.exceptionMessage(parent, exception)
+                        servoManager.shutdown()
+                        servoManager = None
+                        widget.set_active(False)
 
-                def guiErrorHandler(exception):
-                    nonlocal servoManager
-                    print(f'{exception!r}')
-                    servoManager.shutdown()
-                    servoManager = None
+                    servoManager.setHandlerFunctions(sendCommandHandlerFunction, 
+                            readResultHandlerFunction, errorHandlerFunction)
+                    servoManager.start()
+                except Exception as e:
+                    GuiFunctions.exceptionMessage(parent, e)
+                    if servoManager != None:
+                        servoManager.shutdown()
+                        servoManager = None
                     widget.set_active(False)
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, 
-                        readResultHandlerFunction, errorHandlerFunction)
-                servoManager.start()
             elif servoManager:
                 servoManager.removeHandlerFunctions()
                 servoManager.shutdown()

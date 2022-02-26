@@ -126,92 +126,96 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
     def startTestRun(nodeNr, port):
         nonlocal runThread
 
-        controlSpeed = int(controlSpeedScale[1].get_value())
-        velControlSpeed = controlSpeed * 4
-        filterSpeed = controlSpeed * 32
-        if advancedMode == True:
-            velControlSpeed = int(round(velControlSpeedScale[1].get_value() / 4.0)) * 4
-            velControlSpeedScale[1].set_value(velControlSpeed)
-            filterSpeed = int(round(filterSpeedScale[1].get_value() / 32.0)) * 32
-            filterSpeedScale[1].set_value(filterSpeed)
-        backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
+        try:
+            controlSpeed = int(controlSpeedScale[1].get_value())
+            velControlSpeed = controlSpeed * 4
+            filterSpeed = controlSpeed * 32
+            if advancedMode == True:
+                velControlSpeed = int(round(velControlSpeedScale[1].get_value() / 4.0)) * 4
+                velControlSpeedScale[1].set_value(velControlSpeed)
+                filterSpeed = int(round(filterSpeedScale[1].get_value() / 32.0)) * 32
+                filterSpeedScale[1].set_value(filterSpeed)
+            backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
-        def initFun(servoArray):
-            servoArray[0].setOffsetAndScaling(360.0 / 4096.0, 0.0, 0)
-            servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
-            servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 180.0, 0.0)
+            def initFun(servoArray):
+                servoArray[0].setOffsetAndScaling(360.0 / 4096.0, 0.0, 0)
+                servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
+                servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 180.0, 0.0)
 
-        with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
-            t = 0.0
-            doneRunning = False
+            with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
+                t = 0.0
+                doneRunning = False
 
-            servoManager.servoArray[0].getPosition(False)
-            posOffset = servoManager.servoArray[0].getPosition()
-            moveHandler = SmoothMoveHandler(posOffset, 0.4)
+                servoManager.servoArray[0].getPosition(False)
+                posOffset = servoManager.servoArray[0].getPosition()
+                moveHandler = SmoothMoveHandler(posOffset, 0.4)
 
-            def sendCommandHandlerFunction(dt, servoManager):
-                servo = servoManager.servoArray[0]
+                def sendCommandHandlerFunction(dt, servoManager):
+                    servo = servoManager.servoArray[0]
 
-                with threadMutex:
-                    moveHandler.set(refPos + posOffset, refVel)
+                    with threadMutex:
+                        moveHandler.set(refPos + posOffset, refVel)
 
-                p, v = moveHandler.getNextRef(dt)
-                servo.setReference(p, v, 0)
+                    p, v = moveHandler.getNextRef(dt)
+                    servo.setReference(p, v, 0)
 
-            out = []
+                out = []
 
-            def readResultHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal doneRunning
+                def readResultHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal doneRunning
 
-                t += dt
+                    t += dt
 
-                stop = False
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
+                    stop = False
+                    with threadMutex:
+                        if runThread == False:
+                            stop = True
 
-                if stop or parent.isClosed:
-                    servoManager.removeHandlerFunctions()
-                    doneRunning = True
-                    return
+                    if stop or parent.isClosed:
+                        servoManager.removeHandlerFunctions()
+                        doneRunning = True
+                        return
 
-                servo = servoManager.servoArray[0]
-                p = servo.getPosition(True)
-                v = servo.getVelocity()
-                u = servo.getControlSignal()
-                error = servo.getControlError(True)
-                motorError = servo.getControlError(False)
-                optData = servo.getOpticalEncoderChannelData()
-                out.append([time.time(), p, v,
-                        error,
-                        motorError,
-                        u,
-                        optData.minCostIndex,
-                        optData.minCost,
-                        refPos + posOffset])
+                    servo = servoManager.servoArray[0]
+                    p = servo.getPosition(True)
+                    v = servo.getVelocity()
+                    u = servo.getControlSignal()
+                    error = servo.getControlError(True)
+                    motorError = servo.getControlError(False)
+                    optData = servo.getOpticalEncoderChannelData()
+                    out.append([time.time(), p, v,
+                            error,
+                            motorError,
+                            u,
+                            optData.minCostIndex,
+                            optData.minCost,
+                            refPos + posOffset])
 
-                GLib.idle_add(updateStatusLabel, f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
-                        f'Velocity: {v:0.4f}\n'
-                        f'Error at output: {error:0.4f}\n'
-                        f'Error at motor: {motorError:0.4f}\n'
-                        f'control signal: {u:0.4f}\n'
-                        f'Loop time: {servo.getLoopTime()}')
+                    GLib.idle_add(updateStatusLabel, f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
+                            f'Velocity: {v:0.4f}\n'
+                            f'Error at output: {error:0.4f}\n'
+                            f'Error at motor: {motorError:0.4f}\n'
+                            f'control signal: {u:0.4f}\n'
+                            f'Loop time: {servo.getLoopTime()}')
 
-            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
 
-            while not doneRunning:
-                if not servoManager.isAlive():
-                    runThread = False
-                    break
-                time.sleep(0.1)
+                while not doneRunning:
+                    if not servoManager.isAlive():
+                        runThread = False
+                        break
+                    time.sleep(0.1)
 
-            servoManager.shutdown()
+                servoManager.shutdown()
 
-            data = np.array(out)
-            GLib.idle_add(plotData, data)
+                data = np.array(out)
+                GLib.idle_add(plotData, data)
 
-        GLib.idle_add(resetGuiAfterCalibration)
+        except Exception as e:
+            GuiFunctions.exceptionMessage(parent, e)
+        finally:
+            GLib.idle_add(resetGuiAfterCalibration)
 
     testThread = None
 

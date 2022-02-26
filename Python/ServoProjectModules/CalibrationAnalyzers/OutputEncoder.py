@@ -352,156 +352,160 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def startCalibrationRun(nodeNr, port):
         nonlocal runThread
 
-        controlSpeedScale[1].set_sensitive(False)
-        controlSpeed = controlSpeedScale[1].get_value()
-        def initFun(servoArray):
-            servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
-            servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
+        try:
+            controlSpeedScale[1].set_sensitive(False)
+            controlSpeed = controlSpeedScale[1].get_value()
+            def initFun(servoArray):
+                servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+                servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-        with createServoManager(nodeNr, port, dt=0.003, initFunction=initFun) as servoManager:
-            t = -6.2
-            doneRunning = False
-            refPos = 0.0
-            minPos = None
-            maxPos = None
-            direction = 1
+            with createServoManager(nodeNr, port, dt=0.003, initFunction=initFun) as servoManager:
+                t = -6.2
+                doneRunning = False
+                refPos = 0.0
+                minPos = None
+                maxPos = None
+                direction = 1
 
-            runTime = 122.0
+                runTime = 122.0
 
-            def sendCommandHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal refPos
-                nonlocal minPos
-                nonlocal maxPos
-                nonlocal direction
+                def sendCommandHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal refPos
+                    nonlocal minPos
+                    nonlocal maxPos
+                    nonlocal direction
 
-                servo = servoManager.servoArray[0]
+                    servo = servoManager.servoArray[0]
 
-                if t < 0:
-                    servo.setOpenLoopControlSignal(0, True)
-                else:
-                    refVel = (maxPos - minPos) / (runTime - 2.0) * 6
-
-                    if abs(t - runTime / 2) < 1.0:
-                        refVel = 0.0
-
-                    refPos += direction * refVel * dt
-
-                    if refPos >= maxPos:
-                        refPos = maxPos
-                        direction = -1
-                    elif refPos <= minPos:
-                        refPos = minPos
-                        direction = 1
-
-                    servo.setReference(refPos, direction * refVel, 0.0)
-
-            out = []
-
-            encPos = None
-            filteredVel = 0.0
-
-            if port == '':
-                servo = servoManager.servoArray[0]
-                p = servo.getPosition(True)
-                minPos = p - 1.5
-                maxPos = p + 1.5
-                out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
-                out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
-
-            def readResultHandlerFunction(dt, servoManager):
-                nonlocal t
-                nonlocal doneRunning
-                nonlocal encPos
-                nonlocal refPos
-                nonlocal minPos
-                nonlocal maxPos
-                nonlocal filteredVel
-                nonlocal out
-
-                servo = servoManager.servoArray[0]
-
-                newMotorPos = servo.getPosition(False)
-                newEncPos = servo.getPosition(True)
-                newVel = servo.getVelocity()
-
-                rawEncPos = (newEncPos - servo.getOffset()) / servo.getScaling()
-
-                out.append([t,
-                        rawEncPos,
-                        (newEncPos - newMotorPos) / servo.getScaling()])
-
-                if t < 0.0:
-                    if encPos == None:
-                        encPos = newEncPos
+                    if t < 0:
+                        servo.setOpenLoopControlSignal(0, True)
                     else:
-                        noiseLevel = abs(abs(newEncPos - encPos) - abs(newVel * dt))
-                        encPos = newEncPos
-                        filteredVel = 0.95 * filteredVel + 0.05 * newVel
+                        refVel = (maxPos - minPos) / (runTime - 2.0) * 6
 
-                        if minPos == None:
-                            minPos = encPos
-                            maxPos = encPos
-                        elif encPos < minPos:
-                            t = -6.1
-                            minPos = encPos
-                        elif encPos > maxPos:
-                            t = -6.1
-                            maxPos = encPos
-                        elif abs(maxPos - minPos) < 0.1:
-                            t = -6.1
-                        elif ((encPos - minPos) / (maxPos - minPos) < 0.1 or
-                                (encPos - minPos) / (maxPos - minPos) > 0.9):
-                            t = -6.1
-                        elif noiseLevel > 0.02:
-                            out = []
-                            minPos = encPos
-                            maxPos = encPos
-                            t = -6.1
-                        elif abs(filteredVel) > 0.1:
-                            t = -6.1
+                        if abs(t - runTime / 2) < 1.0:
+                            refVel = 0.0
+
+                        refPos += direction * refVel * dt
+
+                        if refPos >= maxPos:
+                            refPos = maxPos
+                            direction = -1
+                        elif refPos <= minPos:
+                            refPos = minPos
+                            direction = 1
+
+                        servo.setReference(refPos, direction * refVel, 0.0)
+
+                out = []
+
+                encPos = None
+                filteredVel = 0.0
+
+                if port == '':
+                    servo = servoManager.servoArray[0]
+                    p = servo.getPosition(True)
+                    minPos = p - 1.5
+                    maxPos = p + 1.5
+                    out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+                    out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+
+                def readResultHandlerFunction(dt, servoManager):
+                    nonlocal t
+                    nonlocal doneRunning
+                    nonlocal encPos
+                    nonlocal refPos
+                    nonlocal minPos
+                    nonlocal maxPos
+                    nonlocal filteredVel
+                    nonlocal out
+
+                    servo = servoManager.servoArray[0]
+
+                    newMotorPos = servo.getPosition(False)
+                    newEncPos = servo.getPosition(True)
+                    newVel = servo.getVelocity()
+
+                    rawEncPos = (newEncPos - servo.getOffset()) / servo.getScaling()
+
+                    out.append([t,
+                            rawEncPos,
+                            (newEncPos - newMotorPos) / servo.getScaling()])
+
+                    if t < 0.0:
+                        if encPos == None:
+                            encPos = newEncPos
                         else:
-                            t += dt
+                            noiseLevel = abs(abs(newEncPos - encPos) - abs(newVel * dt))
+                            encPos = newEncPos
+                            filteredVel = 0.95 * filteredVel + 0.05 * newVel
 
-                        if t >= 0:
-                            data = np.array(out)
-                            if OutputEncoderCalibrationGenerator.checkForInvertedEncoder(data):
-                                t = runTime
-                            else:
-                                t = 0.0
+                            if minPos == None:
+                                minPos = encPos
+                                maxPos = encPos
+                            elif encPos < minPos:
+                                t = -6.1
+                                minPos = encPos
+                            elif encPos > maxPos:
+                                t = -6.1
+                                maxPos = encPos
+                            elif abs(maxPos - minPos) < 0.1:
+                                t = -6.1
+                            elif ((encPos - minPos) / (maxPos - minPos) < 0.1 or
+                                    (encPos - minPos) / (maxPos - minPos) > 0.9):
+                                t = -6.1
+                            elif noiseLevel > 0.02:
                                 out = []
-                                refPos = encPos
+                                minPos = encPos
+                                maxPos = encPos
+                                t = -6.1
+                            elif abs(filteredVel) > 0.1:
+                                t = -6.1
+                            else:
+                                t += dt
 
-                    GLib.idle_add(updateRecordingProgressBar, t / 6.0, round(rawEncPos))
-                else:
-                    t += dt
+                            if t >= 0:
+                                data = np.array(out)
+                                if OutputEncoderCalibrationGenerator.checkForInvertedEncoder(data):
+                                    t = runTime
+                                else:
+                                    t = 0.0
+                                    out = []
+                                    refPos = encPos
 
-                    GLib.idle_add(updateRecordingProgressBar, t / runTime, round(rawEncPos))
+                        GLib.idle_add(updateRecordingProgressBar, t / 6.0, round(rawEncPos))
+                    else:
+                        t += dt
 
-                stop = t > runTime
-                with threadMutex:
-                    if runThread == False:
-                        stop = True
-                if stop or parent.isClosed:
-                    servoManager.removeHandlerFunctions()
-                    doneRunning = True
-                    return
+                        GLib.idle_add(updateRecordingProgressBar, t / runTime, round(rawEncPos))
 
-            servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+                    stop = t > runTime
+                    with threadMutex:
+                        if runThread == False:
+                            stop = True
+                    if stop or parent.isClosed:
+                        servoManager.removeHandlerFunctions()
+                        doneRunning = True
+                        return
 
-            while not doneRunning:
-                if not servoManager.isAlive():
-                    runThread = False
-                    break
-                time.sleep(0.1)
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
-            servoManager.shutdown()
+                while not doneRunning:
+                    if not servoManager.isAlive():
+                        runThread = False
+                        break
+                    time.sleep(0.1)
 
-            if runThread == True:
-                data = np.array(out)
-                GLib.idle_add(handleResults, data)
+                servoManager.shutdown()
 
-        GLib.idle_add(resetGuiAfterCalibration)
+                if runThread == True:
+                    data = np.array(out)
+                    GLib.idle_add(handleResults, data)
+
+        except Exception as e:
+            GuiFunctions.exceptionMessage(parent, e)
+        finally:
+            GLib.idle_add(resetGuiAfterCalibration)
 
     def onStartCalibration(widget):
         nonlocal testThread
