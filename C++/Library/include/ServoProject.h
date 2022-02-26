@@ -274,6 +274,9 @@ class DCServoCommunicator
     mutable std::array<bool, 16> activeIntReads{false};
     std::array<short int, 16> intReadBuffer{0};
 
+    mutable std::array<bool, 16> activeCharReads{false};
+    std::array<char, 16> charReadBuffer{0};
+
     ContinuousValueUpCaster<long int, short int> intReadBufferIndex3Upscaling;
     ContinuousValueUpCaster<long int, short int> intReadBufferIndex10Upscaling;
     ContinuousValueUpCaster<long int, short int> intReadBufferIndex11Upscaling;

@@ -332,7 +332,7 @@ class DCServoCommunicator(object):
 
     def __init__(self, nodeNr, bus):
         self.activeIntReads = [True] * 16
-        self.activeCharReads = [True] * 8
+        self.activeCharReads = [True] * 16
         self.nodeNr = nodeNr;
         self.bus = bus;
 
@@ -574,10 +574,13 @@ class DCServoCommunicator(object):
             if upscaledPos >= 256**3 / 2:
                 upscaledPos -= 256**3
 
+            encPosWithBacklashComp = self.intReadBuffer[10] + self.intReadBuffer[11]
+            overflowedPart = int((upscaledPos - encPosWithBacklashComp) / (256 * 256)) * (256 * 256)
+
             self.intReadBufferIndex3Upscaling.set(upscaledPos)
             self.intReadBufferIndex10Upscaling.set(self.intReadBuffer[10])
-            self.intReadBufferIndex11Upscaling.set(self.intReadBuffer[11])
-        
+            self.intReadBufferIndex11Upscaling.set(self.intReadBuffer[11] + overflowedPart)
+
         self.backlashEncoderPos = self.intReadBufferIndex3Upscaling.get() * (1.0 / self.positionUpscaling)
         self.encoderPos = self.intReadBufferIndex10Upscaling.get() * (1.0 / self.positionUpscaling)
         self.backlashCompensation = self.intReadBufferIndex11Upscaling.get() * (1.0 / self.positionUpscaling)
@@ -615,10 +618,12 @@ class DCServoCommunicator(object):
         pos = self.getPosition() / self.scale
         self.startPosition /= self.scale
 
-        if pos - self.startPosition > (2048 / 2):
-            self.offset -= (4096 / 2) * self.scale
-        elif pos - self.startPosition < -(2048 / 2):
-            self.offset += (4096 / 2) * self.scale
+        wrapSize = 256**3 / self.positionUpscaling
+
+        if pos - self.startPosition > wrapSize / 2:
+            self.offset -= wrapSize * self.scale
+        elif pos - self.startPosition < -wrapSize / 2:
+            self.offset += wrapSize * self.scale
 
 class ServoManager(object):
     def __init__(self, cycleTime, initFunction):

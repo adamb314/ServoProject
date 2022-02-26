@@ -345,6 +345,7 @@ void SimulateCommunication::execute()
 DCServoCommunicator::DCServoCommunicator(unsigned char nodeNr, Communication* bus)
 {
     activeIntReads.fill(true);
+    activeCharReads.fill(true);
     this->nodeNr = nodeNr;
     this->bus = bus;
 
@@ -374,13 +375,15 @@ void DCServoCommunicator::updateOffset()
     float pos = getPosition() / scale;
     startPosition /= scale;
 
-    if (pos - startPosition > (2048 / 2))
+    long int wrapSize = (1 << 24) / positionUpscaling;
+
+    if (pos - startPosition > wrapSize / 2)
     {
-        offset -= (4096 / 2) * scale;
+        offset -= wrapSize * scale;
     }
-    else if (pos - startPosition < -(2048 / 2))
+    else if (pos - startPosition < -wrapSize / 2)
     {
-        offset += (4096 / 2) * scale;
+        offset += wrapSize * scale;
     }
 }
 
@@ -575,6 +578,14 @@ void DCServoCommunicator::run()
         }
     }
 
+    for (size_t i = 0; i < activeCharReads.size(); i++)
+    {
+        if (activeCharReads[i])
+        {
+            bus->requestReadChar(i);
+        }
+    }
+
     if (isInitComplete())
     {
         if (newPositionReference)
@@ -632,6 +643,19 @@ void DCServoCommunicator::run()
         }
     }
 
+    for (size_t i = 0; i < activeCharReads.size(); i++)
+    {
+        if (activeCharReads[i])
+        {
+
+            if (isInitComplete())
+            {
+                activeCharReads[i] = false;
+            }
+            charReadBuffer[i] = bus->getLastReadChar(i);
+        }
+    }
+
     if (isInitComplete())
     {
         intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
@@ -640,9 +664,20 @@ void DCServoCommunicator::run()
     }
     else
     {
-        intReadBufferIndex3Upscaling.set(intReadBuffer[3]);
+        long int upscaledPos = static_cast<unsigned long int>(intReadBuffer[3]);
+        upscaledPos += (static_cast<long int>(charReadBuffer[9]) << 16);
+        if (upscaledPos >= (2 << 23))
+        {
+            upscaledPos -= (2 << 24);
+        }
+
+        long int encPosWithBacklashComp = intReadBuffer[10] + static_cast<long int>(intReadBuffer[11]);
+
+        long int overflowedPart = ((upscaledPos - encPosWithBacklashComp) / (1 << 16)) << 16;
+
+        intReadBufferIndex3Upscaling.set(upscaledPos);
         intReadBufferIndex10Upscaling.set(intReadBuffer[10]);
-        intReadBufferIndex11Upscaling.set(intReadBuffer[11]);
+        intReadBufferIndex11Upscaling.set(intReadBuffer[11] + overflowedPart);
     }
     
     backlashEncoderPos = intReadBufferIndex3Upscaling.get() * (1.0 / positionUpscaling);
