@@ -5,6 +5,22 @@ Hardware
 
 ### Parts list
 
+#### Modified brushed servo
+* 1 x DS3225 MG servo
+* 1 x Custom PCB
+  * PcbDesignes/ServoBrushed/combined/manufacture
+* 2 x ITR8307
+
+Cad and stl files for 3D printing:
+```
+CadFiles/ServoBrushed
+```
+
+Electrical schematic:
+```
+PcbDesignes/ServoBrushed
+```
+
 #### Modified coreless servo
 * 1 x Turnigy MG959 servo
 * 1 x Adafruit ItsyBitsy M0 Express
@@ -75,6 +91,10 @@ Cad and stl files for 3D printing:
 ```
 CadFiles/Robot
 ```
+
+## Brushed servo modification (DS3225 MG)
+
+[Video tutorial](https://youtu.be/ECLrLupFW10)
 
 ## Coreless servo modification (Turnigy MG959)
 
