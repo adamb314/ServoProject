@@ -62,7 +62,9 @@ def openCreateConfigDialog(parent, configs):
     box.pack_start(box1, False, False, 0)
 
     gearingEntry = GuiFunctions.createEntry('', getLowLev=True)
-    gearingEntry = GuiFunctions.addTopLabelTo('<b>Gear ratio</b>\n Ex: 10 / 1 * 11 / 62 * 14 / 48 * 13 / 45 * 1 / 42', gearingEntry[0]), gearingEntry[1]
+    gearingEntry = GuiFunctions.addTopLabelTo('<b>Gear ratio</b>\n'
+        ' For best result calculate ratio by counting the gear teeth\n'
+        '  Ex: 10 / 1 * 11 / 62 * 14 / 48 * 13 / 45 * 1 / 42', gearingEntry[0]), gearingEntry[1]
     box.pack_start(gearingEntry[0], False, False, 0)
 
     potentiometerRangeSpinButton = GuiFunctions.creatSpinButton(220, -360, 360, 1, getLowLev=True)
