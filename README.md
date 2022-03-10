@@ -12,15 +12,15 @@ Project structure
 This folder contains the Arduino project for the Adafruit ItsyBitsy M0 Express boards.
 
 Easiest way to program and configure the servos is through the configurationWizard.py script.
-Just run `python3 ./ArduinoSketch/configurationWizard.py` to get started. The script will ask if it should installing any missing dependencies.
+Just run `python3 ./ArduinoSketch/configurationWizard.py` to get started. The script will ask if it should install any missing dependencies.
 
-Windows users most install MSYS2 due to the the PyGObject package, see https://pygobject.readthedocs.io/en/latest/getting_started.html.
+Windows users must install MSYS2 due to the the PyGObject package, see https://pygobject.readthedocs.io/en/latest/getting_started.html.
 
 #### Manually compiling the Arduino sketch
 
-When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` script can be used to to simplify the config selecting process by giving a drop-down list with all configs in the config folder.
+When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` script can be used to simplify the config selecting process by giving a drop-down list with all configs in the config folder.
 
-The folder also holds a Makefile which can be used to compile and transfer the project. One benefit of using the Makefile is that the configSelector script always is executed prior to compiling. To be able to use the Makefile you must first install arduino-cli.
+The folder also holds a Makefile which can be used to compile and transfer the project. One benefit of using the Makefile is that the configSelector script is always executed prior to compiling. To be able to use the Makefile you must first install arduino-cli.
 
 ```
 Arduino sketch dependencies:
