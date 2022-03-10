@@ -14,6 +14,8 @@ This folder contains the Arduino project for the Adafruit ItsyBitsy M0 Express b
 Easiest way to program and configure the servos is through the configurationWizard.py script.
 Just run `python3 ./ArduinoSketch/configurationWizard.py` to get started. The script will ask if it should installing any missing dependencies.
 
+Windows users most install MSYS2 due to the the PyGObject package, see https://pygobject.readthedocs.io/en/latest/getting_started.html.
+
 #### Manually compiling the Arduino sketch
 
 When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` script can be used to to simplify the config selecting process by giving a drop-down list with all configs in the config folder.

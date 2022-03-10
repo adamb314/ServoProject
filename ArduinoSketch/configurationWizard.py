@@ -1,6 +1,7 @@
 #!/bin/python3
 import os
 import sys
+import sysconfig
 import subprocess
 
 def setWorkingDirToScriptDir():
@@ -42,6 +43,7 @@ def getPackageData(missingPackage):
 def main():
     setWorkingDirToScriptDir()
 
+    lastMissingPackage = None
     while True:
         missingPackage = None
         try:
@@ -69,11 +71,19 @@ def main():
         if not missingPackage:
             break
 
-        if not checkPip():
-            print(f'Could not find python pip. Please install pip manually')
+        if missingPackage == lastMissingPackage:
+            print(f'Please restart script to complete install')
             break
 
         missingPackageData = getPackageData(missingPackage)
+
+        if os.name == "nt" and sysconfig.get_platform().startswith("mingw"):
+            print(f'Please fix missing dependency "mingw-w64-x86_64-python-{missingPackageData[0]}" manually with pacman -S')
+            break
+
+        if not checkPip():
+            print(f'Could not find python pip. Please install pip manually')
+            break
 
         if missingPackageData[1]:
             ans = input(f'Missing dependency "{missingPackageData[0]}". Install with pip? (y/N)?')
@@ -83,6 +93,8 @@ def main():
             if not install(missingPackageData[0]):
                 print(f'Could not install "{missingPackageData[0]}" with pip. Please fix dependency manually!')
                 break
+
+            lastMissingPackage = missingPackage
         else:
             print(f'Please fix missing dependency "{missingPackageData[0]}" manually!')
             break
