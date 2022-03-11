@@ -466,7 +466,11 @@ class GuiWindow(Gtk.Window):
                     activeNodeNrCombo[1].set_active(0)
                     return
 
-                deleteConfigButton[1].set_sensitive(True)
+                if configName == 'usbToSerial.h':
+                    deleteConfigButton[1].set_sensitive(False)
+                else:
+                    deleteConfigButton[1].set_sensitive(True)
+
                 transferToTargetButton[1].set_sensitive(True)
 
                 self.setActiveConfig(configName)
