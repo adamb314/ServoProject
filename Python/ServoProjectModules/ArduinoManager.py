@@ -47,6 +47,7 @@ def getListOfLatestGitHubReleasAssets(url):
     if url[-1] != '/':
         url = url + '/'
 
+    print('Looking up latest version of "arduino-cli"...')
     r = requests.get(url=f'{url}releases/latest', headers={'Accept': 'application/json'}, allow_redirects=True)
 
     versionInfo = r.json()

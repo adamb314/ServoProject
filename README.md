@@ -4,6 +4,29 @@ by Adam Bäckström
 
 ![Robot](Doc/readmeResources/robot.jpg)
 
+Video demo of project
+---------------------
+
+[<img width="500px" src="Doc/readmeResources/VideoTutorialImage.png">](https://youtu.be/ECLrLupFW10)
+
+Additional documentation for the project
+----------------------------------------
+
+[Theory](Doc/Theory.md)
+
+[Dependencies](Doc/Dependencies.md)
+
+#### Build instructions
+
+ * [Brushed servo](Doc/BuildInstructionsBrushedServo.md)
+
+ * [Coreless servo](Doc/BuildInstructionsCorelessServo.md)
+
+ * [Micro servo](Doc/BuildInstructionsMicroServo.md)
+
+ * [Part list for robot and gripper](Doc/PartListForRobotAndGripper.md)
+
+
 Project structure
 ----------------
 
@@ -12,13 +35,19 @@ Project structure
 This folder contains the Arduino project for the Adafruit ItsyBitsy M0 Express boards.
 
 Easiest way to program and configure the servos is through the configurationWizard.py script.
-Just run `python3 ./ArduinoSketch/configurationWizard.py` to get started. The script will ask if it should installing any missing dependencies.
+Just run `python3 ./ArduinoSketch/configurationWizard.py` to get started. The script will ask if it should install any missing dependencies.
+
+PLEASE NOTE!
+Windows users must use MSYS2 due to the the PyGObject package, see https://pygobject.readthedocs.io/en/latest/getting_started.html. After installing MSYS2 run the script with:
+```
+C:\msys64\mingw64\bin\python.exe ArduinoSketch\configurationWizard.py
+```
 
 #### Manually compiling the Arduino sketch
 
-When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` script can be used to to simplify the config selecting process by giving a drop-down list with all configs in the config folder.
+When compiling, the active configuration is selected by modifying the `#include "*.h"` line in the `config/config.h` file to include the desired config file. The `configSelector.py` script can be used to simplify the config selecting process by giving a drop-down list with all configs in the config folder.
 
-The folder also holds a Makefile which can be used to compile and transfer the project. One benefit of using the Makefile is that the configSelector script always is executed prior to compiling. To be able to use the Makefile you must first install arduino-cli.
+The folder also holds a Makefile which can be used to compile and transfer the project. One benefit of using the Makefile is that the configSelector script is always executed prior to compiling. To be able to use the Makefile you must first install arduino-cli.
 
 ```
 Arduino sketch dependencies:
@@ -26,12 +55,11 @@ Arduino sketch dependencies:
   - Eigen `source:` Arduino Library List
 ```
 
-### C++
-#### Demo
+### C++/Demo
 
 Holds a minimal c++ demo project.
 
-To compile run `make`. This creates the program `./executable` 
+To compile run `make`. This creates the program `./executable`
 ```
 Dependencies:
   - GNU Make >= 4.2.1
@@ -39,7 +67,7 @@ Dependencies:
   - boost >= 1.71.0
 ```
 
-#### Example6dofRobot
+### C++/Example6dofRobot
 
 Holds the example 6dof robot project.
 
@@ -62,7 +90,7 @@ Dependencies:
   - gtkmm-3.0 >= 3.24
 ```
 
-#### Library
+### C++/Library
 
 Holds the C++ library for communicating with the servos.
 ```
@@ -76,29 +104,20 @@ Dependencies:
 
 Holds all `.stl` and the original Freecad files
 
-### Doc
-
-Additional documentation for the project
-
-[Theory](Doc/Theory.md)
-[Dependencies](Doc/Dependencies.md)
-[BuildInstructions](Doc/BuildInstructions.md)
-
 ### PcbDesignes
 
 Holds all KiCad projects for the electronics
 
-### Python
-
-#### Demo
+### Python/Demo
 
 Holds a minimal python demo project.
 
-#### ServoProjectModules
+### Python/ServoProjectModules
 
 Holds all python modules for the project.
 
-## Communication bus setup for demo projects
+Communication bus setup for demo projects
+-----------------------------------------
 
 ![Robot](Doc/readmeResources/UartBusPlain.svg)
 
@@ -106,7 +125,9 @@ PLEASE NOTE! The bus controller needs to have a low latency to get fast communic
 
 To get the best communication speed it is recommended to use an "Adafruit ItsyBitsy M0 Express" (or similar ARM based Arduino) as the USB to Serial converter. Just program the Arduino with the `usbToSerial.h` configuration in the ArduinoSketch to get started. In `usbToSerial.h` you can also configure any regular servos you want to control together with the ServoProject modified ones.
 
-## License
+License
+-------
+
 Open Source License
 
 ServoProject is free software. You can redistribute it and/or modify it under the terms of Creative Commons Attribution 3.0 United States License.

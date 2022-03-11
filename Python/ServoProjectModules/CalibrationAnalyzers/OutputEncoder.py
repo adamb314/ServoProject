@@ -229,7 +229,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def updateRecordingProgressBar(fraction, pos):
         stepsStr = []
         stepsStr.append('1) Move the servo-output-shaft over its range of motion.\n')
-        stepsStr.append('2) Leave it someware in the middle.\n')
+        stepsStr.append('2) Leave it somewhere in the middle.\n')
         stepsStr.append('3) Apply constant torque in CW direction (60 sec).\n')
         stepsStr.append('4) Change torque direction to CCW (60 sec).\n')
         if fraction < 0:

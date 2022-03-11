@@ -40,7 +40,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                         f'Velocity: -\n'
                         f'Error at output: -\n'
                         f'Error at motor: -\n'
-                        f'control signal: -\n'
+                        f'Control signal: -\n'
                         f'Loop time: -')
 
     calibrationBox.pack_start(refVelScale[0], False, False, 0)
@@ -196,7 +196,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                             f'Velocity: {v:0.4f}\n'
                             f'Error at output: {error:0.4f}\n'
                             f'Error at motor: {motorError:0.4f}\n'
-                            f'control signal: {u:0.4f}\n'
+                            f'Control signal: {u:0.4f}\n'
                             f'Loop time: {servo.getLoopTime()}')
 
                 servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
