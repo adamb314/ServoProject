@@ -2,6 +2,7 @@
 import os
 import sys
 import sysconfig
+import re
 import subprocess
 
 def setWorkingDirToScriptDir():
@@ -10,6 +11,9 @@ def setWorkingDirToScriptDir():
     os.chdir(dname)
 
     sys.path.insert(1, '../Python')
+
+def isMingwPlatform():
+    return os.name == "nt" and sysconfig.get_platform().startswith("mingw")
 
 def checkPip():
     try:
@@ -21,8 +25,44 @@ def checkPip():
     return False
 
 def install(package):
+    if isMingwPlatform():
+        return installWithPacman(package)
+
+    return installWithPip(package)
+
+def installWithPip(package):
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        return True
+    except Exception as e:
+        pass
+
+    return False
+
+pacmanPythonPackageName = None
+def getPacmanPythonPackage():
+    global pacmanPythonPackageName
+    if pacmanPythonPackageName:
+        return pacmanPythonPackageName
+
+    print('Looking for python package name with "pacman -Q"...')
+
+    out = subprocess.check_output(["pacman", "-Q"])
+    string = out.decode("utf-8")
+    findPythonPattern = re.compile(r'(?P<pythonPackage>[^\s]+-python)\s')
+    maches = findPythonPattern.finditer(string)
+
+    for m in maches:
+        pacmanPythonPackageName = m.group("pythonPackage")
+
+    return pacmanPythonPackageName
+
+def installWithPacman(package):
+    try:
+        getPacmanPythonPackage()
+        package = f'{getPacmanPythonPackage()}-{package}'
+        subprocess.check_call(["pacman", "-S", "--noconfirm", package])
+        print('')
         return True
     except Exception as e:
         pass
@@ -77,21 +117,17 @@ def main():
 
         missingPackageData = getPackageData(missingPackage)
 
-        if os.name == "nt" and sysconfig.get_platform().startswith("mingw"):
-            print(f'Please fix missing dependency "mingw-w64-x86_64-python-{missingPackageData[0]}" manually with pacman -S')
-            break
-
-        if not checkPip():
+        if not isMingwPlatform() and not checkPip():
             print(f'Could not find python pip. Please install pip manually')
             break
 
         if missingPackageData[1]:
-            ans = input(f'Missing dependency "{missingPackageData[0]}". Install with pip? (y/N)?')
+            ans = input(f'Missing dependency "{missingPackageData[0]}". Install? (y/N)?')
             if ans.find('Y') != 0 and ans.find('y') != 0:
                 break
 
             if not install(missingPackageData[0]):
-                print(f'Could not install "{missingPackageData[0]}" with pip. Please fix dependency manually!')
+                print(f'Could not install "{missingPackageData[0]}". Please fix dependency manually!')
                 break
 
             lastMissingPackage = missingPackage
