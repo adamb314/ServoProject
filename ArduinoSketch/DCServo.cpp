@@ -437,6 +437,7 @@ void ReferenceInterpolator::updateTiming()
         midPointTimeOffset += timingError / 8;
         loadTimeInterval += periodError / 16;
 
+        dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
         invertedLoadInterval = 1.0f / loadTimeInterval;
     }
 
