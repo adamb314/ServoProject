@@ -55,11 +55,15 @@ Arduino sketch dependencies:
   - Eigen `source:` Arduino Library List
 ```
 
-### C++/Demo
+### ArduinoLibrary/ServoProjectController
 
-Holds a minimal c++ demo project.
+Arduino library for communicating with the servos.
 
-To compile run `make`. This creates the program `./executable`
+[View Example Arduino sketch](ArduinoLibrary/ServoProjectController/examples/ArduinoDemo/ArduinoDemo.ino)
+
+### C++/Library
+
+Holds the C++ library for communicating with the servos.
 ```
 Dependencies:
   - GNU Make >= 4.2.1
@@ -67,9 +71,17 @@ Dependencies:
   - boost >= 1.71.0
 ```
 
-### C++/Example6dofRobot
+#### C++/Demo
 
-Holds the example 6dof robot project.
+Minimal c++ demo project.
+
+[View Example Code](C++/Demo/src/main.cpp)
+
+#### C++/Example6dofRobot
+
+Example 6dof robot project.
+
+[View Example Code](C++/Example6dofRobot/src/main.cpp)
 
 To compile run `make`. This creates the program `./executable` with the following options.
 
@@ -83,21 +95,8 @@ Allowed options:
 ```
 ```
 Dependencies:
-  - GNU Make >= 4.2.1
-  - gcc >= 9.3.0
-  - boost >= 1.71.0
   - Eigen >= 3.4.0
   - gtkmm-3.0 >= 3.24
-```
-
-### C++/Library
-
-Holds the C++ library for communicating with the servos.
-```
-Dependencies:
-  - GNU Make >= 4.2.1
-  - gcc >= 9.3.0
-  - boost >= 1.71.0
 ```
 
 ### CadFiles
@@ -110,7 +109,9 @@ Holds all KiCad projects for the electronics
 
 ### Python/Demo
 
-Holds a minimal python demo project.
+Python demo project.
+
+[View Example Code](Python/demo.py)
 
 ### Python/ServoProjectModules
 

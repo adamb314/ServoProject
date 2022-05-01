@@ -1,0 +1,77 @@
+CppArray	KEYWORD1
+FixedMemVector	KEYWORD1
+CppArray::iterator	KEYWORD1
+CppArray::const_iterator	KEYWORD1
+FixedMemVector::iterator	KEYWORD1
+FixedMemVector::const_iterator	KEYWORD1
+CommunicationError	KEYWORD1
+Communication	KEYWORD1
+SerialCommunication	KEYWORD1
+SimulateCommunication	KEYWORD1
+DCServoCommunicator	KEYWORD1
+DCServoCommunicator::OpticalEncoderChannelData	KEYWORD1
+ServoManager	KEYWORD1
+TrajectoryBuilder	KEYWORD1
+ServoReferenceSetter	KEYWORD1
+
+begin	KEYWORD2
+end	KEYWORD2
+cbegin	KEYWORD2
+cend	KEYWORD2
+at	KEYWORD2
+data	KEYWORD2
+size	KEYWORD2
+max_size	KEYWORD2
+push_back	KEYWORD2
+clear	KEYWORD2
+fill	KEYWORD2
+
+noError	KEYWORD2
+
+setNodeNr	KEYWORD2
+write	KEYWORD2
+write	KEYWORD2
+requestReadChar	KEYWORD2
+requestReadInt	KEYWORD2
+getLastReadChar	KEYWORD2
+int	KEYWORD2
+execute	KEYWORD2
+
+setControlSpeed	KEYWORD2
+setBacklashControlSpeed
+setFrictionCompensation	KEYWORD2
+disableBacklashControl	KEYWORD2
+isInitComplete	KEYWORD2
+isCommunicationOk	KEYWORD2
+setReference	KEYWORD2
+setOpenLoopControlSignal	KEYWORD2
+getPosition	KEYWORD2
+getVelocity	KEYWORD2
+getControlSignal	KEYWORD2
+getFeedforwardU	KEYWORD2
+getCurrent	KEYWORD2
+getPwmControlSignal	KEYWORD2
+getControlError	KEYWORD2
+getCpuLoad	KEYWORD2
+getLoopTime	KEYWORD2
+getBacklashCompensation	KEYWORD2
+OpticalEncoderChannelData getOpticalEncoderChannelData	KEYWORD2
+getScaling	KEYWORD2
+getOffset	KEYWORD2
+run	KEYWORD2
+
+getDt	KEYWORD2
+init	KEYWORD2
+run	KEYWORD2
+getPosition	KEYWORD2
+
+setStart	KEYWORD2
+addLinearMove	KEYWORD2
+addSmoothMove	KEYWORD2
+addWait	KEYWORD2
+get	KEYWORD2
+clear	KEYWORD2
+reset	KEYWORD2
+step	KEYWORD2
+
+set	KEYWORD2
