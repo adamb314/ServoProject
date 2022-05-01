@@ -119,11 +119,38 @@ Holds all python modules for the project.
 Communication bus setup for demo projects
 -----------------------------------------
 
+#### ONLY CONNECT THE SERVO TO 3.3V LOGIC!!!!
+
 ![Robot](Doc/readmeResources/UartBusPlain.svg)
 
 PLEASE NOTE! The bus controller needs to have a low latency to get fast communication with the servos. Most standard USB to Serial converters buffer the data and only transfers every 10 ms or so. This becomes a problem since the communication protocol will wait for the response from each servo before moving on to the next, adding huge delays.
 
 To get the best communication speed it is recommended to use an "Adafruit ItsyBitsy M0 Express" (or similar ARM based Arduino) as the USB to Serial converter. Just program the Arduino with the `usbToSerial.h` configuration in the ArduinoSketch to get started. In `usbToSerial.h` you can also configure any regular servos you want to control together with the ServoProject modified ones.
+
+How to switch to PWM interface version
+--------------------------------------
+
+#### ONLY CONNECT THE SERVO TO 3.3V LOGIC!!!!
+
+Using the PWM interface is not recommended due to low resolution and high noise, but it is possible by modifying the configuration file. To enable PWM control replace the `getCommunicationHandler()` function with the version below.
+
+```
+    static std::unique_ptr<Communication> getCommunicationHandler()
+    {
+        Serial.begin(115200);
+        auto com = std::make_unique<Communication>(SerialComOptimizer(&Serial));
+        uint8_t pwmPin = 0; // Rx pin, ONLY CONNECT TO 3.3V LOGIC!!!!
+        uint8_t controlSpeed = 14;
+        uint8_t backlashControlSpeed = 2;
+        float scale = 2.0f; // 2 units per us (4096 units == 360 deg)
+        float offset = 1024.0f; // move to 1024 units (90 deg) for 1500 us pwm signal
+        com->addCommunicationNode(
+                std::make_unique<DCServoCommunicationHandlerWithPwmInterface>(1,
+                    createDCServo<SetupConfigHolder>(controlSpeed, backlashControlSpeed),
+                    pwmPin, scale, offset));
+        return com;
+    }
+```
 
 License
 -------

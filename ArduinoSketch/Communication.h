@@ -20,6 +20,7 @@ public:
     virtual void onErrorEvent(){};
     virtual void onComCycleEvent(){};
     virtual void onComIdleEvent(){};
+    virtual void comIdleRun(){};
 
 protected:
     std::array<int, 16> intArray{{0}};
@@ -48,6 +49,7 @@ private:
     void onErrorEvent();
     void onComCycleEvent();
     void onComIdleEvent();
+    void comIdleRun();
 
     SerialComOptimizer serial;
     std::array<int, 16> intArrayBuffer;

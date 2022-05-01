@@ -169,7 +169,7 @@ class DCServo
     void setControlSpeed(uint8_t controlSpeed);
     void setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed);
 
-    void setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize);
+    void setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain = 0, uint8_t backlashSize = 0);
 
     void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 

@@ -45,7 +45,7 @@ class DCServoCommunicationHandler : public CommunicationNode
 public:
     DCServoCommunicationHandler(unsigned char nodeNr, std::unique_ptr<DCServo> dcServo);
 
-    ~DCServoCommunicationHandler();
+    virtual ~DCServoCommunicationHandler();
 
     virtual void onReadyToSendEvent() override;
 
@@ -65,6 +65,48 @@ protected:
     ContinuousValueUpCaster<long int, short int> intArrayIndex0Upscaler;
 
     static constexpr int positionUpscaling = 32;
+};
+
+class DCServoCommunicationHandlerWithPwmInterface : public DCServoCommunicationHandler
+{
+public:
+    DCServoCommunicationHandlerWithPwmInterface(unsigned char nodeNr, std::unique_ptr<DCServo> dcServo, unsigned char pwmPin = 0,
+            float scale = 2.0f, float offset = 1024.0f);
+
+    virtual ~DCServoCommunicationHandlerWithPwmInterface()
+    {
+    }
+
+    void onComIdleEvent() override
+    {
+    }
+
+    virtual void comIdleRun() override;
+
+protected:
+    void config_tcc();
+
+    /* Sense: 
+     * None, Rise, Fall, Both, High, Low
+     * 0x0   0x1   0x2   0x3   0x4   0x5
+     */
+    void config_eic_channel(int ch, int sense, bool filt);
+
+    void config_eic();
+
+    void config_evsys();
+
+    void gpio_in(int port, int pin);
+
+    void gpio_pmuxen(int port, int pin, int mux);
+
+    void config_gpio();
+
+    unsigned char pwmPin;
+    float scale;
+    float offset;
+    uint8_t state{0};
+    uint32_t lastPulseTime{0};
 };
 
 class ServoCommunicationHandler : public CommunicationNode

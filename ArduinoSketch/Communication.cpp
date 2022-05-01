@@ -41,6 +41,14 @@ void Communication::onComIdleEvent()
     }
 }
 
+void Communication::comIdleRun()
+{
+    for (size_t i = 0; i != nodes.size(); ++i)
+    {
+        nodes[i]->comIdleRun();
+    }
+}
+
 void Communication::run()
 {
     bool receiveCompleate = false;
@@ -276,6 +284,11 @@ void Communication::run()
             lastMessageNodeNr = 0;
 
             onComIdleEvent();
+        }
+
+        if (lastMessageNodeNr == 0)
+        {
+            comIdleRun();
         }
     }
 
