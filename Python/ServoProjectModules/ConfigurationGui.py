@@ -609,11 +609,12 @@ class GuiWindow(Gtk.Window):
             configFileAsString = configFile.read()
 
             tempConfigFileAsString = configFileAsString
-            dcServoPattern = re.compile(r'make_unique\s*<\s*DCServoCommunicationHandler\s*>\s*\(([0-9]*)\s*,\s*createDCServo\s*<\s*(\w+)\s*>')
+            dcServoPattern = re.compile(
+                r'\n[^/]*make_unique\s*<\s*DCServoCommunicationHandler\w*\s*>\s*\((?P<nodeNr>[0-9]*)\s*,\s*createDCServo\s*<\s*(?P<configClassName>\w+)\s*>')
             temp = dcServoPattern.search(tempConfigFileAsString)
             while temp != None:
-                nodeNrList.append(temp.group(1))
-                configClassNames.append(temp.group(2))
+                nodeNrList.append(temp.group('nodeNr'))
+                configClassNames.append(temp.group('configClassName'))
                 tempConfigFileAsString = tempConfigFileAsString[temp.end(1):]
                 temp = dcServoPattern.search(tempConfigFileAsString)
 

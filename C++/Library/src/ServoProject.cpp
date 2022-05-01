@@ -375,7 +375,7 @@ void DCServoCommunicator::updateOffset()
     float pos = getPosition() / scale;
     startPosition /= scale;
 
-    long int wrapSize = (1 << 24) / positionUpscaling;
+    long int wrapSize = (1l << 24) / positionUpscaling;
 
     if (pos - startPosition > wrapSize / 2)
     {
@@ -666,14 +666,14 @@ void DCServoCommunicator::run()
     {
         long int upscaledPos = static_cast<unsigned short int>(intReadBuffer[3]);
         upscaledPos += (static_cast<long int>(charReadBuffer[9]) << 16);
-        if (upscaledPos >= (1 << 23))
+        if (upscaledPos >= (1l << 23))
         {
-            upscaledPos -= (1 << 24);
+            upscaledPos -= (1l << 24);
         }
 
         long int encPosWithBacklashComp = intReadBuffer[10] + static_cast<long int>(intReadBuffer[11]);
 
-        long int overflowedPart = ((upscaledPos - encPosWithBacklashComp) / (1 << 16)) << 16;
+        long int overflowedPart = ((upscaledPos - encPosWithBacklashComp) / (1l << 16)) << 16;
 
         intReadBufferIndex3Upscaling.set(upscaledPos);
         intReadBufferIndex10Upscaling.set(intReadBuffer[10]);

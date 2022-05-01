@@ -92,7 +92,7 @@ public:
 };
 
 template<typename T>
-std::unique_ptr<DCServo> createDCServo()
+std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlashControlSpeed = 0)
 {
     auto currentController = T::createCurrentController();
     auto mainEncoder = T::createMainEncoderHandler();
@@ -101,12 +101,20 @@ std::unique_ptr<DCServo> createDCServo()
     bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012f;
     auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>(kalmanFilterApproximation);
 
-    return std::make_unique<DCServo>(
+    auto dcServo = std::make_unique<DCServo>(
             std::move(currentController),
             std::move(mainEncoder),
             std::move(outputEncoder),
             std::move(kalmanFilter),
             std::move(controlConfig));
+
+    if (controlSpeed != 0)
+    {
+        dcServo->setControlSpeed(controlSpeed);
+        dcServo->setBacklashControlSpeed(backlashControlSpeed);
+    }
+
+    return dcServo;
 }
 
 #endif

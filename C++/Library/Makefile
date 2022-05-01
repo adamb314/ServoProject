@@ -60,4 +60,4 @@ $(DependDir)%.d: $(SourceDir)%.c
 
 .PHONY : clean
 clean:
-	$(RM) $(DLibrary) $(wildcard $(ObjectDir)*.o) $(wildcard $(DependDir)*.d) 
+	$(RM) $(DLibrary) $(ObjectDir)* $(DependDir)*

@@ -63,4 +63,4 @@ $(DependDir)%.d: $(SourceDir)%.c
 
 .PHONY : clean
 clean:
-	$(RM) $(DExecutable) $(wildcard $(ObjectDir)*.o) $(wildcard $(DependDir)*.d) 
+	$(RM) $(DExecutable) $(ObjectDir)* $(DependDir)*
