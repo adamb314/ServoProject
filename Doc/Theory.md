@@ -1,6 +1,8 @@
 Theory
 ------
 
+### PID vs Cascade control
+
 The control system of a regular hobby servo looks something like this:
 
 ![loop1](readmeResources/ControlLoop1.png)
