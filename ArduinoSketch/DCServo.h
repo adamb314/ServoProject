@@ -11,6 +11,20 @@
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
+template <typename T, int maxN>
+class SampleAveragingHandler
+{
+public:
+    void add(T v);
+    T get();
+
+private:
+    bool valueRead{false};
+    T sum{};
+    T halfSampleSum{};
+    int n{0};
+};
+
 class ReferenceInterpolator
 {
  public:
@@ -243,6 +257,8 @@ class DCServo
     int16_t current{0};
     int16_t pwmControlSIgnal{0};
     float controlSignal{0.0f};
+    SampleAveragingHandler<int32_t, 32> currentAveraging;
+    SampleAveragingHandler<int32_t, 32> controlSignalAveraging;
 
     ReferenceInterpolator refInterpolator;
 
@@ -262,5 +278,48 @@ class DCServo
 
     std::vector<Thread*> threads;
 };
+
+template <typename T, int maxN>
+void SampleAveragingHandler<T, maxN>::add(T v)
+{
+    ThreadInterruptBlocker blocker;
+
+    if (valueRead)
+    {
+        valueRead = false;
+        n = 0;
+        sum = 0;
+        halfSampleSum = 0;
+    }
+
+    if (n >= maxN)
+    {
+        sum = halfSampleSum;
+        halfSampleSum = 0;
+        n = maxN / 2;
+    }
+
+    if (n >= maxN / 2)
+    {
+        halfSampleSum += v;
+    }
+
+    ++n;
+    sum += v;
+}
+
+template <typename T, int maxN>
+T SampleAveragingHandler<T, maxN>::get()
+{
+    T tempSum;
+    int tempN;
+    {
+        ThreadInterruptBlocker blocker;
+        tempSum = sum;
+        tempN = n;
+        valueRead = true;
+    }
+    return tempSum / tempN;
+}
 
 #endif

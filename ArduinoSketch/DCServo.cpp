@@ -148,19 +148,13 @@ int16_t DCServo::getVelocity()
 }
 
 int16_t DCServo::getControlSignal()
-{
-    ThreadInterruptBlocker blocker;
-    if (controlEnabled)
-    {
-        return controlSignal;
-    }
-    return 0;
+{    
+    return controlSignalAveraging.get();
 }
 
 int16_t DCServo::getCurrent()
 {
-    ThreadInterruptBlocker blocker;
-    return current;
+    return currentAveraging.get();
 }
 
 int16_t DCServo::getPwmControlSignal()
@@ -337,6 +331,9 @@ void DCServo::controlLoop()
         current = currentController->getCurrent();
         pwmControlSIgnal = currentController->getFilteredPwm();
     }
+
+    controlSignalAveraging.add(controlSignal);
+    currentAveraging.add(current);
 
     int32_t newLoopTime = ThreadHandler::getInstance()->getTimingError();
     if (newLoopTime > loopTime)
