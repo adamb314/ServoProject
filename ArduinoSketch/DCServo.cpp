@@ -197,11 +197,13 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 
 void DCServo::controlLoop()
 {
+#ifndef SIMULATE
     mainEncoderHandler->triggerSample();
     if (outputEncoderHandler)
     {
         outputEncoderHandler->triggerSample();
     }
+#endif
 
     float posRef;
     float velRef;
@@ -230,7 +232,7 @@ void DCServo::controlLoop()
     }
 #ifdef SIMULATE
     xSim = controlConfig->getA() * xSim + controlConfig->getB() * controlSignal;
-    rawMainPos =xSim[0];
+    rawMainPos = xSim[0];
     rawOutputPos = rawMainPos;
 #else
     rawMainPos = mainEncoderHandler->getValue();
@@ -283,8 +285,10 @@ void DCServo::controlLoop()
 
             controlSignal = u;
 
+#ifndef SIMULATE
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             u = controlConfig->applyForceCompensations(u, rawEncPos, vControlRef, x[1]);
+#endif
             pwm = u;
 
             currentController->updateVelocity(x[1]);
