@@ -43,10 +43,51 @@ class CommunicationError(Exception):
 
 def removeIntWraparound(newVal, oldVal, bitLenght):
     diff = (newVal - oldVal) % (2**bitLenght)
-    if diff > (2**bitLenght / 2):
+    if diff > (2**(bitLenght -1)):
         diff -= (2**bitLenght)
     newVal = oldVal + diff
     return newVal
+
+def unsignedToSignedInt(v):
+    out = v
+    if out >= (2**15):
+        out -= 2**16
+    return out
+
+def toUnsignedInt16(v):
+    return int(v) % (2**16)
+
+def unsignedToSignedChar(v):
+    out = v
+    if out >= (2**7):
+        out -= 2**8
+    return out
+
+def toUnsignedChar(v):
+    return int(v) % (2**8)
+
+class SimulatedSerialPort(object):
+    def __init__(self):
+        self.outStream = bytearray(b'')
+        self.inStream = bytearray(b'')
+
+    def write(self, b: bytes) -> int:
+        self.outStream += bytearray(b)
+        return len(b)
+
+    def read(self, size: int=1) -> bytes:
+        out = self.inStream[0:size]
+        self.inStream = self.inStream[size:]
+        return bytes(out)
+
+    def externalWrite(self, b: bytes) -> int:
+        self.inStream += bytearray(b)
+        return len(b)
+
+    def externalRead(self, size: int=1) -> bytes:
+        out = self.outStream[0:size]
+        self.outStream = self.outStream[size:]
+        return bytes(out)
 
 class SerialCommunication(object):
     def __init__(self, devName):
@@ -67,13 +108,13 @@ class SerialCommunication(object):
 
     def writeChar(self, nr, value):
         self.commandArray.append(int(nr))
-        self.commandArray.append(int(value))
+        self.commandArray.append(toUnsignedChar(value))
 
     def writeInt(self, nr, value):
-        int16Value = int(value) % (256 * 256)
+        int16Value = toUnsignedInt16(value)
         self.commandArray.append(int(nr) + 64)
-        self.commandArray.append(int(int16Value % 256))
-        self.commandArray.append(int(int16Value / 256))
+        self.commandArray.append(toUnsignedChar(int16Value))
+        self.commandArray.append(toUnsignedChar(int16Value // 2**8))
 
     def requestReadChar(self, nr):
         self.commandArray.append(int(nr) + 128)
@@ -85,17 +126,17 @@ class SerialCommunication(object):
 
     def getLastReadChar(self, nr):
         out = self.charArray[int(nr)]
-        if out >= (256 / 2):
-            out -= 256
-        return out
+        return toUnsignedChar(out)
 
     def getLastReadInt(self, nr):
         out = self.intArray[int(nr)]
-        if out >= (256 * 256 / 2):
-            out -= 256 * 256
-        return out
+        return unsignedToSignedInt(out)
 
     def execute(self):
+        self._executeSend()
+        self._executeReceive()
+
+    def _executeSend(self):
         checksum = 0
         messageLenght = 0
 
@@ -124,7 +165,7 @@ class SerialCommunication(object):
 
         self.sendBuffer = []
         self.sendBuffer.append(int(self.nodeNr))
-        self.sendBuffer.append(int((checksum) % 256))
+        self.sendBuffer.append(toUnsignedChar(checksum))
         self.sendBuffer.append(int(messageLenght))
         for d in self.commandArray:
             self.sendBuffer.append(int(d))
@@ -135,6 +176,7 @@ class SerialCommunication(object):
 
         self.commandArray = []
 
+    def _executeReceive(self):
         receiveArrayCopy = self.receiveArray[:]
         self.receiveArray = []
 
@@ -162,7 +204,7 @@ class SerialCommunication(object):
                         self.port.read()
                         raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2)
                     c = readBytes[0]
-                    value += int(c) * 256;
+                    value += int(c) * 2**8;
                     self.intArray[d - 64] = value;
                 else:
                     readBytes = self.port.read()
@@ -188,16 +230,61 @@ class SerialCommunication(object):
         if c != 0xff:
             raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.CHECKSUM_ERROR)
 
+class ComDelayInt:
+    def __init__(self, delay: int, initValue: int = 0):
+        self.delayArray = [0] * delay
+        self.comDir = 0
+        self.reset(initValue)
+
+    def reset(self, value: int):
+        for i, d in enumerate(self.delayArray):
+            self.delayArray[i] = value
+
+    def getLeft(self) -> int:
+        return self.delayArray[0]
+
+    def setLeft(self, v: int):
+        self.comDir = 1
+        self.delayArray[0] = v
+
+    def getRight(self) -> int:
+        return self.delayArray[-1]
+
+    def setRight(self, v: int):
+        self.comDir = -1
+        self.delayArray[-1] = v
+
+    def execute(self):
+        d = self.delayArray
+        if self.comDir == 1:
+            for i in range(len(d) - 2, -1, -1):
+                d[i + 1] = d[i]
+        elif self.comDir == -1:
+            for i in range(0, len(d) - 1):
+                d[i] = d[i + 1]
+
 class SimulateCommunication(SerialCommunication):
     class ServoSim(object):
-        def __init__(self):
-            self.pos = 1257.5
+        def __init__(self, nodeNr):
+            self.nodeNr = nodeNr
+            self.pos = 101257.5
+            print(f'{self.pos = }')
             self.vel = 0
             self.charArray = [0] * 16
             self.intArray = [0] * 16
-            self.intArray[0] = int(self.pos * 32)
-            self.intArray[3] = self.intArray[0]
+            self.charArrayChanged = [False] * 16
+            self.intArrayChanged = [False] * 16
+
+            upscaledPos = int(round(self.pos * 32))
+            self.comDelayedPos = ComDelayInt(delay=2, initValue=upscaledPos)
+            self.comDelayedVel = ComDelayInt(delay=2, initValue=self.intArray[4])
+            self.comDelayedForce = ComDelayInt(delay=2, initValue=self.intArray[5])
+
+            self.intArray[3] = toUnsignedInt16(self.comDelayedPos.getLeft())
             self.intArray[10] = self.intArray[3]
+            self.charArray[9] = toUnsignedChar(self.comDelayedPos.getLeft() // 2**16)
+
+            self.intArray[0] = self.intArray[3]
             self.timestamp = None
 
         def run(self):
@@ -207,19 +294,19 @@ class SimulateCommunication(SerialCommunication):
                 dt = newTimestamp - self.timestamp
             self.timestamp = newTimestamp
 
-            force = self.intArray[2]
+            force = unsignedToSignedInt(self.intArray[2])
 
             if self.charArray[1] == True and dt > 0.0:
-                subStep = 10
+                subStep = 1000
                 for i in range(0, subStep):
                     velInRad = self.vel / 2048 * math.pi
 
-                    damp = 5
+                    damp = 50
                     backEmf = 0.3
                     maxFriction = 40
                     b = 0.1
 
-                    f = force - backEmf * velInRad * abs(force);
+                    f = force - backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023));
                     friction = f - damp * velInRad + velInRad / (dt / subStep * b)
                     if friction > maxFriction:
                         friction = maxFriction
@@ -240,73 +327,164 @@ class SimulateCommunication(SerialCommunication):
                 oldPosRef = self.pos * 32
 
                 self.pos = removeIntWraparound(newPosRef, oldPosRef, bitLenght=16) / 32
-                self.vel = self.intArray[1]
+                self.vel = unsignedToSignedInt(self.intArray[1])
+
+            self.comDelayedPos.execute()
+            self.comDelayedVel.execute()
+            self.comDelayedForce.execute()
+
+            self.comDelayedPos.setRight(int(round(self.pos * 32)))
+            self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel)))
+            self.comDelayedForce.setRight(toUnsignedInt16(round(force)))
+
+            self.charArray[9] = toUnsignedChar(self.comDelayedPos.getLeft() // 2**16)
 
             if self.charArray[6] == 0:
                 backlashSize = int(5 * 32 + random.random() * 10)
 
-                self.intArray[10] = int(round(self.pos * 32))
+                self.intArray[10] = toUnsignedInt16(self.comDelayedPos.getLeft())
                 if self.intArray[3] < self.intArray[10] - backlashSize:
                     self.intArray[3] = self.intArray[10] - backlashSize
                 elif self.intArray[3] > self.intArray[10] + backlashSize:
                     self.intArray[3] = self.intArray[10] + backlashSize
             else:
-                self.intArray[3] = int(round(self.pos * 32))
+                self.intArray[3] = toUnsignedInt16(self.comDelayedPos.getLeft())
                 self.intArray[10] = self.intArray[3]
 
-            self.intArray[4] = int(self.vel)
-            self.intArray[5] = int(force)
+            self.intArray[4] = self.comDelayedVel.getLeft()
+            self.intArray[5] = self.comDelayedForce.getLeft()
+            self.intArray[7] = self.intArray[5]
+
+        def handleCommunication(self, port: SimulatedSerialPort):
+            messageNodeNr = port.externalRead()[0];
+
+            if self.nodeNr != messageNodeNr:
+                raise Exception('nodeNr error in simulation')
+
+            intArrayBuffer = self.intArray[:]
+            charArrayBuffer = self.charArray[:]
+            intArrayChangedBuffer = self.intArrayChanged[:]
+            charArrayChangedBuffer = self.charArrayChanged[:]
+
+            sendCommandBuffer = []
+
+            receiveCompleate = False
+            communicationError = False
+
+            checksum = port.externalRead()[0]
+            checksum += self.nodeNr
+
+            messageLength = port.externalRead()[0]
+
+            checksum += messageLength
+
+            while messageLength != 0:
+                command = port.externalRead()[0]
+                messageLength -= 1
+
+                checksum += command
+
+                if (command >> 7) == 1:
+                    sendCommandBuffer.append(command - 128)
+
+                    if messageLength == 0:
+                        receiveCompleate = True
+                        break
+
+                elif (command >> 6) == 1:
+                    if messageLength == 1:
+                        port.externalRead()
+                        communicationError = True
+
+                    if command >= 64 and command < 64 + len(intArrayBuffer):
+                        byteValue = port.externalRead()[0]
+                        value = byteValue
+                        checksum += byteValue
+
+                        byteValue = port.externalRead()[0]
+                        value += byteValue * 2**8
+                        checksum += byteValue
+
+                        intArrayBuffer[command - 64] = value
+
+                        intArrayChangedBuffer[command - 64] = True
+                    else:
+                        port.externalRead()
+                        port.externalRead()
+                        communicationError = True
+
+                    messageLength -= 2
+
+                    if messageLength == 0:
+                        receiveCompleate = True
+                        break
+                else:
+                    if command < len(charArrayBuffer):
+                        byteValue = port.externalRead()[0]
+
+                        charArrayBuffer[command] = byteValue
+                        checksum += byteValue
+
+                        charArrayChangedBuffer[command] = True
+                    else:
+                        port.externalRead()
+                        communicationError = True
+
+                    messageLength -= 1
+
+                    if messageLength == 0:
+                        receiveCompleate = True
+                        break
+                
+                if messageLength == 0:
+                    communicationError = True
+
+            for sendCommand in sendCommandBuffer:
+                if (sendCommand >> 6) == 1:
+                    value = 0
+                    if sendCommand >= 64 and sendCommand < 64 + len(self.intArray):
+                        value = self.intArray[sendCommand - 64]
+
+                    port.externalWrite(sendCommand.to_bytes(1, 'little'))
+                    port.externalWrite(value.to_bytes(2, 'little'))
+                else:
+                    value = 0
+                    if sendCommand < len(self.charArray):
+                        value = self.charArray[sendCommand]
+
+                    port.externalWrite(sendCommand.to_bytes(1, 'little'))
+                    port.externalWrite(value.to_bytes(1, 'little'))
+
+            checksum = toUnsignedChar(checksum)
+
+            if checksum == 0 and not communicationError:
+                port.externalWrite(int(255).to_bytes(1, 'little'))
+            else:
+                port.externalWrite(int(0).to_bytes(1, 'little'))
+
+            if receiveCompleate and checksum == 0:
+                self.intArray = intArrayBuffer
+                self.charArray = charArrayBuffer
+                self.intArrayChanged = intArrayChangedBuffer
+                self.charArrayChanged = charArrayChangedBuffer
+
 
     def __init__(self):
         super(SimulateCommunication, self).__init__('')
+        self.port = SimulatedSerialPort()
         self.servoSims = []
 
     def execute(self):
         while len(self.servoSims) < self.nodeNr:
-            self.servoSims.append(self.ServoSim())
+            self.servoSims.append(self.ServoSim(self.nodeNr))
         servo = self.servoSims[self.nodeNr - 1]
         servo.run()
 
-        i = 0
-        while i < len(self.commandArray):
-            if self.commandArray[i] >= 128:
-                #read request, do nothing in sim
-                pass
+        self._executeSend()
 
-            elif self.commandArray[i] >= 64:
-                intNr = self.commandArray[i] - 64
-                i+= 1
-                value = self.commandArray[i] % 256
-                i+= 1
-                value += (self.commandArray[i] % 256) * 256
-                if value >= (256 * 256 / 2):
-                    value -= 256 * 256
-                servo.intArray[intNr] = value
-            else:
-                charNr = self.commandArray[i]
-                i+= 1
-                value = self.commandArray[i] % 256
-                if value >= (256 / 2):
-                    value -= 256
-                servo.charArray[charNr] = value
+        servo.handleCommunication(self.port)
 
-            i+= 1
-
-        self.commandArray = []
-
-        receiveArrayCopy = self.receiveArray[:]
-        self.receiveArray = []
-
-        i = 0
-        while i < len(receiveArrayCopy):
-            if receiveArrayCopy[i] >= 64:
-                value = servo.intArray[receiveArrayCopy[i] - 64]
-                self.intArray[receiveArrayCopy[i] - 64] = value
-            else:
-                value = servo.charArray[receiveArrayCopy[i]] % 256
-                self.charArray[receiveArrayCopy[i]] = value
-
-            i += 1
+        self._executeReceive()
 
 class ContinuousValueUpCaster(object):
     def __init__(self, inbutBitLenght):
@@ -370,10 +548,10 @@ class DCServoCommunicator(object):
         self.opticalEncoderChannelData = self.OpticalEncoderChannelData()
 
         self.refPos = 0
-        self.activeRefPos = [0] * 5
+        self.comDelayRefPos = ComDelayInt(delay=3, initValue=0)
         self.refVel = 0
         self.feedforwardU = 0
-        self.activeFeedforwardU = [0] * 5
+        self.comDelayFeedforwardU = ComDelayInt(delay=3, initValue=0)
         self.frictionCompensation = 0.0
 
         self.offset = 0.0
@@ -455,7 +633,7 @@ class DCServoCommunicator(object):
         return self.controlSignal
 
     def getFeedforwardU(self):
-        return self.activeFeedforwardU[2]
+        return self.comDelayFeedforwardU.getRight()
 
     def getCurrent(self):
         self.activeIntReads[6] = True
@@ -479,7 +657,7 @@ class DCServoCommunicator(object):
             self.activeIntReads[10] = True
             pos = self.encoderPos
 
-        return self.scale * (self.activeRefPos[2] * (1.0 / self.positionUpscaling) - pos);
+        return self.scale * (self.comDelayRefPos.getRight() * (1.0 / self.positionUpscaling) - pos);
 
     def getCpuLoad(self):
         self.activeIntReads[8] = True
@@ -519,15 +697,12 @@ class DCServoCommunicator(object):
 
         if self.isInitComplete():
             if self.newPositionReference:
-                self.bus.writeInt(0, self.refPos % 2**16)
+                self.bus.writeInt(0, toUnsignedInt16(self.refPos))
                 self.bus.writeInt(1, self.refVel)
                 self.bus.writeInt(2, self.feedforwardU)
 
-                self.activeRefPos[4] = self.activeRefPos[3]
-                self.activeRefPos[3] = self.activeRefPos[2]
-                self.activeRefPos[2] = self.activeRefPos[1]
-                self.activeRefPos[1] = self.activeRefPos[0]
-                self.activeRefPos[0] = self.refPos
+                self.comDelayRefPos.execute()
+                self.comDelayRefPos.setLeft(self.refPos)
 
                 self.newPositionReference = False
             elif self.newOpenLoopControlSignal:
@@ -536,11 +711,8 @@ class DCServoCommunicator(object):
 
                 self.newOpenLoopControlSignal = False
 
-            self.activeFeedforwardU[4] = self.activeFeedforwardU[3]
-            self.activeFeedforwardU[3] = self.activeFeedforwardU[2]
-            self.activeFeedforwardU[2] = self.activeFeedforwardU[1]
-            self.activeFeedforwardU[1] = self.activeFeedforwardU[0]
-            self.activeFeedforwardU[0] = self.feedforwardU;
+            self.comDelayFeedforwardU.execute()
+            self.comDelayFeedforwardU.setLeft(self.feedforwardU)
         else:
             self.bus.writeChar(2, self.backlashControlDisabled)
 
@@ -570,12 +742,12 @@ class DCServoCommunicator(object):
             self.intReadBufferIndex10Upscaling.update(self.intReadBuffer[10])
             self.intReadBufferIndex11Upscaling.update(self.intReadBuffer[11])
         else:
-            upscaledPos = (self.intReadBuffer[3] % (256 * 256)) + (self.charReadBuffer[9] % 256) * 256 * 256
-            if upscaledPos >= 256**3 / 2:
-                upscaledPos -= 256**3
+            upscaledPos = toUnsignedInt16(self.intReadBuffer[3]) + toUnsignedChar(self.charReadBuffer[9]) * 2**16
+            if upscaledPos >= 2**23:
+                upscaledPos -= 2**24
 
             encPosWithBacklashComp = self.intReadBuffer[10] + self.intReadBuffer[11]
-            overflowedPart = int((upscaledPos - encPosWithBacklashComp) / (256 * 256)) * (256 * 256)
+            overflowedPart = ((upscaledPos - encPosWithBacklashComp) // 2**16) * 2**16
 
             self.intReadBufferIndex3Upscaling.set(upscaledPos)
             self.intReadBufferIndex10Upscaling.set(self.intReadBuffer[10])
@@ -605,11 +777,7 @@ class DCServoCommunicator(object):
             else:
                 pos = self.encoderPos
 
-            self.activeRefPos[0] = pos * self.positionUpscaling
-            self.activeRefPos[1] = self.activeRefPos[0]
-            self.activeRefPos[2] = self.activeRefPos[1]
-            self.activeRefPos[3] = self.activeRefPos[2]
-            self.activeRefPos[4] = self.activeRefPos[3]
+            self.comDelayRefPos.reset(pos * self.positionUpscaling)
 
             if self.isInitComplete():
                 self.updateOffset()
@@ -618,7 +786,7 @@ class DCServoCommunicator(object):
         pos = self.getPosition() / self.scale
         self.startPosition /= self.scale
 
-        wrapSize = 256**3 / self.positionUpscaling
+        wrapSize = 2**24 / self.positionUpscaling
 
         if pos - self.startPosition > wrapSize / 2:
             self.offset -= wrapSize * self.scale
