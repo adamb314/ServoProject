@@ -470,27 +470,25 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
     }
 
     float t = midPointTimeOffset * invertedLoadInterval;
+    t = std::min(t, 1.2f);
+    t = std::max(t, -1.0f);
 
-    if (t < -1.0f)
-    {
-        t = -1.0f;
-    }
-    else if (t > 1.2f)
-    {
-        t = 1.2f;
-    }
 
     if (t < 0.0f)
     {
         t += 1.0f;
-        feedForward = feed[0] + t * (feed[1] - feed[0]);
+
+        float s = midPointTimeOffset * invertedGetInterval + 1.0f;
+        s = std::max(s, 0.0f);
+
+        feedForward = feed[0] * (1.0f - s) + feed[1] * s;
         float velDiff = vel[1] - vel[0];
         velocity = vel[0] + t * velDiff;
         position = pos[0] + t * (pos[1] - pos[0] + dtDiv2 * (t * velDiff - velDiff));
     }
     else
     {
-        feedForward = feed[1] + t * (feed[2] - feed[1]);
+        feedForward = feed[1];
         float velDiff = vel[2] - vel[1];
         velocity = vel[1] + t * velDiff;
         position = pos[1] + t * (pos[2] - pos[1] + dtDiv2 * (t * velDiff - velDiff));
@@ -502,6 +500,7 @@ void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
     resetTiming();
 
     getTimeInterval = interval;
+    invertedGetInterval = 1.0f / getTimeInterval;
 }
 
 void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)

@@ -54,9 +54,10 @@ class ReferenceInterpolator
     bool timingInvalid{true};
     bool refInvalid{true};
     uint16_t loadTimeInterval{12000};
-    float invertedLoadInterval{1.0f / 12000};
-    float dtDiv2{12000 * 0.000001f * 0.5f};
+    float invertedLoadInterval{1.0f / loadTimeInterval};
+    float dtDiv2{loadTimeInterval * 0.000001f * 0.5f};
     uint16_t getTimeInterval{1200};
+    float invertedGetInterval{1.0f / getTimeInterval};
 };
 
 class ControlConfigurationInterface
