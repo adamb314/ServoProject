@@ -1,6 +1,11 @@
-from ServoProjectModules.CalibrationAnalyzers.Helper import *
+'''
+Module for calibrating motor cogging torque
+'''
+# pylint: disable=duplicate-code
 
-class CoggingTorqueCalibrationGenerator(object):
+from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
+
+class CoggingTorqueCalibrationGenerator:
     def __init__(self, positions, forces):
         self.positions = np.array(positions)
         self.forces = np.array(forces)
@@ -16,18 +21,22 @@ class CoggingTorqueCalibrationGenerator(object):
 
         self.cogging = np.array([sum(samples) / len(samples) for samples in samplesList])
 
-    _vecPattern = re.compile(r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
+    _vecPattern = re.compile(
+            r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*\
+            <\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
 
+    @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
         temp = CoggingTorqueCalibrationGenerator._vecPattern.search(configClassString)
-        if temp != None:
+        if temp is not None:
             if temp.group('vec') != '0':
                 return True
 
         return False
 
+    @staticmethod
     def resetPreviousCalibration(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
         configClassString = re.sub(CoggingTorqueCalibrationGenerator._vecPattern, r'\g<beg>{0};', configClassString)
@@ -51,10 +60,11 @@ class CoggingTorqueCalibrationGenerator(object):
 
     def writeVectorToConfigFileString(self, configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
-        
+
         temp = CoggingTorqueCalibrationGenerator._vecPattern.search(configClassString)
-        if temp != None:
-            configClassString = re.sub(CoggingTorqueCalibrationGenerator._vecPattern, r'\g<beg>' + intArrayToString(self.cogging), configClassString)
+        if temp is not None:
+            configClassString = re.sub(CoggingTorqueCalibrationGenerator._vecPattern,
+                    r'\g<beg>' + intArrayToString(self.cogging), configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -68,6 +78,7 @@ class CoggingTorqueCalibrationGenerator(object):
         return out
 
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
+    # pylint: disable=too-many-locals, too-many-statements
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
@@ -113,26 +124,26 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         dialog.destroy()
 
         if response == Gtk.ResponseType.YES:
-            time = data[:, 0] - data[0, 0]
+            t = data[:, 0] - data[0, 0]
             fig = plt.figure(1)
             fig.suptitle('Position')
-            plt.plot(time, data[:, 1], 'g')
+            plt.plot(t, data[:, 1], 'g')
 
             fig = plt.figure(2)
             fig.suptitle('Velocity')
-            plt.plot(time, data[:, 2])
+            plt.plot(t, data[:, 2])
 
             fig = plt.figure(3)
             fig.suptitle('Error at output')
-            plt.plot(time, data[:, 3])
+            plt.plot(t, data[:, 3])
 
             fig = plt.figure(4)
             fig.suptitle('Error at motor')
-            plt.plot(time, data[:, 4])
+            plt.plot(t, data[:, 4])
 
             fig = plt.figure(5)
             fig.suptitle('Control signal')
-            plt.plot(time, data[:, 5])
+            plt.plot(t, data[:, 5])
 
             fig = plt.figure(6)
             fig.suptitle('Control signal over motor position')
@@ -140,7 +151,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             plt.show()
 
-        with open(configFilePath, "r") as configFile:
+        with open(configFilePath, "r", encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
 
             coggingTorqueCalibrationGenerator = CoggingTorqueCalibrationGenerator(data[:, 6], data[:, 5])
@@ -161,10 +172,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             dialog.destroy()
 
             if response == Gtk.ResponseType.YES:
-                configFileAsString = coggingTorqueCalibrationGenerator.writeVectorToConfigFileString(configFileAsString, configClassName)
+                configFileAsString = coggingTorqueCalibrationGenerator.writeVectorToConfigFileString(
+                        configFileAsString, configClassName)
 
                 if configFileAsString != '':
-                    with open(configFilePath, "w") as configFile:
+                    with open(configFilePath, "w", encoding='utf-8') as configFile:
                         configFile.write(configFileAsString)
                         GuiFunctions.transferToTargetMessage(parent)
 
@@ -192,6 +204,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     lastRefP = None
 
     def startCalibrationRun(nodeNr, port):
+        # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
         nonlocal posOffset
         nonlocal lastRefP
@@ -216,9 +229,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 maxRecordVel = 0.01
                 maxDist = 0.25
 
-                if posOffset == None:
+                if posOffset is None:
                     posOffset = refP
-                elif lastRefP != None and abs(refP - lastRefP) > 0.1:
+                elif lastRefP is not None and abs(refP - lastRefP) > 0.1:
                     posOffset = refP
 
                 testState = 0
@@ -279,7 +292,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     t += dt
 
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             abortCalibration = True
 
                     if abortCalibration or parent.isClosed or testState == 4:
@@ -296,16 +309,16 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     motorError = servo.getControlError(False)
                     optData = servo.getOpticalEncoderChannelData()
 
-                    if (testState == 1 or testState == 2) and abs(refV) >= maxRecordVel * 0.4:
-                            out.append([time.time(), p, v,
-                                    error,
-                                    motorError,
-                                    u,
-                                    optData.minCostIndex])
+                    if testState in (1, 2) and abs(refV) >= maxRecordVel * 0.4:
+                        out.append([time.time(), p, v,
+                                error,
+                                motorError,
+                                u,
+                                optData.minCostIndex])
 
                     GLib.idle_add(updateProgress, t / ((0.5 * 2 / maxRecordVel + 0.25 * 2 / maxVel) * (math.pi / 2)))
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                 while not doneRunning:
                     if not servoManager.isAlive():
@@ -331,7 +344,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal runThread
 
         if widget.get_label() == 'Start':
-            with open(configFilePath, "r") as configFile:
+            with open(configFilePath, "r", encoding='utf-8') as configFile:
                 configFileAsString = configFile.read()
 
                 if CoggingTorqueCalibrationGenerator.checkForPreviousCalibration(configFileAsString, configClassName):
@@ -343,7 +356,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             text='Motor cogging calibration already done for this configuration!',
                     )
                     dialog.format_secondary_text(
-                        "Motor cogging calibration only works on configurations without previous calibration.\n\nShould the calibration be reset?"
+                        'Motor cogging calibration only works on configurations without previous calibration.\n\n'
+                        'Should the calibration be reset?'
                     )
                     response = dialog.run()
                     dialog.destroy()
@@ -351,8 +365,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     if response == Gtk.ResponseType.NO:
                         return
 
-                    configFileAsString = CoggingTorqueCalibrationGenerator.resetPreviousCalibration(configFileAsString, configClassName)
-                    with open(configFilePath, "w") as configFile:
+                    configFileAsString = CoggingTorqueCalibrationGenerator.resetPreviousCalibration(
+                            configFileAsString, configClassName)
+                    with open(configFilePath, "w", encoding='utf-8') as configFile:
                         configFile.write(configFileAsString)
                         GuiFunctions.transferToTargetMessage(parent)
 

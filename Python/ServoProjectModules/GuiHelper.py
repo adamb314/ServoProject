@@ -1,6 +1,10 @@
+'''
+Module with useful GUI functions
+'''
+
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk
+from gi.repository import GLib, Gtk  # pylint: disable=wrong-import-position
 
 def transferToTargetMessage(parent):
     dialog = Gtk.MessageDialog(
@@ -13,7 +17,7 @@ def transferToTargetMessage(parent):
     dialog.format_secondary_text(
         "Please transfer new configuration to target to apply changes"
     )
-    response = dialog.run()
+    dialog.run()
     dialog.destroy()
     parent.setFocusOnTranferButton()
 
@@ -28,7 +32,7 @@ def disconnectMotorFromGearboxMessage(parent):
     dialog.format_secondary_text(
         "Please make sure the motor can run freely by disconnecting it from the gearbox before continuing"
     )
-    response = dialog.run()
+    dialog.run()
     dialog.destroy()
 
 def startManuallyCalibrationMessage(parent, timeString):
@@ -44,7 +48,7 @@ def startManuallyCalibrationMessage(parent, timeString):
         "back and forth for " + timeString + " over the whole range of motion, "
         "with constant speed."
     )
-    response = dialog.run()
+    dialog.run()
     dialog.destroy()
 
 def exceptionMessage(parent, e):
@@ -57,7 +61,7 @@ def exceptionMessage(parent, e):
                 text='Exception',
         )
         dialog.format_secondary_text(f'{e!r}')
-        response = dialog.run()
+        dialog.run()
         dialog.destroy()
     GLib.idle_add(showErrorFunc, parent, e)
 
@@ -65,7 +69,7 @@ def nullFunEvent(widget):
     pass
 
 def passOnScroll(widget, event):
-        widget.stop_emission_by_name('scroll-event')
+    widget.stop_emission_by_name('scroll-event')
 
 def createLabel(text):
     label = Gtk.Label(label=text)
@@ -96,7 +100,11 @@ def addTopLabelTo(text, widget):
 
     return box
 
-def creatComboBox(currentItem, itemList, onChangeFun = nullFunEvent, getLowLev = False):
+def getActiveComboBoxItem(comboBox):
+    items = comboBox.get_model()
+    return items[comboBox.get_active()][0]
+
+def setComboBoxItems(comboBox, currentItem, itemList):
     activeIndex = -1
     items = Gtk.ListStore(str)
     for i, name in enumerate(itemList):
@@ -107,15 +115,21 @@ def creatComboBox(currentItem, itemList, onChangeFun = nullFunEvent, getLowLev =
         if currentItem == name:
             activeIndex = i
 
-    comboBox = Gtk.ComboBox.new_with_model(items)
+    comboBox.set_model(items)
+    comboBox.set_active(activeIndex)
+
+def creatComboBox(currentItem, itemList, onChangeFun = nullFunEvent, getLowLev = False):
+    comboBox = Gtk.ComboBox.new_with_model(Gtk.ListStore(str))
     comboBox.set_margin_start(40)
     comboBox.set_margin_end(10)
     comboBox.set_margin_top(10)
     comboBox.set_margin_bottom(8)
-    renderer_text = Gtk.CellRendererText()
-    comboBox.pack_start(renderer_text, True)
-    comboBox.add_attribute(renderer_text, "text", 0)
-    comboBox.set_active(activeIndex)
+    rendererText = Gtk.CellRendererText()
+    comboBox.pack_start(rendererText, True)
+    comboBox.add_attribute(rendererText, "text", 0)
+
+    setComboBoxItems(comboBox, currentItem, itemList)
+
     comboBox.connect("changed", onChangeFun)
     comboBox.connect("scroll-event", passOnScroll)
 
@@ -129,7 +143,7 @@ def creatComboBox(currentItem, itemList, onChangeFun = nullFunEvent, getLowLev =
 
     return eventBox
 
-def creatSpinButton(startValue, minValue, maxValue, stepSize, onChangeFun = nullFunEvent, getLowLev = False):
+def creatSpinButton(startValue, minValue, maxValue, stepSize, *, onChangeFun = nullFunEvent, getLowLev = False):
     spinButton = Gtk.SpinButton.new_with_range(min=minValue, max=maxValue, step=stepSize)
     spinButton.set_value(startValue)
     spinButton.set_margin_start(40)
@@ -215,7 +229,8 @@ def createLabelBox(text, orientation=Gtk.Orientation.VERTICAL):
 
     return box
 
-def creatHScale(startValue, minValue, maxValue, stepSize, onChangeFun = nullFunEvent, width = 500, getLowLev = False):
+def creatHScale(startValue, minValue, maxValue, stepSize, *,
+                onChangeFun = nullFunEvent, width = 500, getLowLev = False):
     scale = Gtk.Scale.new_with_range(orientation=Gtk.Orientation.HORIZONTAL, min=minValue, max=maxValue, step=stepSize)
     scale.set_value(startValue)
     scale.set_margin_start(40)

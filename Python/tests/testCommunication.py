@@ -1,5 +1,9 @@
+'''
+test code for ServoProjectModule Communication
+'''
+
 from unittest import TestCase
-from ServoProjectModules.Communication import *
+from ServoProjectModules.Communication import * # pylint: disable=wildcard-import, unused-wildcard-import
 
 class Tester(TestCase):
     def testIntCastingFunctions(self):
@@ -95,27 +99,27 @@ class Tester(TestCase):
 
         while not servo.isInitComplete():
             servo.run()
-            self.assertEqual(101257.5, servo.getPosition())
+            self.assertEqual(1257.5, servo.getPosition())
 
-        servo.setReference(101200, 1000, 500)
+        servo.setReference(1200, 1000, 500)
         servo.run()
-        self.assertEqual(101257.5, servo.getPosition())
+        self.assertEqual(1257.5, servo.getPosition())
         self.assertEqual(0, servo.getVelocity())
         self.assertEqual(0, servo.getControlSignal())
 
-        servo.setReference(101200, 1000, 500)
+        servo.setReference(1200, 1000, 500)
         servo.run()
-        self.assertEqual(101257.5, servo.getPosition())
+        self.assertEqual(1257.5, servo.getPosition())
         self.assertEqual(0, servo.getVelocity())
         self.assertEqual(0, servo.getControlSignal())
 
-        servo.setReference(101200, 1000, 500)
+        servo.setReference(1200, 1000, 500)
         servo.run()
-        self.assertEqual(101200, servo.getPosition())
+        self.assertEqual(1200, servo.getPosition())
         self.assertEqual(1000, servo.getVelocity())
         self.assertEqual(500, servo.getControlSignal())
 
         servo.setOffsetAndScaling(180 / 2048, -90)
-        self.assertEqual(101200 * 180 / 2048 - 90, servo.getPosition())
+        self.assertEqual(1200 * 180 / 2048 - 90, servo.getPosition())
         self.assertEqual(1000 * 180 / 2048, servo.getVelocity())
         self.assertEqual(500, servo.getControlSignal())

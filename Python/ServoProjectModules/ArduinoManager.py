@@ -1,4 +1,7 @@
-import requests
+'''
+Module for handling ArduinoCli functionality
+'''
+
 import platform
 import re
 import tarfile
@@ -7,8 +10,7 @@ import io
 import os
 import stat
 import subprocess
-
-arduinoCliFilename = ''
+import requests
 
 def runCommand(parameters, captureOutput=False):
     try:
@@ -16,16 +18,68 @@ def runCommand(parameters, captureOutput=False):
         if captureOutput:
             out = subprocess.check_output(parameters)
             return True, out.decode("utf-8")
-        else:
-            subprocess.check_call(parameters)
-            return True
-    except Exception as e:
+
+        subprocess.check_call(parameters)
+        return True
+    except subprocess.CalledProcessError:
         pass
 
     if captureOutput:
         return False, ''
 
     return False
+
+def removeAllInOtherFiles(path, keepFilename):
+    for name in os.listdir(path):
+        if path[-1] != '/':
+            path += '/'
+        filename = f'{path}{name}'
+        if filename != keepFilename:
+            os.remove(filename)
+
+def handleArduinoCliDependency():
+    activeArduinoCli = ''
+
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    tempBinPath = dname + '/tempBin'
+
+    if not os.path.exists(tempBinPath):
+        os.mkdir(tempBinPath)
+
+    if runCommand(['arduino-cli', 'version'], captureOutput=True)[0]:
+        activeArduinoCli = 'arduino-cli'
+        removeAllInOtherFiles(tempBinPath, '')
+        return activeArduinoCli
+
+    arduinoCliVersionsList = [filename for filename in os.listdir(tempBinPath) if filename.find('arduino-cli') == 0]
+    arduinoCliVersionsList.sort()
+
+    if len(arduinoCliVersionsList) > 0:
+        activeArduinoCli = tempBinPath + '/' + arduinoCliVersionsList[-1]
+
+    try:
+        url, version = getLatestArduinoCliDownloadurl()
+
+        temp = [filename for filename in arduinoCliVersionsList if filename.find(version) != -1]
+        if len(temp) > 0:
+            activeArduinoCli = tempBinPath + '/' + temp[0]
+        else:
+            if activeArduinoCli != '':
+                print(f'Found old arduino-cli ({os.path.basename(activeArduinoCli)})')
+            else:
+                print('Could not find arduino-cli')
+            ans = input(f'Do you want to download latest version({version}) from GitHub? (y/N)')
+            if ans.find('Y') == 0 or ans.find('y') == 0:
+                activeArduinoCli = downloadArduinoCli(tempBinPath, url, version)
+                if activeArduinoCli == '':
+                    print('\nCould not download arduino-cli. Please install manually!')
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    return activeArduinoCli
+
+arduinoCliFilename = handleArduinoCliDependency()
 
 def transfer(port):
     if arduinoCliFilename == '':
@@ -56,7 +110,8 @@ def getListOfLatestGitHubReleasAssets(url):
         return [], ''
 
     releaseHtmlStr = str(r.content)
-    findAssetPattern = re.compile(f'<a\\s+href\\s*=\\s*[^>]+releases/download/{versionInfo["tag_name"]}/(?P<asset>[^"]+)"')
+    findAssetPattern = re.compile(
+            f'<a\\s+href\\s*=\\s*[^>]+releases/download/{versionInfo["tag_name"]}/(?P<asset>[^"]+)"')
     maches = findAssetPattern.finditer(releaseHtmlStr)
 
     out =[]
@@ -76,124 +131,95 @@ def getLatestArduinoCliDownloadurl():
     l = [s for s in l if s.find(platformStr) != -1]
     return l[0], version
 
-def removeAllInOtherFiles(path, keepFilename):
-    for name in os.listdir(path):
-        if path[-1] != '/':
-            path += '/'
-        filename = f'{path}{name}'
-        if filename != keepFilename:
-            os.remove(filename)
-
 def downloadArduinoCli(path, url, version):
-    arduinoCliFilename = ''
+    filename = ''
     try:
         r = requests.get(url=url)
         if r.ok:
             arduinoCliBinData = None
 
-            file_like_object = io.BytesIO(r.content)
+            fileLikeObject = io.BytesIO(r.content)
             if url.find('.tar.gz') != -1:
-                tar = tarfile.open(fileobj=file_like_object)
-                arduinoCliObj = tar.extractfile('arduino-cli')
-                arduinoCliBinData = arduinoCliObj.read()
-                arduinoCliFilename = f'arduino-cli_{version}'
-                
+                with tarfile.open(fileobj=fileLikeObject) as tar:
+                    arduinoCliObj = tar.extractfile('arduino-cli')
+                    arduinoCliBinData = arduinoCliObj.read()
+                    filename = f'arduino-cli_{version}'
+
             elif url.find('.zip') != -1:
-                zipObj = zipfile.ZipFile(file_like_object)
-                arduinoCliBinData = zipObj.read('arduino-cli.exe')
-                arduinoCliFilename = f'arduino-cli_{version}.exe'
+                with zipfile.ZipFile(fileLikeObject) as zipObj:
+                    arduinoCliBinData = zipObj.read('arduino-cli.exe')
+                    filename = f'arduino-cli_{version}.exe'
 
             if path[-1] != '/':
                 path += '/'
-            arduinoCliFilename = f'{path}{arduinoCliFilename}'
+            filename = f'{path}{filename}'
 
             if arduinoCliBinData:
-                with open(arduinoCliFilename, 'wb') as f:
+                with open(filename, 'wb') as f:
                     f.write(arduinoCliBinData)
 
-                    st = os.stat(arduinoCliFilename)
-                    os.chmod(arduinoCliFilename, st.st_mode | stat.S_IEXEC)
+                    st = os.stat(filename)
+                    os.chmod(filename, st.st_mode | stat.S_IEXEC)
 
-                removeAllInOtherFiles(path, arduinoCliFilename)
+                removeAllInOtherFiles(path, filename)
 
-    except Exception as e:
-        arduinoCliFilename = ''
+    except Exception:  # pylint: disable=broad-except
+        filename = ''
 
-    return arduinoCliFilename
+    return filename
+
+def handleArduinoCoreDependencies(cores):
+    ok, coreListStr = runCommand([arduinoCliFilename, 'core', 'list'], captureOutput=True)
+    if not ok:
+        return
+
+    adafruitAdditionalUrl = 'https://adafruit.github.io/arduino-board-index/package_adafruit_index.json'
+    indexUpdated = False
+    for core in cores:
+        if re.search(core[0], coreListStr):
+            continue
+
+        ans = input(f'{core[1]} arduino core is missing... Do you want to install it? (y/N)')
+        if ans.find('Y') != 0 and ans.find('y') != 0:
+            continue
+        try:
+            if not indexUpdated:
+                subprocess.check_call([arduinoCliFilename, 'core',
+                                        'update-index', '--additional-urls', adafruitAdditionalUrl])
+                indexUpdated = True
+            subprocess.check_call([arduinoCliFilename, 'core', 'install', core[1],
+                                    '--additional-urls', adafruitAdditionalUrl])
+        except Exception:  # pylint: disable=broad-except
+            print(f'\nCould not install {core[1]}. Please install manually!')
+
+def handleArduinoLibDependencies(libraries):
+    ok, libListStr = runCommand([arduinoCliFilename, 'lib', 'list'], captureOutput=True)
+    if not ok:
+        return
+
+    for lib in libraries:
+        if re.search(lib[0], libListStr):
+            continue
+
+        ans = input(f'The Arduino library "{lib[1]}" is missing... Do you want to install it? (y/N)')
+        if ans.find('Y') != 0 and ans.find('y') != 0:
+            continue
+        try:
+            subprocess.check_call([arduinoCliFilename, 'lib', 'install', lib[1]])
+        except Exception:  # pylint: disable=broad-except
+            print(f'\nCould not install {lib[1]}. Please install manually!')
 
 def __init__():
-    global arduinoCliFilename
-    abspath = os.path.abspath(__file__)
-    dname = os.path.dirname(abspath)
-    tempBinPath = dname + '/tempBin'
+    if arduinoCliFilename == '':
+        return
 
-    if not os.path.exists(tempBinPath):
-        os.mkdir(tempBinPath)
+    cores = [
+        (r'adafruit:samd', 'adafruit:samd'),
+    ]
+    handleArduinoCoreDependencies(cores)
 
-    if runCommand(['arduino-cli', 'version'], captureOutput=True)[0]:
-        arduinoCliFilename = 'arduino-cli'
-        removeAllInOtherFiles(tempBinPath, '')
-    else:
-        arduinoCliVersionsList = [filename for filename in os.listdir(tempBinPath) if filename.find('arduino-cli') == 0]
-        arduinoCliVersionsList.sort()
-
-        if len(arduinoCliVersionsList) > 0:
-            arduinoCliFilename = tempBinPath + '/' + arduinoCliVersionsList[-1]
-
-        try:
-            url, version = getLatestArduinoCliDownloadurl()
-
-            temp = [filename for filename in arduinoCliVersionsList if filename.find(version) != -1]
-            if len(temp) > 0:
-                arduinoCliFilename = tempBinPath + '/' + temp[0]
-            else:
-                if arduinoCliFilename != '':
-                    print(f'Found old arduino-cli ({os.path.basename(arduinoCliFilename)})')
-                else:
-                    print(f'Could not find arduino-cli')
-                ans = input(f'Do you want to download latest version({version}) from GitHub? (y/N)')
-                if ans.find('Y') == 0 or ans.find('y') == 0:
-                    arduinoCliFilename = downloadArduinoCli(tempBinPath, url, version)
-                    if arduinoCliFilename == '':
-                        print(f'\nCould not download arduino-cli. Please install manually!')
-        except Exception as e:
-            pass
-
-    if arduinoCliFilename != '':
-        cores = [
-            (r'adafruit:samd', 'adafruit:samd'),
-        ]
-        ok, coreListStr = runCommand([arduinoCliFilename, 'core', 'list'], captureOutput=True)
-        if ok:
-            adafruitAdditionalUrl = 'https://adafruit.github.io/arduino-board-index/package_adafruit_index.json'
-            indexUpdated = False
-            for core in cores:
-                if not re.search(core[0], coreListStr):
-                    ans = input(f'{core[1]} arduino core is missing... Do you want to install it? (y/N)')
-                    if ans.find('Y') != 0 and ans.find('y') != 0:
-                        continue
-                    try:
-                        if not indexUpdated:
-                            subprocess.check_call([arduinoCliFilename, 'core', 'update-index', '--additional-urls', adafruitAdditionalUrl])
-                            indexUpdated = True
-                        subprocess.check_call([arduinoCliFilename, 'core', 'install', core[1], '--additional-urls', adafruitAdditionalUrl])
-                    except Exception as e:
-                        print(f'\nCould not install {core[1]}. Please install manually!')
-
-        libraries = [
-            (r'Adafruit.DotStar', 'Adafruit DotStar'),
-            (r'Eigen', 'Eigen'),
-        ]
-        ok, libListStr = runCommand([arduinoCliFilename, 'lib', 'list'], captureOutput=True)
-        if ok:
-            for lib in libraries:
-                if not re.search(lib[0], libListStr):
-                    ans = input(f'The Arduino library "{lib[1]}" is missing... Do you want to install it? (y/N)')
-                    if ans.find('Y') != 0 and ans.find('y') != 0:
-                        continue
-                    try:
-                        subprocess.check_call([arduinoCliFilename, 'lib', 'install', lib[1]])
-                    except Exception as e:
-                        print(f'\nCould not install {lib[1]}. Please install manually!')
-
-
+    libraries = [
+        (r'Adafruit.DotStar', 'Adafruit DotStar'),
+        (r'Eigen', 'Eigen'),
+    ]
+    handleArduinoLibDependencies(libraries)

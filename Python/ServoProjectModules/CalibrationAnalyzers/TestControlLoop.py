@@ -1,6 +1,12 @@
-from ServoProjectModules.CalibrationAnalyzers.Helper import *
+'''
+Module for calibrating pwm nonlinearity
+'''
+# pylint: disable=duplicate-code
 
-def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, advancedMode):
+from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
+
+def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *, advancedMode=False):
+    # pylint: disable=too-many-locals, too-many-statements
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
@@ -11,9 +17,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
-    if advancedMode == True:
+    if advancedMode is True:
         velControlSpeedScale = GuiFunctions.creatHScale(14 * 4, 0, 100 * 4, 4, getLowLev=True)
-        velControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Velocity control speed</b>', velControlSpeedScale[0]), velControlSpeedScale[1]
+        velControlSpeedScale = (GuiFunctions.addTopLabelTo('<b>Velocity control speed</b>', velControlSpeedScale[0]),
+                                velControlSpeedScale[1])
         calibrationBox.pack_start(velControlSpeedScale[0], False, False, 0)
 
         filterSpeedScale = GuiFunctions.creatHScale(14 * 32, 0, 100 * 32, 32, getLowLev=True)
@@ -29,19 +36,20 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
     refPos = 0.0
 
     refVelScale = GuiFunctions.creatHScale(refVel, 0, 100.0, 0.1, getLowLev=True)
-    refVelScale = GuiFunctions.addTopLabelTo('<b>Max Velocity</b>\n in degrees per second', refVelScale[0]), refVelScale[1]
+    refVelScale = (GuiFunctions.addTopLabelTo('<b>Max Velocity</b>\n in degrees per second', refVelScale[0]),
+                    refVelScale[1])
 
     refPosScale = GuiFunctions.creatHScale(refPos, -90.0, 90.0, 0.1, getLowLev=True)
     refPosScale = GuiFunctions.addTopLabelTo('<b>Set position offset</b>\n in degrees', refPosScale[0]), refPosScale[1]
 
     startButton = GuiFunctions.createButton('Start test', getLowLev=True)
 
-    statusLabel = GuiFunctions.createLabel(f'Position: - (start offset: -)\n'
-                        f'Velocity: -\n'
-                        f'Error at output: -\n'
-                        f'Error at motor: -\n'
-                        f'Control signal: -\n'
-                        f'Loop time: -')
+    statusLabel = GuiFunctions.createLabel('Position: - (start offset: -)\n'
+                        'Velocity: -\n'
+                        'Error at output: -\n'
+                        'Error at motor: -\n'
+                        'Control signal: -\n'
+                        'Loop time: -')
 
     calibrationBox.pack_start(refVelScale[0], False, False, 0)
     calibrationBox.pack_start(refPosScale[0], False, False, 0)
@@ -71,7 +79,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
         startButton[1].set_label('Start test')
         startButton[1].set_sensitive(True)
         controlSpeedScale[1].set_sensitive(True)
-        if advancedMode == True:
+        if advancedMode is True:
             velControlSpeedScale[1].set_sensitive(True)
             filterSpeedScale[1].set_sensitive(True)
 
@@ -95,27 +103,27 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
         dialog.destroy()
 
         if response == Gtk.ResponseType.YES:
-            time = data[:, 0] - data[0, 0]
+            t = data[:, 0] - data[0, 0]
             fig = plt.figure(1)
             fig.suptitle('Position')
-            plt.plot(time, data[:, 8], 'r')
-            plt.plot(time, data[:, 1], 'g')
+            plt.plot(t, data[:, 8], 'r')
+            plt.plot(t, data[:, 1], 'g')
 
             fig = plt.figure(2)
             fig.suptitle('Velocity')
-            plt.plot(time, data[:, 2])
+            plt.plot(t, data[:, 2])
 
             fig = plt.figure(3)
             fig.suptitle('Error at output')
-            plt.plot(time, data[:, 3])
+            plt.plot(t, data[:, 3])
 
             fig = plt.figure(4)
             fig.suptitle('Error at motor')
-            plt.plot(time, data[:, 4])
+            plt.plot(t, data[:, 4])
 
             fig = plt.figure(5)
             fig.suptitle('Control signal')
-            plt.plot(time, data[:, 5])
+            plt.plot(t, data[:, 5])
 
             fig = plt.figure(6)
             fig.suptitle('Control signal over motor position')
@@ -124,13 +132,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             plt.show()
 
     def startTestRun(nodeNr, port):
+        # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
         try:
             controlSpeed = int(controlSpeedScale[1].get_value())
             velControlSpeed = controlSpeed * 4
             filterSpeed = controlSpeed * 32
-            if advancedMode == True:
+            if advancedMode is True:
                 velControlSpeed = int(round(velControlSpeedScale[1].get_value() / 4.0)) * 4
                 velControlSpeedScale[1].set_value(velControlSpeed)
                 filterSpeed = int(round(filterSpeedScale[1].get_value() / 32.0)) * 32
@@ -169,7 +178,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
 
                     stop = False
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             stop = True
 
                     if stop or parent.isClosed:
@@ -192,14 +201,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
                             optData.minCost,
                             refPos + posOffset])
 
-                    GLib.idle_add(updateStatusLabel, f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
+                    GLib.idle_add(updateStatusLabel,
+                            f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
                             f'Velocity: {v:0.4f}\n'
                             f'Error at output: {error:0.4f}\n'
                             f'Error at motor: {motorError:0.4f}\n'
                             f'Control signal: {u:0.4f}\n'
                             f'Loop time: {servo.getLoopTime()}')
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                 while not doneRunning:
                     if not servoManager.isAlive():
@@ -227,7 +237,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, ad
             widget.set_label('Stop test')
 
             controlSpeedScale[1].set_sensitive(False)
-            if advancedMode == True:
+            if advancedMode is True:
                 velControlSpeedScale[1].set_sensitive(False)
                 filterSpeedScale[1].set_sensitive(False)
             backlashControlSpeedScale[1].set_sensitive(False)

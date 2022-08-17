@@ -1,4 +1,9 @@
 #!/bin/python3
+
+'''
+Python script for managing Arduino configurations
+'''
+
 import os
 import sys
 import sysconfig
@@ -13,13 +18,13 @@ def setWorkingDirToScriptDir():
     sys.path.insert(1, '../Python')
 
 def isMingwPlatform():
-    return os.name == "nt" and sysconfig.get_platform().startswith("mingw")
+    return os.name == 'nt' and sysconfig.get_platform().startswith('mingw')
 
 def checkPip():
     try:
-        out = subprocess.check_output([sys.executable, "-m", "pip"])
+        subprocess.check_output([sys.executable, '-m', 'pip'])
         return True
-    except Exception as e:
+    except Exception:
         pass
 
     return False
@@ -32,28 +37,28 @@ def install(package):
 
 def installWithPip(package):
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
         return True
-    except Exception as e:
+    except Exception:
         pass
 
     return False
 
 pacmanPythonPackageName = None
 def getPacmanPythonPackage():
-    global pacmanPythonPackageName
+    global pacmanPythonPackageName  # pylint: disable=global-statement
     if pacmanPythonPackageName:
         return pacmanPythonPackageName
 
     print('Looking for python package name with "pacman -Q"...')
 
-    out = subprocess.check_output(["pacman", "-Q"])
-    string = out.decode("utf-8")
+    out = subprocess.check_output(['pacman', '-Q'])
+    string = out.decode('utf-8')
     findPythonPattern = re.compile(r'(?P<pythonPackage>[^\s]+-python)\s')
     maches = findPythonPattern.finditer(string)
 
     for m in maches:
-        pacmanPythonPackageName = m.group("pythonPackage")
+        pacmanPythonPackageName = m.group('pythonPackage')
 
     return pacmanPythonPackageName
 
@@ -61,10 +66,10 @@ def installWithPacman(package):
     try:
         getPacmanPythonPackage()
         package = f'{getPacmanPythonPackage()}-{package}'
-        subprocess.check_call(["pacman", "-S", "--noconfirm", package])
+        subprocess.check_call(['pacman', '-S', '--noconfirm', package])
         print('')
         return True
-    except Exception as e:
+    except Exception:
         pass
 
     return False
@@ -87,16 +92,17 @@ def main():
     while True:
         missingPackage = None
         try:
-            import gi
-            import ServoProjectModules.ConfigurationGui as ConfigurationGui
+            # pylint: disable=import-outside-toplevel
+            from ServoProjectModules import ConfigurationGui
             from ServoProjectModules.ConfigurationGui import Gtk
 
-            if Gtk.init_check()[0] == False:
-                print(f'\nGtk windowing system has not been initialized...\nPlease run script in Gtk enabled environment!')
+            if not Gtk.init_check()[0]:
+                print('\nGtk windowing system has not been initialized...\n'
+                    'Please run script in Gtk enabled environment!')
                 break
 
             window = ConfigurationGui.GuiWindow('.')
-            window.connect("destroy", Gtk.main_quit)
+            window.connect('destroy', Gtk.main_quit)
             window.show_all()
 
             #work around for mathplotlib
@@ -112,13 +118,13 @@ def main():
             break
 
         if missingPackage == lastMissingPackage:
-            print(f'Please restart script to complete install')
+            print('Please restart script to complete install')
             break
 
         missingPackageData = getPackageData(missingPackage)
 
         if not isMingwPlatform() and not checkPip():
-            print(f'Could not find python pip. Please install pip manually')
+            print('Could not find python pip. Please install pip manually')
             break
 
         if missingPackageData[1]:
