@@ -24,6 +24,9 @@ def main():
     from ServoProjectModules import DependencyHandler
     DependencyHandler.__init__(automaticInstall=False)
 
+    from ServoProjectModules import ArduinoManager
+    ArduinoManager.__init__(automaticInstall=False)
+
     from ServoProjectModules import ConfigurationGui
     from ServoProjectModules.ConfigurationGui import Gtk
 

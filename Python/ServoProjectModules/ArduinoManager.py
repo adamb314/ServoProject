@@ -21,7 +21,7 @@ def runCommand(parameters, captureOutput=False):
 
         subprocess.check_call(parameters)
         return True
-    except subprocess.CalledProcessError:
+    except Exception:
         pass
 
     if captureOutput:
@@ -218,7 +218,7 @@ def __init__(automaticInstall=False):
     global arduinoCliFilename  # pylint: disable=global-statement
 
     arduinoCliFilename = handleArduinoCliDependency(automaticInstall)
-    if arduinoCliFilename == '' or not automaticInstall:
+    if arduinoCliFilename == '':
         return
 
     cores = [

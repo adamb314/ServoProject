@@ -81,10 +81,8 @@ def __init__(*, automaticInstall=False):
     while True:
         missingPackage = None
         try:
-            # pylint: disable=import-outside-toplevel
+            # pylint: disable=import-outside-toplevel, unused-import
             from ServoProjectModules import ConfigurationGui
-            from ServoProjectModules import ArduinoManager
-            ArduinoManager.__init__(automaticInstall)
 
         except ModuleNotFoundError as e:
             missingPackage = e.name

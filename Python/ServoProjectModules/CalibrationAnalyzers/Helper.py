@@ -8,9 +8,9 @@ import time
 import math
 import random
 import re
+import numba
 import numpy as np
 import scipy.signal
-import numba
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_gtk3agg import (
     FigureCanvasGTK3Agg as FigureCanvas)
