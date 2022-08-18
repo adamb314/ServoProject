@@ -18,7 +18,6 @@ import ServoProjectModules.CalibrationAnalyzers.MotorCoggingTorque as MotorCoggi
 import ServoProjectModules.CalibrationAnalyzers.TestControlLoop as TestControlLoopAnalyzer
 from ServoProjectModules.CalibrationAnalyzers import Helper
 from ServoProjectModules import ArduinoManager
-ArduinoManager.__init__()
 
 def openCreateConfigDialog(parent, configs):
     # pylint: disable=too-many-locals, too-many-statements

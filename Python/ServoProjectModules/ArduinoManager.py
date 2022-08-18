@@ -29,57 +29,7 @@ def runCommand(parameters, captureOutput=False):
 
     return False
 
-def removeAllInOtherFiles(path, keepFilename):
-    for name in os.listdir(path):
-        if path[-1] != '/':
-            path += '/'
-        filename = f'{path}{name}'
-        if filename != keepFilename:
-            os.remove(filename)
-
-def handleArduinoCliDependency():
-    activeArduinoCli = ''
-
-    abspath = os.path.abspath(__file__)
-    dname = os.path.dirname(abspath)
-    tempBinPath = dname + '/tempBin'
-
-    if not os.path.exists(tempBinPath):
-        os.mkdir(tempBinPath)
-
-    if runCommand(['arduino-cli', 'version'], captureOutput=True)[0]:
-        activeArduinoCli = 'arduino-cli'
-        removeAllInOtherFiles(tempBinPath, '')
-        return activeArduinoCli
-
-    arduinoCliVersionsList = [filename for filename in os.listdir(tempBinPath) if filename.find('arduino-cli') == 0]
-    arduinoCliVersionsList.sort()
-
-    if len(arduinoCliVersionsList) > 0:
-        activeArduinoCli = tempBinPath + '/' + arduinoCliVersionsList[-1]
-
-    try:
-        url, version = getLatestArduinoCliDownloadurl()
-
-        temp = [filename for filename in arduinoCliVersionsList if filename.find(version) != -1]
-        if len(temp) > 0:
-            activeArduinoCli = tempBinPath + '/' + temp[0]
-        else:
-            if activeArduinoCli != '':
-                print(f'Found old arduino-cli ({os.path.basename(activeArduinoCli)})')
-            else:
-                print('Could not find arduino-cli')
-            ans = input(f'Do you want to download latest version({version}) from GitHub? (y/N)')
-            if ans.find('Y') == 0 or ans.find('y') == 0:
-                activeArduinoCli = downloadArduinoCli(tempBinPath, url, version)
-                if activeArduinoCli == '':
-                    print('\nCould not download arduino-cli. Please install manually!')
-    except Exception:  # pylint: disable=broad-except
-        pass
-
-    return activeArduinoCli
-
-arduinoCliFilename = handleArduinoCliDependency()
+arduinoCliFilename = ''
 
 def transfer(port):
     if arduinoCliFilename == '':
@@ -131,6 +81,14 @@ def getLatestArduinoCliDownloadurl():
     l = [s for s in l if s.find(platformStr) != -1]
     return l[0], version
 
+def removeAllInOtherFiles(path, keepFilename):
+    for name in os.listdir(path):
+        if path[-1] != '/':
+            path += '/'
+        filename = f'{path}{name}'
+        if filename != keepFilename:
+            os.remove(filename)
+
 def downloadArduinoCli(path, url, version):
     filename = ''
     try:
@@ -168,7 +126,52 @@ def downloadArduinoCli(path, url, version):
 
     return filename
 
-def handleArduinoCoreDependencies(cores):
+def handleArduinoCliDependency(automaticInstall=False):
+    activeArduinoCli = ''
+
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    tempBinPath = dname + '/tempBin'
+
+    if not os.path.exists(tempBinPath):
+        os.mkdir(tempBinPath)
+
+    if runCommand(['arduino-cli', 'version'], captureOutput=True)[0]:
+        activeArduinoCli = 'arduino-cli'
+        removeAllInOtherFiles(tempBinPath, '')
+        return activeArduinoCli
+
+    arduinoCliVersionsList = [filename for filename in os.listdir(tempBinPath) if filename.find('arduino-cli') == 0]
+    arduinoCliVersionsList.sort()
+
+    if len(arduinoCliVersionsList) > 0:
+        activeArduinoCli = tempBinPath + '/' + arduinoCliVersionsList[-1]
+
+    try:
+        url, version = getLatestArduinoCliDownloadurl()
+
+        temp = [filename for filename in arduinoCliVersionsList if filename.find(version) != -1]
+        if len(temp) > 0:
+            activeArduinoCli = tempBinPath + '/' + temp[0]
+        else:
+            if activeArduinoCli != '':
+                print(f'Found old arduino-cli ({os.path.basename(activeArduinoCli)})')
+            else:
+                print('Could not find arduino-cli')
+            if not automaticInstall:
+                ans = input(f'Do you want to download latest version({version}) from GitHub? (y/N)')
+                if ans.find('Y') != 0 and ans.find('y') != 0:
+                    return activeArduinoCli
+            print('Downloading latest arduino-cli')
+            activeArduinoCli = downloadArduinoCli(tempBinPath, url, version)
+            if activeArduinoCli == '':
+                print('\nCould not download arduino-cli. Please install manually!')
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    return activeArduinoCli
+
+def handleArduinoCoreDependencies(cores, automaticInstall=False):
     ok, coreListStr = runCommand([arduinoCliFilename, 'core', 'list'], captureOutput=True)
     if not ok:
         return
@@ -179,9 +182,10 @@ def handleArduinoCoreDependencies(cores):
         if re.search(core[0], coreListStr):
             continue
 
-        ans = input(f'{core[1]} arduino core is missing... Do you want to install it? (y/N)')
-        if ans.find('Y') != 0 and ans.find('y') != 0:
-            continue
+        if not automaticInstall:
+            ans = input(f'{core[1]} arduino core is missing... Do you want to install it? (y/N)')
+            if ans.find('Y') != 0 and ans.find('y') != 0:
+                continue
         try:
             if not indexUpdated:
                 subprocess.check_call([arduinoCliFilename, 'core',
@@ -192,7 +196,7 @@ def handleArduinoCoreDependencies(cores):
         except Exception:  # pylint: disable=broad-except
             print(f'\nCould not install {core[1]}. Please install manually!')
 
-def handleArduinoLibDependencies(libraries):
+def handleArduinoLibDependencies(libraries, automaticInstall=False):
     ok, libListStr = runCommand([arduinoCliFilename, 'lib', 'list'], captureOutput=True)
     if not ok:
         return
@@ -201,25 +205,32 @@ def handleArduinoLibDependencies(libraries):
         if re.search(lib[0], libListStr):
             continue
 
-        ans = input(f'The Arduino library "{lib[1]}" is missing... Do you want to install it? (y/N)')
-        if ans.find('Y') != 0 and ans.find('y') != 0:
-            continue
+        if not automaticInstall:
+            ans = input(f'The Arduino library "{lib[1]}" is missing... Do you want to install it? (y/N)')
+            if ans.find('Y') != 0 and ans.find('y') != 0:
+                continue
         try:
             subprocess.check_call([arduinoCliFilename, 'lib', 'install', lib[1]])
         except Exception:  # pylint: disable=broad-except
             print(f'\nCould not install {lib[1]}. Please install manually!')
 
-def __init__():
-    if arduinoCliFilename == '':
+def __init__(automaticInstall=False):
+    global arduinoCliFilename  # pylint: disable=global-statement
+
+    arduinoCliFilename = handleArduinoCliDependency(automaticInstall)
+    if arduinoCliFilename == '' or not automaticInstall:
         return
 
     cores = [
         (r'adafruit:samd', 'adafruit:samd'),
     ]
-    handleArduinoCoreDependencies(cores)
+    handleArduinoCoreDependencies(cores, automaticInstall)
 
     libraries = [
         (r'Adafruit.DotStar', 'Adafruit DotStar'),
         (r'Eigen', 'Eigen'),
     ]
-    handleArduinoLibDependencies(libraries)
+    handleArduinoLibDependencies(libraries, automaticInstall)
+
+if __name__ == '__main__':
+    __init__(automaticInstall=True)
