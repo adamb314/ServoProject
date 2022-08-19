@@ -1,9 +1,14 @@
-import serial
+'''
+Module for communicating with ServoProject servos
+'''
+
 import threading
 import time
 import math
 import random
 from enum import Enum
+from dataclasses import dataclass
+import serial
 
 pi = 3.1415926535
 
@@ -22,16 +27,16 @@ class CommunicationError(Exception):
         self.nodeNr = nodeNr
         self.code = code
 
-        self.message = f'Communication error: '
-        
+        self.message = 'Communication error: '
+
         if self.code == CommunicationError.ErrorCode.COULD_NOT_SEND:
-            self.message += f'Could not send to port'
+            self.message += 'Could not send to port'
         elif self.code == CommunicationError.ErrorCode.NO_RESPONSE:
             self.message += f'No response from node {self.nodeNr}'
-        elif (self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_1 or
-                 self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2 or
-                 self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_3 or
-                 self.code == CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_4):
+        elif (self.code in (CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_1,
+                CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2,
+                CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_3,
+                CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_4)):
             self.message += f'Partial response from node {self.nodeNr}, error code {self.code}'
         elif self.code == CommunicationError.ErrorCode.UNEXPECTED_RESPONSE:
             self.message += f'Unexpected response from node {self.nodeNr}'
@@ -39,7 +44,6 @@ class CommunicationError(Exception):
             self.message += f'Checksum error from node {self.nodeNr}'
 
         super().__init__(self.message)
-
 
 def removeIntWraparound(newVal, oldVal, bitLenght):
     diff = (newVal - oldVal) % (2**bitLenght)
@@ -66,7 +70,7 @@ def unsignedToSignedChar(v):
 def toUnsignedChar(v):
     return int(v) % (2**8)
 
-class SimulatedSerialPort(object):
+class SimulatedSerialPort:
     def __init__(self):
         self.outStream = bytearray(b'')
         self.inStream = bytearray(b'')
@@ -89,7 +93,7 @@ class SimulatedSerialPort(object):
         self.outStream = self.outStream[size:]
         return bytes(out)
 
-class SerialCommunication(object):
+class SerialCommunication:
     def __init__(self, devName):
         if devName != '':
             self.port = serial.Serial(devName, 115200, timeout=0.1)
@@ -177,12 +181,41 @@ class SerialCommunication(object):
         self.commandArray = []
 
     def _executeReceive(self):
+        def decodeChar8(port):
+            readBytes = port.read()
+            if len(readBytes) < 1:
+                port.read()
+                raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_3)
+            return readBytes[0]
+
+        def decodeInt16(port):
+            readBytes = port.read()
+            if len(readBytes) < 1:
+                port.read()
+                raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_1)
+            c = readBytes[0]
+            value = int(c)
+
+            readBytes = port.read()
+            if len(readBytes) < 1:
+                port.read()
+                raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2)
+            c = readBytes[0]
+            value += int(c) * 2**8
+
+            return value
+
+        def emptyReadBuffer(port):
+            while True:
+                readBytes = port.read()
+                if len(readBytes) < 1:
+                    port.read()
+                    break
+
         receiveArrayCopy = self.receiveArray[:]
         self.receiveArray = []
 
         c = 0
-        error = False
-        i = 0
         for d in receiveArrayCopy:
             readBytes = self.port.read()
             if len(readBytes) < 1:
@@ -192,34 +225,12 @@ class SerialCommunication(object):
 
             if d == c:
                 if d >= 64:
-                    readBytes = self.port.read()
-                    if len(readBytes) < 1:
-                        self.port.read()
-                        raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_1)
-                    c = readBytes[0]
-                    value = int(c)
-
-                    readBytes = self.port.read()
-                    if len(readBytes) < 1:
-                        self.port.read()
-                        raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_2)
-                    c = readBytes[0]
-                    value += int(c) * 2**8;
-                    self.intArray[d - 64] = value;
+                    self.intArray[d - 64] = decodeInt16(self.port)
                 else:
-                    readBytes = self.port.read()
-                    if len(readBytes) < 1:
-                        self.port.read()
-                        raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.PARTIAL_RESPONSE_TYPE_3)
-                    c = readBytes[0]
-                    self.charArray[d] = c;
+                    self.charArray[d] = decodeChar8(self.port)
 
             else:
-                while True:
-                    readBytes = self.port.read()
-                    if len(readBytes) < 1:
-                        self.port.read()
-                        break
+                emptyReadBuffer(self.port)
                 raise CommunicationError(self.nodeNr, CommunicationError.ErrorCode.UNEXPECTED_RESPONSE)
 
         readBytes = self.port.read()
@@ -237,7 +248,7 @@ class ComDelayInt:
         self.reset(initValue)
 
     def reset(self, value: int):
-        for i, d in enumerate(self.delayArray):
+        for i, _ in enumerate(self.delayArray):
             self.delayArray[i] = value
 
     def getLeft(self) -> int:
@@ -264,16 +275,13 @@ class ComDelayInt:
                 d[i] = d[i + 1]
 
 class SimulateCommunication(SerialCommunication):
-    class ServoSim(object):
+    class ServoSim:
         def __init__(self, nodeNr):
             self.nodeNr = nodeNr
-            self.pos = 101257.5
-            print(f'{self.pos = }')
+            self.pos = 1257.5
             self.vel = 0
             self.charArray = [0] * 16
             self.intArray = [0] * 16
-            self.charArrayChanged = [False] * 16
-            self.intArrayChanged = [False] * 16
 
             upscaledPos = int(round(self.pos * 32))
             self.comDelayedPos = ComDelayInt(delay=2, initValue=upscaledPos)
@@ -288,25 +296,31 @@ class SimulateCommunication(SerialCommunication):
             self.timestamp = None
 
         def run(self):
+            # pylint: disable=too-many-locals, too-many-statements
+            gearRatio = 100
+            damp = 50
+            backEmf = 0.3
+            maxFriction = 40
+            b = 0.1
+
             dt = 0.0
             newTimestamp = time.monotonic()
-            if self.timestamp != None:
+            if self.timestamp is not None:
                 dt = newTimestamp - self.timestamp
             self.timestamp = newTimestamp
 
             force = unsignedToSignedInt(self.intArray[2])
 
-            if self.charArray[1] == True and dt > 0.0:
+            rawPwmMode = self.charArray[1] != 0
+
+            if dt == 0.0:
+                pass
+            elif rawPwmMode:
                 subStep = 1000
-                for i in range(0, subStep):
+                for _ in range(0, subStep):
                     velInRad = self.vel / 2048 * math.pi
 
-                    damp = 50
-                    backEmf = 0.3
-                    maxFriction = 40
-                    b = 0.1
-
-                    f = force - backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023));
+                    f = force - backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023))
                     friction = f - damp * velInRad + velInRad / (dt / subStep * b)
                     if friction > maxFriction:
                         friction = maxFriction
@@ -317,17 +331,17 @@ class SimulateCommunication(SerialCommunication):
 
                     self.pos += dt / subStep * self.vel
 
-
-                self.intArray[12] = int((1 + math.sin(self.pos / 2048 * math.pi * 100)) * 400 + 1000 + random.random() * 10)
-                self.intArray[13] = int((1 + math.cos(self.pos / 2048 * math.pi * 100)) * 700 + 1000 + random.random() * 10)
-
                 self.charArray[1] = False
             else:
                 newPosRef = self.intArray[0]
                 oldPosRef = self.pos * 32
 
                 self.pos = removeIntWraparound(newPosRef, oldPosRef, bitLenght=16) / 32
-                self.vel = unsignedToSignedInt(self.intArray[1])
+                newVel = unsignedToSignedInt(self.intArray[1])
+                force = (newVel - self.vel) / (dt * b / math.pi * 2048)
+                force += 50 * math.sin(self.pos * gearRatio * 6 / 2048 * math.pi)
+                force = min(max(force, -1023), 1023)
+                self.vel = newVel
 
             self.comDelayedPos.execute()
             self.comDelayedVel.execute()
@@ -336,6 +350,16 @@ class SimulateCommunication(SerialCommunication):
             self.comDelayedPos.setRight(int(round(self.pos * 32)))
             self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel)))
             self.comDelayedForce.setRight(toUnsignedInt16(round(force)))
+
+            # optical encoder simulation
+            optEncPos = self.comDelayedPos.getLeft() / 32 * gearRatio
+            optEncChA = ((1 + math.sin(optEncPos / 2048 * math.pi)) * 400
+                                        + 1000 + random.random() * 10)
+            optEncChB = ((1 + math.cos(optEncPos / 2048 * math.pi)) * 700 + 1000
+                                        + random.random() * 10)
+            self.intArray[12] = toUnsignedInt16(round(optEncChA))
+            self.intArray[13] = toUnsignedInt16(round(optEncChB))
+            self.intArray[14] = toUnsignedInt16(round(optEncPos * 2048 / 4096)) % 2048
 
             self.charArray[9] = toUnsignedChar(self.comDelayedPos.getLeft() // 2**16)
 
@@ -356,15 +380,14 @@ class SimulateCommunication(SerialCommunication):
             self.intArray[7] = self.intArray[5]
 
         def handleCommunication(self, port: SimulatedSerialPort):
-            messageNodeNr = port.externalRead()[0];
+            #pylint: disable=too-many-branches, too-many-statements
+            messageNodeNr = port.externalRead()[0]
 
             if self.nodeNr != messageNodeNr:
                 raise Exception('nodeNr error in simulation')
 
             intArrayBuffer = self.intArray[:]
             charArrayBuffer = self.charArray[:]
-            intArrayChangedBuffer = self.intArrayChanged[:]
-            charArrayChangedBuffer = self.charArrayChanged[:]
 
             sendCommandBuffer = []
 
@@ -396,21 +419,18 @@ class SimulateCommunication(SerialCommunication):
                         port.externalRead()
                         communicationError = True
 
-                    if command >= 64 and command < 64 + len(intArrayBuffer):
-                        byteValue = port.externalRead()[0]
-                        value = byteValue
-                        checksum += byteValue
+                    byteValue = port.externalRead()[0]
+                    value = byteValue
+                    checksum += byteValue
 
-                        byteValue = port.externalRead()[0]
-                        value += byteValue * 2**8
-                        checksum += byteValue
+                    byteValue = port.externalRead()[0]
+                    value += byteValue * 2**8
+                    checksum += byteValue
 
-                        intArrayBuffer[command - 64] = value
-
-                        intArrayChangedBuffer[command - 64] = True
+                    i = command - 64
+                    if i < len(intArrayBuffer):
+                        intArrayBuffer[i] = value
                     else:
-                        port.externalRead()
-                        port.externalRead()
                         communicationError = True
 
                     messageLength -= 2
@@ -424,8 +444,6 @@ class SimulateCommunication(SerialCommunication):
 
                         charArrayBuffer[command] = byteValue
                         checksum += byteValue
-
-                        charArrayChangedBuffer[command] = True
                     else:
                         port.externalRead()
                         communicationError = True
@@ -435,15 +453,16 @@ class SimulateCommunication(SerialCommunication):
                     if messageLength == 0:
                         receiveCompleate = True
                         break
-                
+
                 if messageLength == 0:
                     communicationError = True
 
             for sendCommand in sendCommandBuffer:
                 if (sendCommand >> 6) == 1:
                     value = 0
-                    if sendCommand >= 64 and sendCommand < 64 + len(self.intArray):
-                        value = self.intArray[sendCommand - 64]
+                    i = sendCommand - 64
+                    if i < len(self.intArray):
+                        value = self.intArray[i]
 
                     port.externalWrite(sendCommand.to_bytes(1, 'little'))
                     port.externalWrite(value.to_bytes(2, 'little'))
@@ -465,12 +484,9 @@ class SimulateCommunication(SerialCommunication):
             if receiveCompleate and checksum == 0:
                 self.intArray = intArrayBuffer
                 self.charArray = charArrayBuffer
-                self.intArrayChanged = intArrayChangedBuffer
-                self.charArrayChanged = charArrayChangedBuffer
-
 
     def __init__(self):
-        super(SimulateCommunication, self).__init__('')
+        super().__init__('')
         self.port = SimulatedSerialPort()
         self.servoSims = []
 
@@ -486,7 +502,7 @@ class SimulateCommunication(SerialCommunication):
 
         self._executeReceive()
 
-class ContinuousValueUpCaster(object):
+class ContinuousValueUpCaster:
     def __init__(self, inbutBitLenght):
         self.value = 0
         self.inputBitLen = inbutBitLenght
@@ -497,22 +513,23 @@ class ContinuousValueUpCaster(object):
     def set(self, v):
         self.value = v
 
-    def update(self, input):
-        self.value = removeIntWraparound(input, self.value, self.inputBitLen)
+    def update(self, v):
+        self.value = removeIntWraparound(v, self.value, self.inputBitLen)
 
-class DCServoCommunicator(object):
-    class OpticalEncoderChannelData(object):
-        def __init__(self):
-            self.a = 0
-            self.b = 0
-            self.minCostIndex = 0
-            self.minCost = 0
+class DCServoCommunicator:
+    # pylint: disable=too-many-instance-attributes, too-many-public-methods
+    @dataclass
+    class OpticalEncoderChannelData:
+        a: int = 0
+        b: int = 0
+        minCostIndex: int = 0
+        minCost: int = 0
 
     def __init__(self, nodeNr, bus):
         self.activeIntReads = [True] * 16
         self.activeCharReads = [True] * 16
-        self.nodeNr = nodeNr;
-        self.bus = bus;
+        self.nodeNr = nodeNr
+        self.bus = bus
 
         self.communicationIsOk = False
         self.initState = 0
@@ -566,12 +583,12 @@ class DCServoCommunicator(object):
         self.startPosition = startPosition
 
         if self.isInitComplete():
-            self.updateOffset()
+            self._updateOffset()
 
     def setControlSpeed(self, controlSpeed, velControlSpeed = None, filterSpeed = None):
-        if velControlSpeed == None:
+        if velControlSpeed is None:
             velControlSpeed = controlSpeed * 4
-        if filterSpeed == None:
+        if filterSpeed is None:
             filterSpeed = velControlSpeed * 8
 
         self.controlSpeed = controlSpeed
@@ -580,7 +597,8 @@ class DCServoCommunicator(object):
 
     def setBacklashControlSpeed(self, backlashCompensationSpeed, backlashCompensationCutOffSpeed, backlashSize):
         self.backlashCompensationSpeed = backlashCompensationSpeed
-        self.backlashCompensationSpeedVelDecrease = min(255.0, 255 * 10 / (backlashCompensationCutOffSpeed / abs(self.scale)))
+        self.backlashCompensationSpeedVelDecrease = min(
+                255.0, 255 * 10 / (backlashCompensationCutOffSpeed / abs(self.scale)))
         self.backlashSize = backlashSize / abs(self.scale)
 
     def setFrictionCompensation(self, fricComp):
@@ -648,7 +666,7 @@ class DCServoCommunicator(object):
         if not self.backlashControlDisabled:
             if withBacklash:
                 self.activeIntReads[3] = True
-                pos = self.backlashEncoderPos;
+                pos = self.backlashEncoderPos
             else:
                 self.activeIntReads[10] = True
                 self.activeIntReads[11] = True
@@ -657,7 +675,7 @@ class DCServoCommunicator(object):
             self.activeIntReads[10] = True
             pos = self.encoderPos
 
-        return self.scale * (self.comDelayRefPos.getRight() * (1.0 / self.positionUpscaling) - pos);
+        return self.scale * (self.comDelayRefPos.getRight() * (1.0 / self.positionUpscaling) - pos)
 
     def getCpuLoad(self):
         self.activeIntReads[8] = True
@@ -685,8 +703,11 @@ class DCServoCommunicator(object):
         return self.offset
 
     def run(self):
-        self.bus.setNodeNr(self.nodeNr);
+        #pylint: disable=too-many-branches, too-many-statements
 
+        self.bus.setNodeNr(self.nodeNr)
+
+        # handle read requests
         for i, d in enumerate(self.activeIntReads):
             if d:
                 self.bus.requestReadInt(i)
@@ -695,6 +716,7 @@ class DCServoCommunicator(object):
             if d:
                 self.bus.requestReadChar(i)
 
+        # handle writes
         if self.isInitComplete():
             if self.newPositionReference:
                 self.bus.writeInt(0, toUnsignedInt16(self.refPos))
@@ -725,6 +747,7 @@ class DCServoCommunicator(object):
 
         self.bus.execute()
 
+        # handle requested reads
         for i, d in enumerate(self.activeIntReads):
             if d:
                 if self.isInitComplete():
@@ -737,6 +760,7 @@ class DCServoCommunicator(object):
                     self.activeCharReads[i] = False
                 self.charReadBuffer[i] = self.bus.getLastReadChar(i)
 
+        # update members
         if self.isInitComplete():
             self.intReadBufferIndex3Upscaling.update(self.intReadBuffer[3])
             self.intReadBufferIndex10Upscaling.update(self.intReadBuffer[10])
@@ -768,6 +792,7 @@ class DCServoCommunicator(object):
         self.opticalEncoderChannelData.minCostIndex = self.intReadBuffer[14]
         self.opticalEncoderChannelData.minCost = self.intReadBuffer[15]
 
+        # handle initialization
         if not self.isInitComplete():
             self.initState += 1
 
@@ -780,9 +805,9 @@ class DCServoCommunicator(object):
             self.comDelayRefPos.reset(pos * self.positionUpscaling)
 
             if self.isInitComplete():
-                self.updateOffset()
+                self._updateOffset()
 
-    def updateOffset(self):
+    def _updateOffset(self):
         pos = self.getPosition() / self.scale
         self.startPosition /= self.scale
 
@@ -793,7 +818,7 @@ class DCServoCommunicator(object):
         elif pos - self.startPosition < -wrapSize / 2:
             self.offset += wrapSize * self.scale
 
-class ServoManager(object):
+class ServoManager:
     def __init__(self, cycleTime, initFunction):
         self.cycleTime = cycleTime
 
@@ -829,11 +854,11 @@ class ServoManager(object):
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(self, excType, excValue, excTraceback):
         self.shutdown()
 
     def run(self):
-        sleepUntilTimePoint = time.time();
+        sleepUntilTimePoint = time.time()
 
         while not self.shuttingDown:
             try:
@@ -857,7 +882,7 @@ class ServoManager(object):
                 if tempReadHandlerFunction:
                     tempReadHandlerFunction(self.cycleTime, self)
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 with self.handlerFunctionMutex:
                     tempErrorHandlerFunction = self.errorHandlerFunction
 
@@ -872,7 +897,8 @@ class ServoManager(object):
     def getPosition(self):
         return self.currentPosition
 
-    def setHandlerFunctions(self, newSendCommandHandlerFunction, newReadResultHandlerFunction, newErrorHandlerFunction = None):
+    def setHandlerFunctions(self, newSendCommandHandlerFunction,
+                            newReadResultHandlerFunction, newErrorHandlerFunction = None):
         with self.handlerFunctionMutex:
             self.sendCommandHandlerFunction = newSendCommandHandlerFunction
             self.readResultHandlerFunction = newReadResultHandlerFunction
@@ -884,17 +910,17 @@ class ServoManager(object):
     def start(self):
         self.shuttingDown = False
 
-        if self.t != None and threading.current_thread() == self.t:
+        if self.t is not None and threading.current_thread() == self.t:
             return
 
-        if self.t == None or not self.t.is_alive():
+        if self.t is None or not self.t.is_alive():
             self.t = threading.Thread(target=self.run)
             self.t.start()
 
     def shutdown(self):
         self.shuttingDown = True
 
-        if self.t != None and threading.current_thread() == self.t:
+        if self.t is not None and threading.current_thread() == self.t:
             return
 
         self.t.join()
@@ -915,7 +941,7 @@ class ServoManager(object):
             if self.shuttingDown:
                 e = self.getUnhandledException()
 
-            if e != None:
+            if e is not None:
                 raise e
         return not self.shuttingDown
 

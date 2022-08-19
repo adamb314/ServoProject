@@ -1,0 +1,5 @@
+#!/bin/bash
+parentDir=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
+cd "$parentDir"
+
+pylint --rcfile tests/.pylintrc $(git ls-files '*.py')

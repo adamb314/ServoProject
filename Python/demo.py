@@ -1,12 +1,18 @@
 #!/bin/python3
-import ServoProjectModules.Communication as ServoComModule
-from ServoProjectModules.Communication import CommunicationError as CommunicationError
 
-from ServoProjectModules.Communication import pi
+'''
+Python demo for controlling ServoProject servos
+'''
 
-import numpy as np
 import time
 import math
+
+import numpy as np
+from ServoProjectModules.Communication import pi
+
+import ServoProjectModules.Communication as ServoComModule
+from ServoProjectModules.Communication import CommunicationError
+
 
 dt = 0.018
 
@@ -40,7 +46,8 @@ def createServoManager(port):
 def playTrajectory(servoManager, trajectory):
     doneRunning = False
     index = 0
-    def sendCommandHandlerFunction(dt, servoManager):
+
+    def sendCommandHandlerFunction(cycleTime, servoManager):
         nonlocal index
         nonlocal doneRunning
 
@@ -49,7 +56,7 @@ def playTrajectory(servoManager, trajectory):
             vel = [0.0] * len(pos)
         elif index < len(trajectory) - 1:
             pos = trajectory[index]
-            vel = (np.array(trajectory[index +1]) - np.array(trajectory[index - 1])) / 2.0 / dt
+            vel = (np.array(trajectory[index + 1]) - np.array(trajectory[index - 1])) / 2.0 / cycleTime
         else:
             pos = trajectory[-1]
             vel = [0.0] * len(pos)
@@ -61,23 +68,21 @@ def playTrajectory(servoManager, trajectory):
         if index == len(trajectory):
             servoManager.removeHandlerFunctions()
             doneRunning = True
-        return
 
-    def readResultHandlerFunction(dt, servoManager):
+    def readResultHandlerFunction(cycleTime, servoManager):
         pos = servoManager.getPosition()
         print(f'{pos[0] = :0.4f}, {pos[1] = :0.4f}', end='\r')
-        return
 
-    def errorHandlerFunction(e):
+    def errorHandlerFunction(inputException):
         try:
-            raise e
+            raise inputException
         except CommunicationError as e:
             if e.code == CommunicationError.ErrorCode.COULD_NOT_SEND:
                 raise e
-            else:
-                print('exception triggered: restarting communication...')
-                servoManager.shutdown();
-                servoManager.start()
+
+            print('exception triggered: restarting communication...')
+            servoManager.shutdown()
+            servoManager.start()
 
     servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction, errorHandlerFunction)
 
@@ -87,7 +92,6 @@ def playTrajectory(servoManager, trajectory):
         time.sleep(0.1)
 
 def addLinearMove(trajectory, endPos, duration):
-    global dt
     startPos = np.array(trajectory[-1])
     endPos = np.array(endPos)
 
@@ -99,7 +103,6 @@ def addLinearMove(trajectory, endPos, duration):
     return trajectory
 
 def addSmoothMove(trajectory, endPos, duration):
-    global dt
     startPos = np.array(trajectory[-1])
     endPos = np.array(endPos)
 
@@ -112,17 +115,16 @@ def addSmoothMove(trajectory, endPos, duration):
     return trajectory
 
 def addWait(trajectory, duration):
-    global dt
     startPos = np.array(trajectory[-1])
 
     steps = int(round(duration / dt))
-    for i in range(1, steps + 1):
+    for _ in range(1, steps + 1):
         trajectory.append(startPos)
 
     return trajectory
 
 def main():
-    port = '' #'/dev/ttyACM0'
+    port = '' # '/dev/ttyACM0'
     with createServoManager(port) as servoManager:
         trajectory = []
         trajectory.append(servoManager.getPosition())
@@ -130,12 +132,12 @@ def main():
         trajectory = addSmoothMove(trajectory, [0.0, 0.0], 1.0)
         trajectory = addWait(trajectory, 10.0)
 
-        for i in range(0, 3):
-            #trajectory = addSmoothMove(trajectory, [2.0, 2.0], 0.2)
+        for _ in range(0, 3):
+            # trajectory = addSmoothMove(trajectory, [2.0, 2.0], 0.2)
             trajectory = addSmoothMove(trajectory, [-10.0, -10.0], 1.0)
             trajectory = addSmoothMove(trajectory, [0.0, 0.0], 3.0)
             trajectory = addWait(trajectory, 3.0)
-            #trajectory = addSmoothMove(trajectory, [-2.0, -2.0], 0.2)
+            # trajectory = addSmoothMove(trajectory, [-2.0, -2.0], 0.2)
             trajectory = addSmoothMove(trajectory, [10.0, 10.0], 1.0)
             trajectory = addSmoothMove(trajectory, [0.0, 0.0], 3.0)
             trajectory = addWait(trajectory, 3.0)

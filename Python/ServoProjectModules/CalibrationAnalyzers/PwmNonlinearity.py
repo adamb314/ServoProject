@@ -1,4 +1,9 @@
-from ServoProjectModules.CalibrationAnalyzers.Helper import *
+'''
+Module for calibrating pwm nonlinearity
+'''
+# pylint: disable=duplicate-code
+
+from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 class QuadraticCurve:
     def __init__(self, xList, yList, index = 1):
@@ -14,16 +19,16 @@ class QuadraticCurve:
         #y2 = c0 * x2**2 + c1 * x2 + c2
         #Y = A * C
         # ==> C = A^-1 * Y
-        A = np.matrix([[x0**2, x0, 1],
+        aMat = np.matrix([[x0**2, x0, 1],
                          [x1**2, x1, 1],
                          [x2**2, x2, 1]])
-        
-        temp = np.linalg.inv(A) * np.matrix([[y0], [y1], [y2]])
+
+        temp = np.linalg.inv(aMat) * np.matrix([[y0], [y1], [y2]])
         self._c = list((d[0, 0] for d in temp))
 
         self._xCenter = x1
         self._xSpan = [x1 - x0, x2 - x1]
-        
+
     def getY(self, xList):
         c0 = self._c[0]
         c1 = self._c[1]
@@ -34,14 +39,14 @@ class QuadraticCurve:
 
     def addToWeightedAveraged(self, x, ywSum, wSum):
         y = self.getY(x)
-        w = [math.exp(-(2 * (d - self._xCenter) / 
+        w = [math.exp(-(2 * (d - self._xCenter) /
                 (self._xSpan[0] if d - self._xCenter < 0 else self._xSpan[1]))**2) for d in x]
 
-        ywSum = list([d[0] + d[1] * d[2] for d in zip(ywSum, y, w)])
-        wSum = list([d[0] + d[1] for d in zip(wSum, w)])
+        ywSum = [d[0] + d[1] * d[2] for d in zip(ywSum, y, w)]
+        wSum = [d[0] + d[1] for d in zip(wSum, w)]
         return ywSum, wSum
 
-class PwmNonlinearityIdentifier(object):
+class PwmNonlinearityIdentifier:
     def __init__(self, compListPwm, compList):
         self.compListPwm = []
         self.compList = []
@@ -68,7 +73,7 @@ class PwmNonlinearityIdentifier(object):
 
         self.quadraticCurveScaling = 1023 / self.compListQuadInter[-1]
         self.compListQuadInter *= self.quadraticCurveScaling
-        self.compList = list([d * self.quadraticCurveScaling for d in self.compList])
+        self.compList = [d * self.quadraticCurveScaling for d in self.compList]
 
 
         self.pwmNonlinearityCompLookUp = []
@@ -81,12 +86,18 @@ class PwmNonlinearityIdentifier(object):
                 else:
                     break
 
-            t = (pwm - self.compListQuadInter[index]) / (self.compListQuadInter[index + 1] - self.compListQuadInter[index])
+            t = ((pwm - self.compListQuadInter[index]) /
+                    (self.compListQuadInter[index + 1] - self.compListQuadInter[index]))
             self.pwmNonlinearityCompLookUp.append(index + t)
 
-    _linearizeFuncReturnPattern = re.compile(r'(\n([ \t]*).*createCurrentController\(\)\s*\{(.*\n)*?(\s*)auto\s+pwmHighFrqCompFun\s+=\s+\[\]\(uint16_t\s+in\)\4\{\n)([ \t]*)(?P<function>(.*\n)*?.*)(\4\};(.*\n)*?\2\})')
-    _linearizeVecPattern = re.compile(r'((\s*).*createCurrentController\(\)\s*\{(.*\n)*?)(\s*)auto\s+pwmHighFrqCompFun\s+=\s+\[\]\(uint16_t\s+in\)(.*\n)*?\4\};((.*\n)*?\2\})')
-    
+    _linearizeFuncReturnPattern = re.compile(
+            r'(\n([ \t]*).*createCurrentController\(\)\s*\{(.*\n)*?(\s*)auto\s+pwmHighFrqCompFun\s+=\s+'
+            r'\[\]\(uint16_t\s+in\)\4\{\n)([ \t]*)(?P<function>(.*\n)*?.*)(\4\};(.*\n)*?\2\})')
+    _linearizeVecPattern = re.compile(
+            r'((\s*).*createCurrentController\(\)\s*\{(.*\n)*?)(\s*)auto\s+pwmHighFrqCompFun\s+=\s+'
+            r'\[\]\(uint16_t\s+in\)(.*\n)*?\4\};((.*\n)*?\2\})')
+
+    @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
@@ -99,10 +110,12 @@ class PwmNonlinearityIdentifier(object):
 
         return False
 
+    @staticmethod
     def resetPreviousCalibration(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
-        configClassString = re.sub(PwmNonlinearityIdentifier._linearizeFuncReturnPattern, r'\1\5return in;\8', configClassString)
+        configClassString = re.sub(PwmNonlinearityIdentifier._linearizeFuncReturnPattern, r'\1\5return in;\8',
+                                    configClassString)
         configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
 
         return configFileAsString
@@ -131,8 +144,7 @@ class PwmNonlinearityIdentifier(object):
         linearizeVecPattern = PwmNonlinearityIdentifier._linearizeVecPattern
 
         temp = linearizeVecPattern.search(configClassString)
-        if temp != None:
-            lookUpSize = len(self.pwmNonlinearityCompLookUp)
+        if temp is not None:
             out = r'\1'
             out += self.getLinearizationFunction(r'\4')
             out += r'\6'
@@ -148,7 +160,8 @@ class PwmNonlinearityIdentifier(object):
         out = ''
         out += indent + 'auto pwmHighFrqCompFun = [](uint16_t in)\n'
         out += indent + '{\n'
-        out += indent + '    constexpr static std::array<uint16_t, ' + str(lookUpSize) + '> linearizeVec = ' + intArrayToString(self.pwmNonlinearityCompLookUp) + '\n'
+        out += indent + ('    constexpr static std::array<uint16_t, ' + str(lookUpSize) + '> linearizeVec = '
+                        + intArrayToString(self.pwmNonlinearityCompLookUp)) + '\n'
         out += '\n'
         out += indent + '    float t = in * (' + str(lookUpSize - 1.0) + 'f / 1023.0f);\n'
         out += indent + '    size_t index = std::min(static_cast<size_t>(t), (size_t)' + str(lookUpSize - 2) + ');\n'
@@ -162,12 +175,13 @@ class PwmNonlinearityIdentifier(object):
         return out
 
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
-    with open(configFilePath, "r") as configFile:
+    # pylint: disable=too-many-locals, too-many-statements
+    with open(configFilePath, 'r', encoding='utf-8') as configFile:
         configFileAsString = configFile.read()
 
         try:
             PwmNonlinearityIdentifier.checkForPreviousCalibration(configFileAsString, configClassName)
-        except Exception as e:
+        except Exception:
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
                     flags=0,
@@ -176,13 +190,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     text='Pwm calibration not compatible with this configuration! Continue any way?',
             )
             dialog.format_secondary_text(
-                ""
+                ''
             )
             response = dialog.run()
             dialog.destroy()
 
             if response == Gtk.ResponseType.NO:
-                return
+                return None
 
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
@@ -213,24 +227,25 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     buttons = []
     testValues = list(range(0, 1023, 100))
-    testResults = list(['' for v in testValues])
+    testResults = ['' for v in testValues]
     if getPortFun() == '':
-        testResults = ['0.0522', '0.0568', '0.0621', '0.0683', '0.0765', '0.0844', '0.095', '0.172', '0.44', '0.88', '1.61']
+        testResults = ['0.0522', '0.0568', '0.0621', '0.0683', '0.0765',
+                        '0.0844', '0.095', '0.172', '0.44', '0.88', '1.61']
 
     def getIndexOfWidget(widget):
-        return [i for i, w in enumerate(buttons) if widget == w[1] or widget == w[2]][0]
+        return [i for i, w in enumerate(buttons) if widget in (w[1], w[2])][0]
 
     def updateCalculateCalibrationButtonStatus():
         if testResults[0] == '':
             calculateCalibrationButton[1].set_label(
-                f'Data point at 0 needed to calibration')
+                'Data point at 0 needed to calibration')
             calculateCalibrationButton[1].set_sensitive(False)
             return
 
         nrOfCalibrationDataPoints = len([[d[0], d[1]] for d in zip(testValues, testResults) if d[1] != ''])
         if nrOfCalibrationDataPoints >= 3:
-            calculateCalibrationButton[1].set_label(f'Calculate calibration')
-            calculateCalibrationButton[1].set_sensitive(True)                
+            calculateCalibrationButton[1].set_label('Calculate calibration')
+            calculateCalibrationButton[1].set_sensitive(True)
         else:
             missingPoints = 3 - nrOfCalibrationDataPoints
             calculateCalibrationButton[1].set_label(
@@ -238,11 +253,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             calculateCalibrationButton[1].set_sensitive(False)
 
     def onEditTestValuesClicked(widget):
+        # pylint: disable=too-many-locals, too-many-statements
         nonlocal buttons
         nonlocal testValues
         nonlocal testResults
 
-        if widget != None:
+        if widget is not None:
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
                     flags=0,
@@ -259,19 +275,20 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             box.add(testValuesEntry)
             box.show_all()
             dialog.get_widget_for_response(Gtk.ResponseType.CANCEL).grab_focus()
-            response = dialog.run()
+            dialog.run()
 
             try:
                 s = testValuesEntry.get_text()
                 if s.find('\n') != -1:
                     raise Exception('line break not allowed')
-                gen = eval(s)
+                gen = eval(s)  # pylint: disable=eval-used
                 newTestValues = [int(round(d)) for d in gen]
                 if len(newTestValues) == 0 or newTestValues[0] != 0:
                     newTestValues = [0] + newTestValues
                 newTestResults = ['' for d in newTestValues]
                 for i, newTest in enumerate(newTestValues):
-                    resultsForOldTest = [oldResult for oldTest, oldResult in zip(testValues, testResults) if newTest == oldTest]
+                    resultsForOldTest = [oldResult for oldTest, oldResult in zip(testValues, testResults)
+                                            if newTest == oldTest]
                     if len(resultsForOldTest) > 0:
                         newTestResults[i] = resultsForOldTest[0]
 
@@ -313,13 +330,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         w[1].set_sensitive(True)
 
             if widget.get_active():
-                with open(configFilePath, "r") as configFile:
+                with open(configFilePath, 'r', encoding='utf-8') as configFile:
                     configFileAsString = configFile.read()
 
                     previousCalibrationDetected = False
                     try:
-                        previousCalibrationDetected = PwmNonlinearityIdentifier.checkForPreviousCalibration(configFileAsString, configClassName)
-                    except Exception as e:
+                        previousCalibrationDetected = PwmNonlinearityIdentifier.checkForPreviousCalibration(
+                                configFileAsString, configClassName)
+                    except Exception:
                         pass
 
                     if previousCalibrationDetected:
@@ -331,7 +349,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                                 text='Pwm calibration already done for this configuration!',
                         )
                         dialog.format_secondary_text(
-                            "Pwm linarization only works on configurations without previous calibration.\n\nShould the calibration be reset?"
+                            'Pwm linarization only works on configurations without previous calibration.\n\n'
+                            'Should the calibration be reset?'
                         )
                         response = dialog.run()
                         dialog.destroy()
@@ -340,8 +359,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             widget.set_active(False)
                             return
 
-                        configFileAsString = PwmNonlinearityIdentifier.resetPreviousCalibration(configFileAsString, configClassName)
-                        with open(configFilePath, "w") as configFile:
+                        configFileAsString = PwmNonlinearityIdentifier.resetPreviousCalibration(
+                                configFileAsString, configClassName)
+                        with open(configFilePath, 'w', encoding='utf-8') as configFile:
                             configFile.write(configFileAsString)
                             GuiFunctions.transferToTargetMessage(parent)
 
@@ -357,21 +377,21 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         servoManager.servoArray[0].setOpenLoopControlSignal(pwm, True)
 
                     def readResultHandlerFunction(dt, servoManager):
-                        pos = servoManager.servoArray[0].getPosition()
                         return
 
                     def errorHandlerFunction(exception):
+                        nonlocal servoManager
                         GuiFunctions.exceptionMessage(parent, exception)
                         servoManager.shutdown()
                         servoManager = None
                         widget.set_active(False)
 
-                    servoManager.setHandlerFunctions(sendCommandHandlerFunction, 
+                    servoManager.setHandlerFunctions(sendCommandHandlerFunction,
                             readResultHandlerFunction, errorHandlerFunction)
                     servoManager.start()
                 except Exception as e:
                     GuiFunctions.exceptionMessage(parent, e)
-                    if servoManager != None:
+                    if servoManager is not None:
                         servoManager.shutdown()
                         servoManager = None
                     widget.set_active(False)
@@ -398,7 +418,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         onResultEntryEdit.firstLevelEvent = False
                         widget.set_text(newS)
                 testResults[index] = newS
-            except ValueError as e:
+            except ValueError:
                 onResultEntryEdit.firstLevelEvent = False
                 widget.set_text(testResults[index])
             finally:
@@ -424,8 +444,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             b.set_margin_end(4)
             b.set_margin_top(8)
             b.set_margin_bottom(1)
-            b.set_property("width-request", 20)
-            b.connect('toggled', onTestButtonPressed);
+            b.set_property('width-request', 20)
+            b.connect('toggled', onTestButtonPressed)
             box.pack_start(b, False, False, 0)
             e = Gtk.Entry()
             e.set_text(f'{result}')
@@ -450,8 +470,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def onCalculateCalibrationButtonClicked(widget):
         data = [[d[0], d[1]] for d in zip(testValues, testResults) if d[1] != '']
-        compListPwm = list([int(d[0]) for d in data])
-        compList = list([float(d[1]) - float(data[0][1]) for d in data])
+        compListPwm = [int(d[0]) for d in data]
+        compList = [float(d[1]) - float(data[0][1]) for d in data]
 
         pwmNonlinearityIdentifier = PwmNonlinearityIdentifier(compListPwm, compList)
 
@@ -463,7 +483,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 text='Pwm linearity calibration done!',
         )
         dialog.format_secondary_text(
-            "Should the configuration be updated with the new data?"
+            'Should the configuration be updated with the new data?'
         )
         pwmNonlinearityIdentifier.plotGeneratedVector(dialog.get_message_area())
         dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
@@ -471,17 +491,18 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         dialog.destroy()
 
         if response == Gtk.ResponseType.YES:
-            with open(configFilePath, "r") as configFile:
+            with open(configFilePath, 'r', encoding='utf-8') as configFile:
                 configFileAsString = configFile.read()
 
-                configFileAsString = pwmNonlinearityIdentifier.writeLinearizationFunctionToConfigFileString(configFileAsString, configClassName)
+                configFileAsString = pwmNonlinearityIdentifier.writeLinearizationFunctionToConfigFileString(
+                        configFileAsString, configClassName)
                 if configFileAsString != '':
-                    with open(configFilePath, "w") as configFile:
+                    with open(configFilePath, 'w', encoding='utf-8') as configFile:
                         configFile.write(configFileAsString)
                         GuiFunctions.transferToTargetMessage(parent)
 
                         return
-                
+
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
                     flags=0,
@@ -490,7 +511,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     text='Configuration format error!',
             )
             dialog.format_secondary_text(
-                "Please past in the linearization function manually"
+                'Please past in the linearization function manually'
             )
             box = dialog.get_message_area()
             funEntry = Gtk.Entry()

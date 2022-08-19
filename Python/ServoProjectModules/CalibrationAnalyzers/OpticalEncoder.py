@@ -1,28 +1,23 @@
-from ServoProjectModules.CalibrationAnalyzers.Helper import *
+'''
+Module for calibrating the optical encoder
+'''
+# pylint: disable=too-many-lines, duplicate-code
+
+from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 @numba.jit(nopython=True)
-def calcCovWithEndOfVectors(aVec, bVec, ca, cb, noiseDepresMemLenght,  dir):
+def calcCovWithEndOfVectors(aVec, bVec, ca, cb, noiseDepresMemLenght):
     cov = 0
 
-    aDiff = (aVec[-1] - aVec[-noiseDepresMemLenght]) / noiseDepresMemLenght
-    bDiff = (bVec[-1] - bVec[-noiseDepresMemLenght]) / noiseDepresMemLenght
-
-    if dir == False:
-        aDiff = 0
-        bDiff = 0
+    aDiff = 0
+    bDiff = 0
 
     for i, (a, b) in enumerate(zip(aVec[-noiseDepresMemLenght:], bVec[-noiseDepresMemLenght:])):
         a += aDiff * (noiseDepresMemLenght - i - 1)
         b += bDiff * (noiseDepresMemLenght - i - 1)
 
         cov += (ca - a)**2 + (cb - b)**2
-    if dir == True:
-        cov += noiseDepresMemLenght * (
-            (ca - aVec[-noiseDepresMemLenght+1] -
-                (aVec[-1] - aVec[-noiseDepresMemLenght]))**2 +
-            (cb - bVec[-noiseDepresMemLenght+1] -
-                (bVec[-1] - bVec[-noiseDepresMemLenght]))**2)
-        
+
     return cov
 
 @numba.jit(nopython=True)
@@ -33,7 +28,7 @@ def findBestFitt(data, modData, aVec, bVec, noiseDepresMemLenght):
     wrapIndex = 0
 
     for i, d in enumerate(modData):
-        cov = calcCovWithEndOfVectors(aVec, bVec, d[0], d[1], noiseDepresMemLenght, False)
+        cov = calcCovWithEndOfVectors(aVec, bVec, d[0], d[1], noiseDepresMemLenght)
 
         if minCov > cov:
             minIndex = i
@@ -41,7 +36,7 @@ def findBestFitt(data, modData, aVec, bVec, noiseDepresMemLenght):
 
     if len(modData) < len(data) * 0.2:
         for i in range(noiseDepresMemLenght, int(len(aVec) / 2)):
-            cov = calcCovWithEndOfVectors(aVec, bVec, aVec[i], bVec[i], noiseDepresMemLenght, False)
+            cov = calcCovWithEndOfVectors(aVec, bVec, aVec[i], bVec[i], noiseDepresMemLenght)
 
             if minCov > cov:
                 wrapIndex = i
@@ -56,7 +51,7 @@ def findBestFitt2(ca, cb, aVec, bVec):
     minCov = math.inf
     minIndex = 0
 
-    for i, d in enumerate(zip(aVec[1:], bVec[1:])):
+    for i, _ in enumerate(zip(aVec[1:], bVec[1:])):
         cov = 0
         n = 0
         iMin = i - noiseDepresMemLenght
@@ -86,10 +81,11 @@ def findBestFitt2(ca, cb, aVec, bVec):
     return minIndex + 1
 
 @numba.jit(nopython=True)
-def calcFitCov(i, a, b, aVec, bVec, noiseDepresMemLenght):
+def calcFitCov(atIndex, a, b, aVec, bVec, noiseDepresMemLenght):
+    # pylint: disable=too-many-arguments
     cov = 0
-    iMin = i - noiseDepresMemLenght
-    iMax = i + 2 + noiseDepresMemLenght
+    iMin = atIndex - noiseDepresMemLenght
+    iMax = atIndex + 2 + noiseDepresMemLenght
     for i in range(iMin, iMax):
         i = i % len(aVec)
         cov += (a - aVec[i])**2 + (b - bVec[i])**2
@@ -124,8 +120,8 @@ def findWorstFitt(aVec, bVec):
     maxIndex = 0
 
     for i, d in enumerate(zip(aVec[1:], bVec[1:])):
-        a = aVec[i + 1]
-        b = bVec[i + 1]
+        a = d[0]
+        b = d[1]
 
         nextI = i + 2
         if nextI == len(aVec):
@@ -177,12 +173,20 @@ def shiftVec(vec, shift):
     return temp[-shift:] + temp[0:-shift]
 
 class OpticalEncoderDataVectorGenerator:
-    _aVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*aVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
-    _bVecPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*<\s*uint16_t\s*,\s*)\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
+    # pylint: disable=too-many-instance-attributes
+    _aVecPattern = re.compile(
+            r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*(constexpr)?\s+'
+            r'(static)?\s+std\s*::\s*array\s*<\s*uint16_t\s*,\s*)'
+            r'\d+(?P<end>\s*>\s*aVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
+    _bVecPattern = re.compile(
+            r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*(constexpr)?\s+'
+            r'(static)?\s+std\s*::\s*array\s*<\s*uint16_t\s*,\s*)'
+            r'\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
 
-    def __init__(self, data, configFileAsString = '', configClassName = '', segment = 3000,
-            constVelIndex = 10000, noiseDepresMemLenght = 5,
+    def __init__(self, data, configFileAsString='', configClassName='', *, segment=3000,
+            constVelIndex=10000, noiseDepresMemLenght=5,
             shouldAbort=None, updateProgress=None):
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements
 
         self.data = data[:, 0:2]
         self.noiseDepresMemLenght = noiseDepresMemLenght
@@ -201,10 +205,10 @@ class OpticalEncoderDataVectorGenerator:
         for i, d in enumerate(self.data[0:constVelIndex, 0:2]):
             c = (d[0] - a0)**2 + (d[1] -b0)**2
 
-            if startOfFirstRotation == None:
+            if startOfFirstRotation is None:
                 if c > meanCost:
                     startOfFirstRotation = i
-            elif endOfFirstRotation == None:
+            elif endOfFirstRotation is None:
                 if armed == 0:
                     if c > meanCost * 1.5:
                         armed = 1
@@ -216,7 +220,7 @@ class OpticalEncoderDataVectorGenerator:
                         endOfFirstRotation = i
                         break
 
-        if startOfFirstRotation == None or endOfFirstRotation == None:
+        if startOfFirstRotation is None or endOfFirstRotation is None:
             raise Exception('No movement detected')
 
         startIndex = startOfFirstRotation
@@ -260,7 +264,7 @@ class OpticalEncoderDataVectorGenerator:
 
         actNr = 0
         for i in range(0, nr):
-            if self.shouldAbort != None:
+            if self.shouldAbort is not None:
                 if self.shouldAbort():
                     return
 
@@ -268,7 +272,7 @@ class OpticalEncoderDataVectorGenerator:
                 aVec, bVec = self.genVec(filteredData[segment * i: segment * (i + 1)], 1.0 / nr * 0.9, i / nr * 0.9)
                 aVec = np.array(shrinkArray(aVec, 4096))
                 bVec = np.array(shrinkArray(bVec, 4096))
-                
+
                 self.aVecList.append(aVec)
                 self.bVecList.append(bVec)
 
@@ -315,19 +319,19 @@ class OpticalEncoderDataVectorGenerator:
             inserts.append([])
 
         nrOfVectorsToMerge = len(self.aVecList[1:])
-        for i, d in enumerate(zip(self.aVecList[1:], 
-                self.bVecList[1:])):
+        for i, d in enumerate(zip(self.aVecList[1:], self.bVecList[1:])):
             tempAVec = numba.typed.List(d[0])
             tempBVec = numba.typed.List(d[1])
 
             initialTempVecLenght = len(tempAVec)
             while len(tempAVec) > 0:
-                minIndex = findBestFitt2Opt(tempAVec[0], tempBVec[0], mergedAVectors, mergedBVectors, 2 * i + self.noiseDepresMemLenght)
+                minIndex = findBestFitt2Opt(tempAVec[0], tempBVec[0], mergedAVectors, mergedBVectors,
+                                            2 * i + self.noiseDepresMemLenght)
                 inserts[minIndex].append((tempAVec[0], tempBVec[0]))
                 del tempAVec[0]
                 del tempBVec[0]
 
-                if self.updateProgress != None:
+                if self.updateProgress is not None:
                     fraction = 1.0 - len(tempAVec) / initialTempVecLenght
                     fraction = (i + fraction) / nrOfVectorsToMerge
                     self.updateProgress(0.1 * fraction + 0.9)
@@ -361,21 +365,21 @@ class OpticalEncoderDataVectorGenerator:
             temp1 = OpticalEncoderDataVectorGenerator._aVecPattern.search(configClassString)
             temp2 = OpticalEncoderDataVectorGenerator._bVecPattern.search(configClassString)
 
-            if temp1 != None and temp2 != None:
+            if temp1 is not None and temp2 is not None:
                 oldAVecStr = temp1.group('vec')
                 oldBVecStr = temp2.group('vec')
                 oldAVecStr = '[' + oldAVecStr + ']'
                 oldBVecStr = '[' + oldBVecStr + ']'
 
-                self.oldAVec = eval(oldAVecStr)
-                self.oldBVec = eval(oldBVecStr)
+                self.oldAVec = eval(oldAVecStr)  # pylint: disable=eval-used
+                self.oldBVec = eval(oldBVecStr)  # pylint: disable=eval-used
 
                 if len(self.oldAVec) <= 1:
                     self.oldAVec = None
                 if len(self.oldBVec) <= 1:
                     self.oldBVec = None
 
-        if self.oldAVec != None and self.oldBVec != None:
+        if self.oldAVec is not None and self.oldBVec is not None:
             bestFittShift = getShift(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
             self.aVecShifted = shiftVec(self.aVec, bestFittShift)
             self.bVecShifted = shiftVec(self.bVec, bestFittShift)
@@ -384,9 +388,10 @@ class OpticalEncoderDataVectorGenerator:
             self.bVecShifted = self.bVec
 
     def genVec(self, data, partOfTotal = 1.0, donePrev = 0.0):
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements
         aVec = numba.typed.List()
         bVec = numba.typed.List()
-        for i in range(0, self.noiseDepresMemLenght):
+        for _ in range(0, self.noiseDepresMemLenght):
             aVec.append(self.a0)
             bVec.append(self.b0)
 
@@ -394,14 +399,14 @@ class OpticalEncoderDataVectorGenerator:
         wrapIndex = 0
 
         while len(modData) > 0:
-            if self.shouldAbort != None:
+            if self.shouldAbort is not None:
                 if self.shouldAbort():
-                    return
+                    return (np.array(aVec), np.array(bVec))
 
-            if self.updateProgress != None:
+            if self.updateProgress is not None:
                 fraction = (len(data) - len(modData)) / len(data)
                 self.updateProgress(partOfTotal * fraction + donePrev)
-            
+
             minIndex, done, wrapIndex = findBestFitt(data, modData, aVec, bVec, self.noiseDepresMemLenght)
 
             if done:
@@ -422,11 +427,11 @@ class OpticalEncoderDataVectorGenerator:
         bVec = bVec[wrapIndex:]
 
         while len(modData) > 0:
-            if self.shouldAbort != None:
+            if self.shouldAbort is not None:
                 if self.shouldAbort():
-                    return
+                    return (np.array(aVec), np.array(bVec))
 
-            if self.updateProgress != None:
+            if self.updateProgress is not None:
                 fraction = (len(data) - len(modData)) / len(data)
                 self.updateProgress(partOfTotal * fraction + donePrev)
 
@@ -455,6 +460,7 @@ class OpticalEncoderDataVectorGenerator:
         return (np.array(aVec), np.array(bVec))
 
     def showAdditionalDiagnosticPlots(self):
+        # pylint: disable=too-many-locals, too-many-statements
         sensorValueOffset = 0
         predictNextPos = 0
         iAtLastOffsetUpdate = 0
@@ -463,9 +469,9 @@ class OpticalEncoderDataVectorGenerator:
         def calcCost(i, a, b, aVec, bVec):
             vecSize = len(aVec)
 
-            if (i >= vecSize):
+            if i >= vecSize:
                 i -= vecSize
-            elif (i < 0):
+            elif i < 0:
                 i += vecSize
 
             tempA = aVec[i] - a
@@ -477,6 +483,7 @@ class OpticalEncoderDataVectorGenerator:
             return (tempA + tempB, i)
 
         def calculatePosition(ca, cb, aVec, bVec):
+            # pylint: disable=too-many-locals, too-many-statements
             nonlocal sensorValueOffset
             nonlocal predictNextPos
             nonlocal iAtLastOffsetUpdate
@@ -487,8 +494,8 @@ class OpticalEncoderDataVectorGenerator:
             vecSize = len(aVec)
 
             #int16_t offset = sensorValueOffset
-            diagnosticData_a = sensor1Value
-            diagnosticData_b = sensor2Value
+            diagnosticDataA = sensor1Value
+            diagnosticDataB = sensor2Value
             #sensor1Value -= offset
             #sensor2Value -= offset
 
@@ -501,10 +508,10 @@ class OpticalEncoderDataVectorGenerator:
             bestCost = cost
 
             i += stepSize
-            while (i < vecSize):
+            while i < vecSize:
                 cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
-                if (cost < bestCost):
+                if cost < bestCost:
                     bestI = i
                     bestCost = cost
 
@@ -512,21 +519,21 @@ class OpticalEncoderDataVectorGenerator:
 
             checkDir = 1
 
-            while not stepSize == 1:
+            while stepSize != 1:
                 i = bestI
 
-                if (stepSize <= 4):
+                if stepSize <= 4:
                     stepSize -= 1
                 else:
                     stepSize = int(stepSize / 2)
-                    if (stepSize == 0):
+                    if stepSize == 0:
                         stepSize = 1
 
                 i += stepSize * checkDir
 
                 cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
-                if (cost < bestCost):
+                if cost < bestCost:
                     bestI = i
                     bestCost = cost
 
@@ -538,27 +545,27 @@ class OpticalEncoderDataVectorGenerator:
 
                 cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
-                if (cost < bestCost):
+                if cost < bestCost:
                     bestI = i
                     bestCost = cost
 
             bestI = int(bestI)
 
-            if (abs(bestI - iAtLastOffsetUpdate) > (vecSize / 10)):
+            if abs(bestI - iAtLastOffsetUpdate) > (vecSize / 10):
                 iAtLastOffsetUpdate = bestI
 
                 a = aVec[bestI]
                 b = bVec[bestI]
-                currentOffset = (diagnosticData_a - a + diagnosticData_b - b) / 2
+                currentOffset = (diagnosticDataA - a + diagnosticDataB - b) / 2
 
                 sensorValueOffset = 0.95 * sensorValueOffset + 0.05 * currentOffset
 
             lastMinCostIndexChange = bestI - lastMinCostIndex
             lastMinCostIndex = bestI
             predictNextPos = bestI + lastMinCostIndexChange
-            while (predictNextPos >= vecSize):
+            while predictNextPos >= vecSize:
                 predictNextPos -= vecSize
-            while (predictNextPos < 0):
+            while predictNextPos < 0:
                 predictNextPos += vecSize
 
             return (bestI, bestCost)
@@ -593,7 +600,7 @@ class OpticalEncoderDataVectorGenerator:
             chB.append(self.bVec[pos])
             chADiffs.append(d[0] - self.aVec[pos])
             chBDiffs.append(d[1] - self.bVec[pos])
-            if lastPos == None:
+            if lastPos is None:
                 lastPos = pos
             diff = pos - lastPos
             diffs.append(diff - int(round(diff / 2048)) * 2048)
@@ -642,12 +649,13 @@ class OpticalEncoderDataVectorGenerator:
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        labelStr = 'Red is channel A and green is channel B. A good result\nis indicated by all points cohering to a smooth curve.'
+        labelStr = ('Red is channel A and green is channel B. A good result\n'
+                'is indicated by all points cohering to a smooth curve.')
 
         ax.plot(self.aVecShifted, 'r-')
         ax.plot(self.bVecShifted, 'g-')
 
-        if self.oldAVec != None and self.oldBVec != None:
+        if self.oldAVec is not None and self.oldBVec is not None:
             ax.plot(self.oldAVec, 'm-')
             ax.plot(self.oldBVec, 'c-')
 
@@ -675,9 +683,11 @@ class OpticalEncoderDataVectorGenerator:
 
         temp1 = aVecPattern.search(configClassString)
         temp2 = bVecPattern.search(configClassString)
-        if temp1 != None and temp2 != None:
-            configClassString = re.sub(aVecPattern, r'\g<beg>' + '2048' + r'\g<end>' + intArrayToString(self.aVecShifted), configClassString)
-            configClassString = re.sub(bVecPattern, r'\g<beg>' + '2048' + r'\g<end>' + intArrayToString(self.bVecShifted), configClassString)
+        if temp1 is not None and temp2 is not None:
+            configClassString = re.sub(aVecPattern, r'\g<beg>' + '2048' + r'\g<end>'
+                    + intArrayToString(self.aVecShifted), configClassString)
+            configClassString = re.sub(bVecPattern, r'\g<beg>' + '2048' + r'\g<end>'
+                    + intArrayToString(self.bVecShifted), configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -692,12 +702,16 @@ class OpticalEncoderDataVectorGenerator:
         return out
 
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
+    # pylint: disable=too-many-locals, too-many-statements
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
 
     limitMovementButton = GuiFunctions.createToggleButton('Lock', getLowLev=True)
-    limitMovementButton = GuiFunctions.addTopLabelTo('<b>Limit movement</b>\n Only move around locked position to avoid end limits', limitMovementButton[0]), limitMovementButton[1]
+    limitMovementButton = (GuiFunctions.addTopLabelTo(
+                '<b>Limit movement</b>\n Only move around locked position to avoid end limits',
+                limitMovementButton[0]),
+            limitMovementButton[1])
     calibrationBox.pack_start(limitMovementButton[0], False, False, 0)
 
     startPos = None
@@ -719,7 +733,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     pwmValue = 0
     pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
-    pwmScale = GuiFunctions.addTopLabelTo('<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]), pwmScale[1]
+    pwmScale = (GuiFunctions.addTopLabelTo(
+                '<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]),
+            pwmScale[1])
     calibrationBox.pack_start(pwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
@@ -756,6 +772,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     runThread = False
     def testPwmRun(nodeNr, port):
+        # pylint: disable=too-many-statements
         nonlocal runThread
 
         try:
@@ -777,7 +794,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     pos = servo.getPosition(True)
 
-                    if startPos != None:
+                    if startPos is not None:
                         if pos - startPos < -1 and moveDir != -1:
                             moveDir = -1
                             pwmDir *= -1
@@ -811,14 +828,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     stop = False
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             stop = True
 
                     if stop or parent.isClosed:
                         servoManager.removeHandlerFunctions()
                         doneRunning = True
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                 while not doneRunning:
                     if not servoManager.isAlive():
@@ -848,7 +865,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         fig.suptitle('Sensor A and B values')
                         plt.plot(data[:, 0], data[:, 1], 'r')
                         plt.plot(data[:, 0], data[:, 2], 'g')
-                        
+
                         fig = plt.figure(2)
                         fig.suptitle('Encoder position')
                         plt.plot(data[:, 0], data[:, 3])
@@ -899,7 +916,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 runThread = False
             testThread.join()
 
-
     testButton[1].connect('clicked', onTestPwm)
 
     def updateRecordingProgressBar(fraction):
@@ -907,8 +923,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def updateAnalyzingProgressBar(fraction):
         analyzingProgressBar[1].set_fraction(fraction)
-    
+
     def startCalibrationRun(nodeNr, port):
+        # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
         try:
@@ -947,14 +964,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     dialog.destroy()
 
                     if response == Gtk.ResponseType.YES:
-                        configClassString = ''
-
-                        with open(configFilePath, "r") as configFile:
+                        with open(configFilePath, "r", encoding='utf-8') as configFile:
                             configFileAsString = configFile.read()
-                            configFileAsString = opticalEncoderDataVectorGenerator.writeVectorsToConfigFileString(configFileAsString, configClassName)
+                            configFileAsString = opticalEncoderDataVectorGenerator.writeVectorsToConfigFileString(
+                                    configFileAsString, configClassName)
 
                             if configFileAsString != '':
-                                with open(configFilePath, "w") as configFile:
+                                with open(configFilePath, "w", encoding='utf-8') as configFile:
                                     configFile.write(configFileAsString)
                                     GuiFunctions.transferToTargetMessage(parent)
 
@@ -975,7 +991,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         vecEntry.set_text(opticalEncoderDataVectorGenerator.getGeneratedVectors())
                         box.add(vecEntry)
                         box.show_all()
-                        response = dialog.run()
+                        dialog.run()
                         dialog.destroy()
 
                 def handleAnalyzeError(info):
@@ -987,7 +1003,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             text='Calibration failed during analyzing',
                     )
                     dialog.format_secondary_text(info)
-                    response = dialog.run()
+                    dialog.run()
                     dialog.destroy()
 
                 t = 0.0
@@ -1011,7 +1027,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     pos = servo.getPosition(True)
 
-                    if startPos != None:
+                    if startPos is not None:
                         if pos - startPos < -1:
                             dirChangeWait = 1.0
                             if moveDir != -1:
@@ -1050,7 +1066,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     stop = t >= runTime
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             stop = True
 
                     if stop or parent.isClosed:
@@ -1077,7 +1093,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 def shouldAbort():
 
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             return True
                     return False
 
@@ -1092,11 +1108,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 if not shouldAbort():
                     try:
                         configFileAsString = ''
-                        with open(configFilePath, "r") as configFile:
+                        with open(configFilePath, "r", encoding='utf-8') as configFile:
                             configFileAsString = configFile.read()
 
                         opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                data[:, 1:3], configFileAsString, configClassName, constVelIndex=4000, segment = 2 * 2048, noiseDepresMemLenght= 8,
+                                data[:, 1:3], configFileAsString, configClassName, constVelIndex=4000,
+                                segment=2 * 2048, noiseDepresMemLenght=8,
                                 shouldAbort=shouldAbort,
                                 updateProgress=updateProgress)
 
@@ -1108,7 +1125,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             GuiFunctions.exceptionMessage(parent, e)
         finally:
             GLib.idle_add(resetGuiAfterCalibration)
-    
+
     def onStartCalibration(widget):
         nonlocal testThread
         nonlocal runThread
@@ -1129,12 +1146,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             with threadMutex:
                 runThread = True
             testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
-            testThread.start()                                    
+            testThread.start()
         else:
             with threadMutex:
                 runThread = False
             testThread.join()
-
 
     startButton[1].connect('clicked', onStartCalibration)
 

@@ -1,0 +1,32 @@
+name: Pylint
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint pytest
+        sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0
+        pip install pycairo
+        pip install PyGObject
+        python Python/installDependencies.py
+    - name: Analysing the python code with pylint
+      run: |
+        Python/lintPythonCode
+    - name: run python code tests with pytest
+      run: |
+        Python/runPythonTests

@@ -1,9 +1,13 @@
+'''
+Module for ArduinoSketch configuration gui
+'''
+
 import os
-import serial.tools.list_ports
 import webbrowser
 import re
 import time
 import threading
+import serial.tools.list_ports
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
 import ServoProjectModules.CalibrationAnalyzers.OpticalEncoder as OpticalEncoderAnalyzer
@@ -12,11 +16,11 @@ import ServoProjectModules.CalibrationAnalyzers.SystemIdentification as SystemId
 import ServoProjectModules.CalibrationAnalyzers.OutputEncoder as OutputEncoderAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.MotorCoggingTorque as MotorCoggingTorqueAnalyzer
 import ServoProjectModules.CalibrationAnalyzers.TestControlLoop as TestControlLoopAnalyzer
-import ServoProjectModules.CalibrationAnalyzers.Helper as Helper
-import ServoProjectModules.ArduinoManager as ArduinoManager
-ArduinoManager.__init__()
+from ServoProjectModules.CalibrationAnalyzers import Helper
+from ServoProjectModules import ArduinoManager
 
 def openCreateConfigDialog(parent, configs):
+    # pylint: disable=too-many-locals, too-many-statements
     dialog = Gtk.MessageDialog(
             transient_for=parent,
             flags=0,
@@ -25,7 +29,7 @@ def openCreateConfigDialog(parent, configs):
             text='Create new configuration',
     )
     dialog.format_secondary_text(
-        ""
+        ''
     )
     box = dialog.get_message_area()
     createButton = dialog.get_widget_for_response(Gtk.ResponseType.OK)
@@ -34,14 +38,18 @@ def openCreateConfigDialog(parent, configs):
 
     def onNewConfiNameEntryChange(widget):
         newName = widget.get_text()
-        newFilePath = parent.ArduinoSketchPath + "/config/" + newName
+        newFilePath = parent.arduinoSketchPath + '/config/' + newName
+
+        def isValidConfigName(name):
+            out = len(name) > 2
+            out = out and name.find('.') == len(name) - 2
+            out = out and name[-1] == 'h'
+            out = out and name.find('/') == -1
+            out = out and name.find('\\') == -1
+            return out
 
         if (not os.path.isdir(newFilePath) and
-            len(newName) > 2 and
-            newName.find('.') == len(newName) - 2 and 
-            newName[-1] == 'h' and
-            newName.find('/') == -1 and
-            newName.find('\\') == -1):
+            isValidConfigName(newName)):
 
             if os.path.isfile(newFilePath):
                 createButton.set_label('Overwrite')
@@ -54,10 +62,12 @@ def openCreateConfigDialog(parent, configs):
 
     box1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
     templateConfigCombo = GuiFunctions.creatComboBox(configs[0], configs, getLowLev=True)
-    templateConfigCombo = GuiFunctions.addTopLabelTo('<b>From template</b>', templateConfigCombo[0]), templateConfigCombo[1]
+    templateConfigCombo = (GuiFunctions.addTopLabelTo('<b>From template</b>', templateConfigCombo[0]),
+                            templateConfigCombo[1])
     box1.pack_start(templateConfigCombo[0], False, False, 0)
     newNodeNrSpinButton = GuiFunctions.creatSpinButton(1, 1, 255, 1, getLowLev=True)
-    newNodeNrSpinButton = GuiFunctions.addTopLabelTo('<b>With new node number</b>', newNodeNrSpinButton[0]), newNodeNrSpinButton[1]
+    newNodeNrSpinButton = (GuiFunctions.addTopLabelTo('<b>With new node number</b>', newNodeNrSpinButton[0]),
+                            newNodeNrSpinButton[1])
     box1.pack_start(newNodeNrSpinButton[0], False, False, 0)
     box.pack_start(box1, False, False, 0)
 
@@ -78,15 +88,21 @@ def openCreateConfigDialog(parent, configs):
             potentiometerRangeSpinButton[0].hide()
 
     box2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-    encoderTypeCombo = GuiFunctions.creatComboBox(encoderTypes[0], encoderTypes, onChangeFun=onEncoderTypeComboChange, getLowLev=True)
-    encoderTypeCombo = GuiFunctions.addTopLabelTo('<b>Output encoder type</b>', encoderTypeCombo[0]), encoderTypeCombo[1]
+    encoderTypeCombo = GuiFunctions.creatComboBox(encoderTypes[0], encoderTypes,
+                                                    onChangeFun=onEncoderTypeComboChange, getLowLev=True)
+    encoderTypeCombo = (GuiFunctions.addTopLabelTo('<b>Output encoder type</b>', encoderTypeCombo[0]),
+                        encoderTypeCombo[1])
     box2.pack_start(encoderTypeCombo[0], False, False, 0)
-    potentiometerRangeSpinButton = GuiFunctions.addTopLabelTo('<b>Potentiometer range</b>', potentiometerRangeSpinButton[0]), potentiometerRangeSpinButton[1]
+    potentiometerRangeSpinButton = (GuiFunctions.addTopLabelTo('<b>Potentiometer range</b>',
+                                        potentiometerRangeSpinButton[0]),
+                                    potentiometerRangeSpinButton[1])
     box2.pack_start(potentiometerRangeSpinButton[0], False, False, 0)
     box.pack_start(box2, False, False, 0)
 
     newConfigurationNameEntry = GuiFunctions.createEntry('', onEdit=onNewConfiNameEntryChange, getLowLev=True)
-    newConfigurationNameEntry = GuiFunctions.addTopLabelTo('<b>Enter new name</b>\n (*.h)', newConfigurationNameEntry[0]), newConfigurationNameEntry[1]
+    newConfigurationNameEntry = (GuiFunctions.addTopLabelTo('<b>Enter new name</b>\n (*.h)',
+                                        newConfigurationNameEntry[0]),
+                                    newConfigurationNameEntry[1])
     box.pack_start(newConfigurationNameEntry[0], False, False, 0)
 
     box.show_all()
@@ -99,10 +115,10 @@ def openCreateConfigDialog(parent, configs):
         return '', ''
 
     def getTemplateConfigClassString(configName, configClassName):
-        configFilePath = parent.ArduinoSketchPath + "/config/" + configName
+        configFilePath = parent.arduinoSketchPath + "/config/" + configName
         configFileAsString = ''
 
-        with open(configFilePath, "r") as configFile:
+        with open(configFilePath, 'r', encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
 
         configClassString = Helper.getConfigClassString(configFileAsString, configClassName)
@@ -126,7 +142,7 @@ def openCreateConfigDialog(parent, configs):
             gearingEntry[0].show()
             encoderTypeCombo[0].show()
             potentiometerRangeSpinButton[0].show()
-        except Exception as e:
+        except Exception:
             gearingEntry[0].hide()
             encoderTypeCombo[0].hide()
             potentiometerRangeSpinButton[0].hide()
@@ -148,11 +164,12 @@ def openCreateConfigDialog(parent, configs):
             unitsPerRev = potentiometerRangeSpinButton[1].get_value() / 360 * 4096
             configClassString = Helper.setConfiguredOutputEncoderData(configClassString, magneticEncoder, unitsPerRev)
 
-        newConfigFileAsString = Helper.newConfigFileAsString(configClassString, newNodeNrSpinButton[1].get_value(), configClassName)
+        newConfigFileAsString = Helper.newConfigFileAsString(configClassString, newNodeNrSpinButton[1].get_value(),
+                                                                configClassName)
         if newConfigFileAsString != '':
             configName = newConfigurationNameEntry[1].get_text()
-            newConfigFilePath = parent.ArduinoSketchPath + "/config/" + configName
-            with open(newConfigFilePath, "w") as configFile:
+            newConfigFilePath = parent.arduinoSketchPath + '/config/' + configName
+            with open(newConfigFilePath, 'w', encoding='utf-8') as configFile:
                 configFile.write(newConfigFileAsString)
                 createdConfigName = configName
 
@@ -161,12 +178,13 @@ def openCreateConfigDialog(parent, configs):
     return createdConfigName
 
 class GuiWindow(Gtk.Window):
-    def __init__(self, ArduinoSketchPath):
+    def __init__(self, arduinoSketchPath):
+        # pylint: disable=too-many-locals, too-many-statements
         self.startTime = time.time()
 
-        Gtk.Window.__init__(self, title="Servo configuration", default_height=900, default_width=800)
+        Gtk.Window.__init__(self, title='Servo configuration', default_height=900, default_width=800)
 
-        self.ArduinoSketchPath = ArduinoSketchPath
+        self.arduinoSketchPath = arduinoSketchPath
         self.vboxMain = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.scrollWin = Gtk.ScrolledWindow()
         self.scrollWin.add(self.vboxMain)
@@ -189,7 +207,7 @@ class GuiWindow(Gtk.Window):
 
         def gotoToStaring():
             webbrowser.open('https://github.com/adamb314/ServoProject/stargazers')
-            with open('../.thankyou', 'w') as f:
+            with open('../.thankyou', 'w', encoding='utf-8') as f:
                 f.write('Thankyou for staring the project!')
 
         def considerStaringMessage():
@@ -197,11 +215,11 @@ class GuiWindow(Gtk.Window):
                 return
 
             try:
-                with open('../.thankyou', 'r') as f:
+                with open('../.thankyou', 'r', encoding='utf-8') as f:
                     data = f.read()
                     if data == 'Thankyou for staring the project!':
                         return
-            except Exception as e:
+            except Exception:
                 pass
 
             dialog = Gtk.MessageDialog(
@@ -212,7 +230,7 @@ class GuiWindow(Gtk.Window):
                     text='Consider staring',
             )
             dialog.format_secondary_text(
-                "Has this project been useful for you?\nConsider giving it a \N{glowing star} on github"
+                'Has this project been useful for you?\nConsider giving it a \N{glowing star} on github'
             )
             response = dialog.run()
             dialog.destroy()
@@ -223,7 +241,7 @@ class GuiWindow(Gtk.Window):
             gotoToStaring()
 
         starButton = Gtk.Button(label=' \N{glowing star} Like')
-        starButton.connect("clicked", starButtonClicked)
+        starButton.connect('clicked', starButtonClicked)
         starButton.set_margin_top(2)
         starButton.set_margin_bottom(2)
         starButton.set_margin_end(2)
@@ -249,20 +267,8 @@ class GuiWindow(Gtk.Window):
             configs.sort()
             configs = [c for c in configs if c != 'default.h']
 
-            activeIndex = 0
-            items = activeConfigCombo[1].get_model()
-            currentItem = items[activeConfigCombo[1].get_active()][0]
-            items = Gtk.ListStore(str)
-            for i, name in enumerate(configs):
-                n = []
-                n.append(name)
-                items.append(n)
-
-                if currentItem == name:
-                    activeIndex = i
-
-            activeConfigCombo[1].set_model(items)
-            activeConfigCombo[1].set_active(activeIndex)
+            currentItem = GuiFunctions.getActiveComboBoxItem(activeConfigCombo[1])
+            GuiFunctions.setComboBoxItems(activeConfigCombo[1], currentItem, configs)
 
         def selectActiveConfig(configName):
             items = activeConfigCombo[1].get_model()
@@ -277,7 +283,7 @@ class GuiWindow(Gtk.Window):
         def onCreateConfigClicked(widget):
             configs = []
             for c in self.getConfigurations():
-                nodeNrList, configClassNames = self.getNodeNrAndClassNames(c)
+                _, configClassNames = self.getNodeNrAndClassNames(c)
                 for className in configClassNames:
                     configs.append(f'{c} : {className}')
             configs.sort()
@@ -297,7 +303,7 @@ class GuiWindow(Gtk.Window):
             if configName == '':
                 return
 
-            configFilePath = self.ArduinoSketchPath + "/config/" + configName
+            configFilePath = self.arduinoSketchPath + '/config/' + configName
             os.remove(configFilePath)
             selectActiveConfig('')
             loadConfigs(None, None)
@@ -306,14 +312,16 @@ class GuiWindow(Gtk.Window):
         box2.add(activeConfigCombo[0])
         activeConfigCombo = box2, activeConfigCombo[1]
 
-        creatNewConfigButton = GuiFunctions.createButton('Create new', onClickFun=onCreateConfigClicked, width=10, getLowLev=True)
+        creatNewConfigButton = GuiFunctions.createButton('Create new', onClickFun=onCreateConfigClicked, width=10,
+                                                            getLowLev=True)
         creatNewConfigButton[1].set_margin_start(0)
         creatNewConfigButton[1].set_margin_end(10)
         creatNewConfigButton[1].set_margin_top(10)
         creatNewConfigButton[1].set_margin_bottom(8)
         box2.add(creatNewConfigButton[0])
 
-        deleteConfigButton = GuiFunctions.createButton('Delete', onClickFun=onDeleteConfigClicked, width=10, getLowLev=True)
+        deleteConfigButton = GuiFunctions.createButton('Delete', onClickFun=onDeleteConfigClicked, width=10,
+                                                        getLowLev=True)
         deleteConfigButton[1].set_margin_start(0)
         deleteConfigButton[1].set_margin_end(10)
         deleteConfigButton[1].set_margin_top(10)
@@ -329,26 +337,17 @@ class GuiWindow(Gtk.Window):
             nonlocal ignoreComPortComboChangeEvent
             ports = []
 
-            for port, desc, hwid in serial.tools.list_ports.comports():
-                    ports.append(str(port) + ': ' + str(desc))
+            for port, desc, _ in serial.tools.list_ports.comports():
+                ports.append(str(port) + ': ' + str(desc))
             ports.sort()
             ports.append(': Simulation')
 
-            activeIndex = 0
-            items = activeComPortCombo[1].get_model()
-            currentItem = items[activeComPortCombo[1].get_active()][0]
-            items = Gtk.ListStore(str)
-            for i, name in enumerate(ports):
-                n = []
-                n.append(name)
-                items.append(n)
-
-                if currentItem == name:
-                    activeIndex = i
+            currentItem = GuiFunctions.getActiveComboBoxItem(activeComPortCombo[1])
+            if currentItem == '':
+                currentItem = ports[0]
 
             ignoreComPortComboChangeEvent = True
-            activeComPortCombo[1].set_model(items)
-            activeComPortCombo[1].set_active(activeIndex)
+            GuiFunctions.setComboBoxItems(activeComPortCombo[1], currentItem, ports)
             ignoreComPortComboChangeEvent = False
 
         loadComPorts(None, None)
@@ -367,31 +366,35 @@ class GuiWindow(Gtk.Window):
         activeComPortCombo = box3, activeComPortCombo[1]
         self.transferToTargetButton = transferToTargetButton[1]
 
-        activeConfigCombo = GuiFunctions.addTopLabelTo('<b>Configuration</b>', activeConfigCombo[0]), activeConfigCombo[1]
+        activeConfigCombo = (GuiFunctions.addTopLabelTo('<b>Configuration</b>', activeConfigCombo[0]),
+                                activeConfigCombo[1])
         box0.pack_start(activeConfigCombo[0], False, False, 0)
 
-        activeComPortCombo = GuiFunctions.addTopLabelTo('<b>COM port</b>', activeComPortCombo[0]), activeComPortCombo[1]
+        activeComPortCombo = (GuiFunctions.addTopLabelTo('<b>COM port</b>', activeComPortCombo[0]),
+                                activeComPortCombo[1])
         box0.pack_start(activeComPortCombo[0], False, False, 0)
 
-        activeNodeNrCombo = GuiFunctions.addTopLabelTo('<b>Select node number</b>', activeNodeNrCombo[0]), activeNodeNrCombo[1]
+        activeNodeNrCombo = (GuiFunctions.addTopLabelTo('<b>Select node number</b>', activeNodeNrCombo[0]),
+                                activeNodeNrCombo[1])
 
         calibrationCombo = None
 
         def onNodeNrChange(widget):
             if calibrationCombo and not ignoreComPortComboChangeEvent:
-                calibrationCombo[1].set_active(0)
+                calibrationCombo[1].set_active(0)  # pylint: disable=unsubscriptable-object
 
         activeNodeNrCombo[1].connect('changed', onNodeNrChange)
 
         def getComPortFromCombo():
             portString = activeComPortCombo[1].get_model()[activeComPortCombo[1].get_active()][0]
+            portString = GuiFunctions.getActiveComboBoxItem(activeComPortCombo[1])
             descStartIndex = portString.find(':')
             if descStartIndex != -1:
                 return portString[0: descStartIndex]
             return ''
 
         def onTranferToTarget(widget):
-            t = None
+            transferThread = None
 
             dialog = Gtk.MessageDialog(
                     transient_for=self,
@@ -401,10 +404,10 @@ class GuiWindow(Gtk.Window):
                     text='Transferring to target...',
             )
             dialog.format_secondary_text('')
-            dialog.connect('delete-event', lambda w, e : t.join())
+            dialog.connect('delete-event', lambda w, e : transferThread.join())
 
             def resetAfterTransfer(ok):
-                t.join()
+                transferThread.join()
                 dialog.destroy()
 
                 resultDialog = Gtk.MessageDialog(
@@ -424,8 +427,8 @@ class GuiWindow(Gtk.Window):
                 ok = ArduinoManager.transfer(getComPortFromCombo())
                 GLib.idle_add(resetAfterTransfer, ok)
 
-            t = testThread = threading.Thread(target=transferThreadRun)
-            t.start()
+            transferThread = threading.Thread(target=transferThreadRun)
+            transferThread.start()
 
             dialog.run()
 
@@ -434,6 +437,7 @@ class GuiWindow(Gtk.Window):
         lastActiveConfig = ''
         calibrationBox = None
         def onActiveConfigChange(widget):
+            # pylint: disable=too-many-statements
             nonlocal lastActiveConfig
             nonlocal calibrationCombo
 
@@ -448,22 +452,15 @@ class GuiWindow(Gtk.Window):
 
                 lastActiveConfig = configName
 
-                if calibrationCombo != None:
-                    box1.remove(calibrationCombo[0])
-                    if calibrationBox != None:
+                if calibrationCombo is not None:
+                    box1.remove(calibrationCombo[0])  # pylint: disable=unsubscriptable-object
+                    if calibrationBox is not None:
                         box1.remove(calibrationBox)
 
                 if configName == '':
                     deleteConfigButton[1].set_sensitive(False)
                     transferToTargetButton[1].set_sensitive(False)
-                    items = Gtk.ListStore(str)
-                    for i, name in enumerate(['']):
-                        n = []
-                        n.append(name)
-                        items.append(n)
-
-                    activeNodeNrCombo[1].set_model(items)
-                    activeNodeNrCombo[1].set_active(0)
+                    GuiFunctions.setComboBoxItems(activeNodeNrCombo[1], '', [''])
                     return
 
                 if configName == 'usbToSerial.h':
@@ -482,16 +479,9 @@ class GuiWindow(Gtk.Window):
                     supportedCalibrationOptions = ['']
 
                 else:
-                    items = Gtk.ListStore(str)
-                    for i, name in enumerate(nodeNrList):
-                        n = []
-                        n.append(name)
-                        items.append(n)
+                    GuiFunctions.setComboBoxItems(activeNodeNrCombo[1], nodeNrList[0], nodeNrList)
 
-                    activeNodeNrCombo[1].set_model(items)
-                    activeNodeNrCombo[1].set_active(0)
-
-                    if len(items) == 1:
+                    if len(nodeNrList) == 1:
                         box1.remove(activeNodeNrCombo[0])
                     else:
                         box1.remove(activeNodeNrCombo[0])
@@ -524,10 +514,10 @@ class GuiWindow(Gtk.Window):
                         model = widget.get_model()
                         calibrationType = model[activeIter][0]
 
-                    if calibrationBox != None:
+                    if calibrationBox is not None:
                         box1.remove(calibrationBox)
 
-                    configFilePath = self.ArduinoSketchPath + "/config/" + configName
+                    configFilePath = self.arduinoSketchPath + '/config/' + configName
 
                     if calibrationType == '':
                         calibrationBox = None
@@ -536,47 +526,56 @@ class GuiWindow(Gtk.Window):
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = PwmNonlinearityAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                        calibrationBox = PwmNonlinearityAnalyzer.createGuiBox(self, nodeNr, getPortFun,
+                                                                                configFilePath, configClassName)
 
                     elif calibrationType == 'Optical encoder':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                        calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun,
+                                                                                configFilePath, configClassName)
 
                     elif calibrationType == 'System identification':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                        calibrationBox = SystemIdentificationAnalyzer.createGuiBox(self, nodeNr, getPortFun,
+                                                                                    configFilePath, configClassName)
 
                     elif calibrationType == 'Motor cogging torque':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = MotorCoggingTorqueAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                        calibrationBox = MotorCoggingTorqueAnalyzer.createGuiBox(self, nodeNr, getPortFun,
+                                                                                    configFilePath, configClassName)
 
                     elif calibrationType == 'Output encoder calibration':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName)
+                        calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun,
+                                                                            configFilePath, configClassName)
 
-                    elif calibrationType == 'Test control loop' or calibrationType == 'Test control loop (Advanced)':
+                    elif calibrationType in ('Test control loop', 'Test control loop (Advanced)'):
                         advancedMode = False
                         if calibrationType == 'Test control loop (Advanced)':
                             advancedMode = True
-                        
+
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
-                        calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun, configFilePath, configClassName, advancedMode)
+                        calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun,
+                                                                        configFilePath, configClassName,
+                                                                        advancedMode=advancedMode)
 
-                    if calibrationBox != None:
+                    if calibrationBox is not None:
                         box1.pack_start(calibrationBox, False, False, 0)
 
-                calibrationCombo = GuiFunctions.creatComboBox('', supportedCalibrationOptions, onCaribrationTypeChange, getLowLev=True)
-                calibrationCombo = GuiFunctions.addTopLabelTo('<b>Supported calibrations</b>', calibrationCombo[0]), calibrationCombo[1]
+                calibrationCombo = GuiFunctions.creatComboBox('', supportedCalibrationOptions, onCaribrationTypeChange,
+                                                                getLowLev=True)
+                calibrationCombo = (GuiFunctions.addTopLabelTo('<b>Supported calibrations</b>', calibrationCombo[0]),
+                                    calibrationCombo[1])
                 box1.pack_start(calibrationCombo[0], False, False, 0)
                 box1.show_all()
 
@@ -595,24 +594,25 @@ class GuiWindow(Gtk.Window):
         return configs
 
     def setActiveConfig(self, configName):
-        with open(self.ArduinoSketchPath + "/config/config.h", "w") as configFile:
-            configFile.write("#include \"" + configName + "\"\n")
+        with open(self.arduinoSketchPath + '/config/config.h', 'w', encoding='utf-8') as configFile:
+            configFile.write('#include \"' + configName + '\"\n')
 
     def getNodeNrAndClassNames(self, configName):
         nodeNrList = []
         configClassNames = []
 
-        configFilePath = self.ArduinoSketchPath + "/config/" + configName
+        configFilePath = self.arduinoSketchPath + '/config/' + configName
         configFileAsString = ''
 
-        with open(configFilePath, "r") as configFile:
+        with open(configFilePath, 'r', encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
 
             tempConfigFileAsString = configFileAsString
             dcServoPattern = re.compile(
-                r'\n[^/]*make_unique\s*<\s*DCServoCommunicationHandler\w*\s*>\s*\((?P<nodeNr>[0-9]*)\s*,\s*createDCServo\s*<\s*(?P<configClassName>\w+)\s*>')
+                r'\n[^/]*make_unique\s*<\s*DCServoCommunicationHandler\w*\s*>\s*\((?P<nodeNr>[0-9]*)\s*,\s*'
+                r'createDCServo\s*<\s*(?P<configClassName>\w+)\s*>')
             temp = dcServoPattern.search(tempConfigFileAsString)
-            while temp != None:
+            while temp is not None:
                 nodeNrList.append(temp.group('nodeNr'))
                 configClassNames.append(temp.group('configClassName'))
                 tempConfigFileAsString = tempConfigFileAsString[temp.end(1):]

@@ -1,7 +1,12 @@
-from ServoProjectModules.CalibrationAnalyzers.Helper import *
+'''
+Module for calibrating pwm nonlinearity
+'''
+# pylint: disable=duplicate-code
+
+from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 class SystemIdentificationObject:
-    def __init__(self, data, a=None, b=None, c=None, f=None, dt=None):
+    def __init__(self, data, *, a=None, b=None, c=None, f=None, dt=None):
         if len(data) == 0:
             self.dt = dt
             self.velData = np.array([[0], [0]])
@@ -19,16 +24,16 @@ class SystemIdentificationObject:
             tempVelData[i + 1] = 0.75 * tempVelData[i] + 0.25 * (d[0] - d[1]) / (derivativeTimeSteps * self.dt)
 
         def minDiff(vec, v):
-            min = vec[0]
+            out = vec[0]
             for d in vec:
-                if abs(v - min) > abs(v - d):
-                    min = d
-            return min
+                if abs(v - out) > abs(v - d):
+                    out = d
+            return out
 
         lastVel = None
         for i, d in enumerate(tempVelData[1:-1]):
             i += 1
-            if lastVel == None:
+            if lastVel is None:
                 lastVel = d
             if abs(d - lastVel) < 300000:
                 data[i, 1] = d
@@ -83,12 +88,12 @@ class SystemIdentificationObject:
                 y = d[0][0]
 
                 temp = phi * np.transpose(phi)
-                if covDef == False:
+                if covDef is False:
                     covDef = True
                     cov = temp
                 else:
                     cov += temp
-                if covYDef == False:
+                if covYDef is False:
                     covYDef = True
                     covY = y * phi
                 else:
@@ -103,19 +108,18 @@ class SystemIdentificationObject:
         simVel = 0 * self.velData
         lastSimVel = None
         for i, d in enumerate(zip(self.velData[1:], self.velData[0:-1], self.pwmData[0:-1])):
-            if lastSimVel == None:
+            if lastSimVel is None:
                 lastSimVel = d[1][0]
-            if True:
-                pwm = d[2][0]
-                friction = 0
-                if pwm > 0:
-                    friction = -self.servoModelParameters[2,0]
-                elif pwm < 0:
-                    friction = self.servoModelParameters[2,0]
-                simVel[i] = (self.servoModelParameters[0] * lastSimVel +
-                    self.servoModelParameters[1] * (pwm + friction + self.servoModelParameters[3] * lastSimVel * abs(pwm)))
-            else:
-                simVel[i] = d[0][0]
+
+            pwm = d[2][0]
+            friction = 0
+            if pwm > 0:
+                friction = -self.servoModelParameters[2,0]
+            elif pwm < 0:
+                friction = self.servoModelParameters[2,0]
+            simVel[i] = (self.servoModelParameters[0] * lastSimVel +
+                self.servoModelParameters[1] * (pwm + friction
+                        + self.servoModelParameters[3] * lastSimVel * abs(pwm)))
 
             lastSimVel = simVel[i]
 
@@ -130,7 +134,8 @@ class SystemIdentificationObject:
         canvas.set_size_request(600, 400)
         box.add(canvas)
 
-        label = Gtk.Label(label='Blue curve is real system and black is model. A good result\nis indicated by the black curve resembling the blue.')
+        label = Gtk.Label(label='Blue curve is real system and black is model. A good result\n'
+                            'is indicated by the black curve resembling the blue.')
         label.set_use_markup(True)
         label.set_margin_start(30)
         label.set_margin_end(50)
@@ -141,26 +146,23 @@ class SystemIdentificationObject:
 
         box.show_all()
 
-class KalmanFilter(object):
-    """docstring for KalmanFilter"""
-    def __init__(self, dt, A, B, C):
-        super(KalmanFilter, self).__init__()
+class KalmanFilter:
+    # pylint: disable=too-few-public-methods
+    def __init__(self, dt, aMat, bMat, cMat):
+        # pylint: disable=too-many-locals, too-many-statements
+        aMatEx = np.hstack((aMat, bMat))
+        aMatEx = np.vstack((aMatEx, np.array([[0, 0, 1]])))
 
-        Aex = np.hstack((A, B))
-        Aex = np.vstack((Aex, np.array([[0, 0, 1]])))
+        bMatEx = np.vstack((bMat, np.array([[0]])))
+        cMatEx = np.hstack((cMat, np.array([[0]])))
 
-        Bex = np.vstack((B, np.array([[0]])))
-        Cex = np.hstack((C, np.array([[0]])))
+        self.aMat = aMatEx
+        self.aMatInv = np.linalg.inv(aMatEx)
+        self.bMat = bMatEx
+        self.cMat = cMatEx
 
-        xhatex = np.zeros(np.shape(Bex))
-
-        self.A = Aex
-        self.AInv = np.linalg.inv(Aex)
-        self.B = Bex
-        self.C = Cex
-
-        AT = np.transpose(Aex)
-        CT = np.transpose(Cex)
+        aMatT = np.transpose(aMatEx)
+        cMatT = np.transpose(cMatEx)
 
         x = range(1 * 4 * 20, 100 * 4 * 20, 4 * 20)
         vec1 = []
@@ -169,7 +171,7 @@ class KalmanFilter(object):
         for v in x:
             kalmanFilterSpeed = v
             poles = np.exp(dt * np.array([-1.0, -0.98, -0.96]) * kalmanFilterSpeed)
-            plaseResult = scipy.signal.place_poles(AT,  CT, poles)
+            plaseResult = scipy.signal.place_poles(aMatT,  cMatT, poles)
 
             vec1.append(plaseResult.gain_matrix[0, 0])
             vec2.append(plaseResult.gain_matrix[0, 1])
@@ -187,31 +189,30 @@ def getModelDtFromConfigFileString(configFileAsString, configClassName):
 
     dtPattern = re.compile(r'Eigen::Matrix3f\s+A;[\n\s]+A\s*<<\s*[^,]*,\s*([^,]*)')
     temp = dtPattern.search(configClassString)
-    if temp != None:
+    if temp is not None:
         dtStr = temp.group(1)
         dtStr = re.sub(r'f', '', dtStr)
         return float(dtStr)
-    else:
-        raise Exception('Could not find model dt')
 
-class ServoModel(object):
+    raise Exception('Could not find model dt')
+
+class ServoModel:
     """docstring for ServoModel"""
     def __init__(self, dt, systemModel):
-            super(ServoModel, self).__init__()
-            self.dt = dt
-            self.systemModel = systemModel
+        self.dt = dt
+        self.systemModel = systemModel
 
-            dtp = self.dt
-            dt2p = self.dt**2
-            temp = self.systemModel.getServoSystemModelParameters(self.dt)
-            a = temp[0]
-            b = temp[1]
+        modelDt = self.dt
+        modelDt2 = self.dt**2
+        temp = self.systemModel.getServoSystemModelParameters(self.dt)
+        a = temp[0]
+        b = temp[1]
 
-            self.A = np.array([[1, dtp], [0, a]])
-            self.B = np.array([[dt2p / 2], [dtp]]) * b
-            self.C = np.array([[1, 0]])
+        self.aMat = np.array([[1, modelDt], [0, a]])
+        self.bMat = np.array([[modelDt2 / 2], [modelDt]]) * b
+        self.cMat = np.array([[1, 0]])
 
-            self.kalmanFilter = KalmanFilter(dt, self.A, self.B, self.C)
+        self.kalmanFilter = KalmanFilter(dt, self.aMat, self.bMat, self.cMat)
 
     def  getControlParametersClassContentStr(self, indent):
         out = ''
@@ -229,7 +230,7 @@ class ServoModel(object):
         out += indent + '    static Eigen::Matrix3f getAMatrix()\n'
         out += indent + '    {\n'
         out += indent + '        Eigen::Matrix3f A;\n'
-        out += indent + '        A << ' + printAsEigenInit(self.kalmanFilter.A, indent + '            ')
+        out += indent + '        A << ' + printAsEigenInit(self.kalmanFilter.aMat, indent + '            ')
         out += '\n'
         out += indent + '        return A;\n'
         out += indent + '    }\n'
@@ -238,7 +239,7 @@ class ServoModel(object):
         out += indent + '    static Eigen::Matrix3f getAInvMatrix()\n'
         out += indent + '    {\n'
         out += indent + '        Eigen::Matrix3f AInv;\n'
-        out += indent + '        AInv << ' + printAsEigenInit(self.kalmanFilter.AInv, indent + '            ')
+        out += indent + '        AInv << ' + printAsEigenInit(self.kalmanFilter.aMatInv, indent + '            ')
         out += '\n'
         out += indent + '        return AInv;\n'
         out += indent + '    }\n'
@@ -247,7 +248,7 @@ class ServoModel(object):
         out += indent + '    static Eigen::Vector3f getBVector()\n'
         out += indent + '    {\n'
         out += indent + '        Eigen::Vector3f B;\n'
-        out += indent + '        B << ' + printAsEigenInit(self.kalmanFilter.B, indent + '            ')
+        out += indent + '        B << ' + printAsEigenInit(self.kalmanFilter.bMat, indent + '            ')
         out += '\n'
         out += indent + '        return B;\n'
         out += indent + '    }\n'
@@ -261,16 +262,16 @@ class ServoModel(object):
         return out
 
     def writeModelToConfigFileString(self, configFileAsString, configClassName):
-        configClassString = getConfigClassString(configFileAsString, configClassName)            
+        configClassString = getConfigClassString(configFileAsString, configClassName)
 
         pwmToStallCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+pwmToStallCurrent\s*)\{[^\}]*\};')
         backEmfCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+backEmfCurrent\s*)\{[^\}]*\};')
         controlParametersPattern = re.compile(r'((\s*)class\s+ControlParameters\s+:.*\n\2\{)(.*\n)*?\2\};')
-        
+
         temp = True
-        temp = pwmToStallCurrentPattern.search(configClassString) != None and temp
-        temp = backEmfCurrentPattern.search(configClassString) != None and temp
-        temp = controlParametersPattern.search(configClassString) != None and temp
+        temp = pwmToStallCurrentPattern.search(configClassString) is not None and temp
+        temp = backEmfCurrentPattern.search(configClassString) is not None and temp
+        temp = controlParametersPattern.search(configClassString) is not None and temp
         if temp:
             out = r'\1{' + str(self.systemModel.currentModelParams[0]) + r'f};'
             configClassString = re.sub(pwmToStallCurrentPattern, out, configClassString)
@@ -306,12 +307,15 @@ class ServoModel(object):
         return out
 
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
+    # pylint: disable=too-many-locals, too-many-statements
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
 
     limitMovementButton = GuiFunctions.createToggleButton('Lock', getLowLev=True)
-    limitMovementButton = GuiFunctions.addTopLabelTo('<b>Limit movement</b>\n Only move around locked position to avoid end limits', limitMovementButton[0]), limitMovementButton[1]
+    limitMovementButton = (GuiFunctions.addTopLabelTo('<b>Limit movement</b>\n '
+                'Only move around locked position to avoid end limits', limitMovementButton[0]),
+            limitMovementButton[1])
     calibrationBox.pack_start(limitMovementButton[0], False, False, 0)
 
     startPos = None
@@ -332,20 +336,21 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     limitMovementButton[1].connect('toggled', onLockPosition)
 
     outputModelDt = 0.0012
-    motorSettleTime = 2
-    minPwmValue = 10
-    maxPwmValue = 100
+    motorSettleTime = 1
+    minPwmValue = 40
+    maxPwmValue = 200
 
     try:
-        with open(configFilePath, "r") as configFile:
+        with open(configFilePath, "r", encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
             outputModelDt = getModelDtFromConfigFileString(configFileAsString, configClassName)
-    except Exception as e:
+    except Exception:
         pass
 
 
     motorSettleTimeScale = GuiFunctions.creatHScale(motorSettleTime, 1, 10, 1, getLowLev=True)
-    motorSettleTimeScale = GuiFunctions.addTopLabelTo('<b>Motor settle time</b>', motorSettleTimeScale[0]), motorSettleTimeScale[1]
+    motorSettleTimeScale = (GuiFunctions.addTopLabelTo('<b>Motor settle time</b>', motorSettleTimeScale[0]),
+            motorSettleTimeScale[1])
     calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
 
     minPwmScale = GuiFunctions.creatHScale(minPwmValue, 0, 1023, 1, getLowLev=True)
@@ -420,6 +425,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     runThread = False
     def testPwmRun(nodeNr, port):
+        # pylint: disable=too-many-statements
         nonlocal runThread
 
         try:
@@ -437,7 +443,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     pos = servo.getPosition(True)
 
-                    if startPos != None:
+                    if startPos is not None:
                         if pos - startPos < -1 and moveDir != -1:
                             moveDir = -1
                             pwmDir *= -1
@@ -459,14 +465,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     stop = False
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             stop = True
 
                     if stop or parent.isClosed:
                         servoManager.removeHandlerFunctions()
                         doneRunning = True
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                 while not doneRunning:
                     if not servoManager.isAlive():
@@ -525,7 +531,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             testThread.join()
 
     def onDtSpinButtonChange(widget):
-        outputModelDt = widget.get_value()
+        nonlocal outputModelDt
+        outputModelDt = widget.get_value() * 0.001
 
     def updateRecordingProgressBar(fraction):
         recordingProgressBar[1].set_fraction(fraction)
@@ -549,15 +556,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         dialog.destroy()
 
         if response == Gtk.ResponseType.YES:
-            with open(configFilePath, "r") as configFile:
-                configFileAsString = configFile.read()
+            servoModel = ServoModel(outputModelDt, systemIdentifier)
 
-                servoModel = ServoModel(outputModelDt, systemIdentifier)
+            with open(configFilePath, "r", encoding='utf-8') as configFile:
+                configFileAsString = configFile.read()
 
                 configFileAsString = servoModel.writeModelToConfigFileString(configFileAsString, configClassName)
 
                 if configFileAsString != '':
-                    with open(configFilePath, "w") as configFile:
+                    with open(configFilePath, "w", encoding='utf-8') as configFile:
                         configFile.write(configFileAsString)
                         GuiFunctions.transferToTargetMessage(parent)
 
@@ -575,13 +582,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             )
             box = dialog.get_message_area()
             funEntry = Gtk.Entry()
-            funEntry.set_text(ServoModel(dt, systemIdentifier).getGeneratedModel())
+            funEntry.set_text(servoModel.getGeneratedModel())
             box.add(funEntry)
             box.show_all()
             response = dialog.run()
             dialog.destroy()
 
     def startCalibrationRun(nodeNr, port):
+        # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
         try:
@@ -598,7 +606,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     return
 
                 t = 0.0
-                if startPos != None:
+                if startPos is not None:
                     t = -float(motorSettleTime)
 
                 doneRunning = False
@@ -610,6 +618,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 out = []
 
                 def readResultHandlerFunction(dt, servoManager):
+                    # pylint: disable=too-many-branches
                     nonlocal t
                     nonlocal doneRunning
                     nonlocal pwm
@@ -624,12 +633,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     d = [t, servo.getPosition(False) / servo.getScaling(),
                             pwm]
-                    if pwm != None:
+                    if pwm is not None:
                         out.append(d)
 
                     pos = servo.getPosition(True)
 
-                    if t < 0:
+                    if t < 0: # negative time if startPos != None (limit movement active)
                         if pwmDir == -1:
                             if abs(pos - startPos) > 1.0:
                                 pwmDir = 1
@@ -649,7 +658,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         if i < len(pwmSampleValues):
                             pwm = pwmSampleValues[i]
 
-                            if startPos != None:
+                            if startPos is not None:
                                 if outEncDir * pwm < 0 and pos - startPos > 1.0:
                                     t -= dt
                                 if outEncDir * pwm > 0 and pos - startPos < -1.0:
@@ -663,7 +672,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     GLib.idle_add(updateRecordingProgressBar, t / (motorSettleTime * len(pwmSampleValues)))
 
                     with threadMutex:
-                        if runThread == False:
+                        if runThread is False:
                             stop = True
 
                     if stop or parent.isClosed:
@@ -673,7 +682,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     t += dt
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction);
+                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                 while not doneRunning:
                     if not servoManager.isAlive():
@@ -683,7 +692,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 servoManager.shutdown()
 
-                if runThread == True:
+                if runThread is True:
                     data = np.array(out)
                     GLib.idle_add(handleResults, data)
 
@@ -713,7 +722,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             with threadMutex:
                 runThread = True
             testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
-            testThread.start()                                    
+            testThread.start()
         else:
             with threadMutex:
                 runThread = False
