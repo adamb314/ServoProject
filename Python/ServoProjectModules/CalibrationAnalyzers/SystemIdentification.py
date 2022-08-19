@@ -336,9 +336,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     limitMovementButton[1].connect('toggled', onLockPosition)
 
     outputModelDt = 0.0012
-    motorSettleTime = 2
-    minPwmValue = 10
-    maxPwmValue = 100
+    motorSettleTime = 1
+    minPwmValue = 40
+    maxPwmValue = 200
 
     try:
         with open(configFilePath, "r", encoding='utf-8') as configFile:
