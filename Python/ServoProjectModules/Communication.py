@@ -328,11 +328,6 @@ class SimulateCommunication(SerialCommunication):
 
                     self.pos += dt / subStep * self.vel
 
-                self.intArray[12] = int((1 + math.sin(self.pos / 2048 * math.pi * 100)) * 400
-                                            + 1000 + random.random() * 10)
-                self.intArray[13] = int((1 + math.cos(self.pos / 2048 * math.pi * 100)) * 700 + 1000
-                                            + random.random() * 10)
-
                 self.charArray[1] = False
             else:
                 newPosRef = self.intArray[0]
@@ -348,6 +343,16 @@ class SimulateCommunication(SerialCommunication):
             self.comDelayedPos.setRight(int(round(self.pos * 32)))
             self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel)))
             self.comDelayedForce.setRight(toUnsignedInt16(round(force)))
+
+            # optical encoder simulation
+            optEncPos = self.comDelayedPos.getLeft() / 32 * gearRatio
+            optEncChA = ((1 + math.sin(optEncPos / 2048 * math.pi)) * 400
+                                        + 1000 + random.random() * 10)
+            optEncChB = ((1 + math.cos(optEncPos / 2048 * math.pi)) * 700 + 1000
+                                        + random.random() * 10)
+            self.intArray[12] = toUnsignedInt16(round(optEncChA))
+            self.intArray[13] = toUnsignedInt16(round(optEncChB))
+            self.intArray[14] = toUnsignedInt16(round(optEncPos * 2048 / 4096)) % 2048
 
             self.charArray[9] = toUnsignedChar(self.comDelayedPos.getLeft() // 2**16)
 
