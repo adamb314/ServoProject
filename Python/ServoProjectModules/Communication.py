@@ -297,6 +297,12 @@ class SimulateCommunication(SerialCommunication):
 
         def run(self):
             # pylint: disable=too-many-locals, too-many-statements
+            gearRatio = 100
+            damp = 50
+            backEmf = 0.3
+            maxFriction = 40
+            b = 0.1
+
             dt = 0.0
             newTimestamp = time.monotonic()
             if self.timestamp is not None:
@@ -307,15 +313,12 @@ class SimulateCommunication(SerialCommunication):
 
             rawPwmMode = self.charArray[1] != 0
 
-            if rawPwmMode and dt > 0.0:
+            if dt == 0.0:
+                pass
+            elif rawPwmMode:
                 subStep = 1000
                 for _ in range(0, subStep):
                     velInRad = self.vel / 2048 * math.pi
-
-                    damp = 50
-                    backEmf = 0.3
-                    maxFriction = 40
-                    b = 0.1
 
                     f = force - backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023))
                     friction = f - damp * velInRad + velInRad / (dt / subStep * b)
@@ -334,7 +337,11 @@ class SimulateCommunication(SerialCommunication):
                 oldPosRef = self.pos * 32
 
                 self.pos = removeIntWraparound(newPosRef, oldPosRef, bitLenght=16) / 32
-                self.vel = unsignedToSignedInt(self.intArray[1])
+                newVel = unsignedToSignedInt(self.intArray[1])
+                force = (newVel - self.vel) / (dt * b / math.pi * 2048)
+                force += 50 * math.sin(self.pos * gearRatio * 6 / 2048 * math.pi)
+                force = min(max(force, -1023), 1023)
+                self.vel = newVel
 
             self.comDelayedPos.execute()
             self.comDelayedVel.execute()
