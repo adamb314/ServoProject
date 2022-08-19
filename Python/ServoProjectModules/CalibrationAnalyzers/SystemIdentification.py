@@ -532,7 +532,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def onDtSpinButtonChange(widget):
         nonlocal outputModelDt
-        outputModelDt = widget.get_value()
+        outputModelDt = widget.get_value() * 0.001
 
     def updateRecordingProgressBar(fraction):
         recordingProgressBar[1].set_fraction(fraction)
