@@ -22,8 +22,8 @@ class CoggingTorqueCalibrationGenerator:
         self.cogging = np.array([sum(samples) / len(samples) for samples in samplesList])
 
     _vecPattern = re.compile(
-            r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*\
-            <\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
+            r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*'
+            r'<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
 
     @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
