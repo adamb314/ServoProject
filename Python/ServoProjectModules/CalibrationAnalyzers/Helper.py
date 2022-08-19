@@ -1,18 +1,22 @@
-import ServoProjectModules.Communication as ServoComModule
-from ServoProjectModules.Communication import pi
+'''
+Module for with common functions for CalibrationAnalyzers
+'''
 
-import numba
-import numpy as np
-import scipy.signal
+# pylint: disable=unused-import
 import threading
 import time
 import math
 import random
+import re
+import numba
+import numpy as np
+import scipy.signal
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_gtk3agg import (
     FigureCanvasGTK3Agg as FigureCanvas)
 from matplotlib.figure import Figure
-import re
+import ServoProjectModules.Communication as ServoComModule
+from ServoProjectModules.Communication import pi
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
 
@@ -122,6 +126,7 @@ def setConfigClassString(configFileAsString, configClassName, classString):
     return configFileAsString
 
 def newConfigFileAsString(configClassString, nodeNr, configClassName):
+    # pylint: disable=line-too-long
     out = ''
     out += '#ifndef CONFIG_HOLDER_H\n'
     out += '#define CONFIG_HOLDER_H\n'
@@ -148,18 +153,20 @@ def newConfigFileAsString(configClassString, nodeNr, configClassName):
     out += '#endif\n'
     return out
 
-wrapAroundAndUnitPerRevPattern = re.compile(r'(?P<beg>return\s+std::make_unique\s*<\s*)(?P<encoderType>\w*)(?P<mid>\s*>\s*\((\w+\s*,\s*))(?P<units>[^;]*)(?P<end>,\s*compVec\s*\)\s*;)')
+wrapAroundAndUnitPerRevPattern = re.compile(
+        r'(?P<beg>return\s+std::make_unique\s*<\s*)(?P<encoderType>\w*)'
+        r'(?P<mid>\s*>\s*\((\w+\s*,\s*))(?P<units>[^;]*)(?P<end>,\s*compVec\s*\)\s*;)')
 
 def getConfiguredOutputEncoderData(configClassString):
     temp = wrapAroundAndUnitPerRevPattern.search(configClassString)
-    
+
     magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
     unitsPerRev = 4096
     if not magneticEncoder:
         unitsStr = wrapAroundAndUnitPerRevPattern.search(configClassString).group('units')
 
         unitsStr = re.sub(r'f', '', unitsStr)
-        unitsPerRev = eval(unitsStr)
+        unitsPerRev = eval(unitsStr)  # pylint: disable=eval-used
 
     return magneticEncoder, unitsPerRev
 
@@ -176,7 +183,9 @@ def setConfiguredOutputEncoderData(configClassString, magneticEncoder, unitsPerR
 
     return configClassString
 
-parmeterPattern = re.compile(r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\()(?P<params>[^;]*)(?P<end>\s*\)\s*;)')
+parmeterPattern = re.compile(
+        r'(?P<beg>.*createMainEncoderHandler\(\)\s*\{(?:.*\n)*?\s*return\s+std::make_unique\s*<\s*(\w*)\s*>\s*\()'
+        r'(?P<params>[^;]*)(?P<end>\s*\)\s*;)')
 unitsPattern = re.compile(r'(?P<beg>(\w+\s*,\s*){4}\s*)(?P<units>.*)')
 gearRatioPattern = re.compile(r'(4096\.0f?\s*\*\s*)(?P<gearRatio>.*)')
 
@@ -196,7 +205,7 @@ def getConfiguredGearRatio(configClassString):
         gearRatioStr = re.sub(r'f', '', gearRatioStr)
 
     if gearRatioStr == '':
-        return str(eval(unitsStr) / 4096)
+        return str(eval(unitsStr) / 4096)  # pylint: disable=eval-used
 
     return gearRatioStr
 
@@ -228,11 +237,11 @@ class SmoothMoveHandler:
         oldEndP = self.endP
         if (endP - self.p) * self.d < 0.0:
             self.newEndP = endP
-        elif self.newEndP == None:
+        elif self.newEndP is None:
             oldNewEndP = self.endP
             self.endP = endP
 
-        if endP != self.p and oldNewEndP != endP:
+        if endP not in (self.p, oldNewEndP):
             self.maxV = min(maxV, abs(endP - self.p) / self.minMoveTime / 2 * math.pi)
 
         if oldEndP == self.endP:
@@ -247,7 +256,7 @@ class SmoothMoveHandler:
         if self.w == math.pi:
             self.w = 0.0
             self.d = 0.0
-            if self.newEndP != None:
+            if self.newEndP is not None:
                 temp = self.newEndP
                 self.newEndP = None
                 self.set(temp, self.maxV)

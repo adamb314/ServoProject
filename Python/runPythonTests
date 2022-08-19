@@ -1,0 +1,6 @@
+#!/bin/bash
+parentDir=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
+cd "$parentDir"
+
+shopt -s globstar
+pytest tests/**/test*.py
