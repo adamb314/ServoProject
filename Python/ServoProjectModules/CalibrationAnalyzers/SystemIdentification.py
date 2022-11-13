@@ -1,141 +1,329 @@
 '''
 Module for calibrating pwm nonlinearity
 '''
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code, too-many-lines
 
+import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
+def highPassFilter(v, a):
+    out = 0 * v + v[0]
+    for i in range(0, len(v) - 1):
+        out[i + 1] = a * out[i] + a * (v[i + 1] - v[i])
+    return out
+
 class SystemIdentificationObject:
-    def __init__(self, data, *, a=None, b=None, c=None, f=None, dt=None):
+    # pylint: disable=too-many-instance-attributes
+    def __init__(self, data, *, ad=None, bd=None, friction=None, pwmOffset=None, dt=None):
+        # pylint: disable=too-many-locals
         if len(data) == 0:
             self.dt = dt
             self.velData = np.array([[0], [0]])
             self.pwmData = np.array([[0], [0]])
 
-            self.servoModelParameters = np.array([[a], [b], [f], [c]])
-            self.identifyCurrentSystemModel()
+            self.servoModelParameters = np.array([ad, bd, friction, pwmOffset])
             return
 
+        self.rawData = data[:]
         self.dt = data[1, 0] - data[0, 0]
 
-        derivativeTimeSteps = 2
-        tempVelData = 0 * data[:, 1]
-        for i, d in enumerate(zip(data[derivativeTimeSteps:,1], data[0:-derivativeTimeSteps,1])):
-            tempVelData[i + 1] = 0.75 * tempVelData[i] + 0.25 * (d[0] - d[1]) / (derivativeTimeSteps * self.dt)
+        t = np.array(data[:, 0])
+        wallTime = np.array(data[:, 3])
+        posData = data[:, 1]
+        pwmData = np.array(data[:, 2])
 
-        def minDiff(vec, v):
-            out = vec[0]
-            for d in vec:
-                if abs(v - out) > abs(v - d):
-                    out = d
-            return out
+        dtError = wallTime - t
+        dtError += np.arange(0, 1.0, 1.0 / len(dtError)) * np.mean(wallTime[-100:] - t[-100:])
+        dtError -= np.mean(sorted(dtError)[len(dtError) // 5: -len(dtError) // 5])
+        outOfDtSync = [abs(d / self.dt) >= 0.5 for d in dtError]
+        self.dtError = dtError
 
-        lastVel = None
-        for i, d in enumerate(tempVelData[1:-1]):
-            i += 1
-            if lastVel is None:
-                lastVel = d
-            if abs(d - lastVel) < 300000:
-                data[i, 1] = d
-                lastVel = d
-            else:
-                data[i, 1] = lastVel
-                lastVel = minDiff(tempVelData[i - 5:i], lastVel)
+        def findPwmChangeDelay(pwmData):
+            lastPwm = pwmData[2]
+            constPwmSamples = []
+            nrOfConstPwm = 0
+            for pwm in pwmData:
+                if lastPwm == pwm:
+                    nrOfConstPwm += 1
+                else:
+                    constPwmSamples.append(nrOfConstPwm)
+                    nrOfConstPwm = 0
+                lastPwm = pwm
 
-        data = data[1:-1]
+            constPwmSamples = sorted(constPwmSamples)
+            return constPwmSamples[len(constPwmSamples) // 20]
 
-        velData = data[:, 1]
-        pwmData = data[:, 2]
+        self.pwmChangeDelay = findPwmChangeDelay(pwmData)
 
-        velData = np.array(velData)
-        velData.shape = (len(velData),1)
-        pwmData = np.array(pwmData)
-        pwmData.shape = (len(pwmData),1)
+        self.dStep = self.pwmChangeDelay // 3
 
-        velData -= np.mean(velData)
+        def calcVelFromPos(posData, dt, dStep):
+            velData = np.array([0.0 for d in range(0, len(posData))])
+            for i, d in enumerate(zip(posData[self.dStep:], posData[0:-self.dStep])):
+                diffs = [d[0] - d[1] for d in zip(posData[i+1:i+1+self.dStep], posData[i:i+self.dStep])]
+                diffs.sort()
+                medianDiff = diffs[len(diffs) // 2]
+                if len(diffs) % 2 == 0:
+                    medianDiff += diffs[len(diffs) // 2 + 1]
+                    medianDiff = medianDiff / 2
+                velData[i + self.dStep] = medianDiff / self.dt
+
+            return velData
+
+        for i, d in enumerate(outOfDtSync):
+            if d:
+                pwmData[i - 1] = math.nan
+                pwmData[i] = math.nan
+                pwmData[i + 1] = math.nan
+
+        velData = calcVelFromPos(posData, self.dt, self.dStep)
+        velData = velData[self.dStep:]
+        pwmData = pwmData[self.dStep:]
 
         self.velData = velData
         self.pwmData = pwmData
 
-        self.identifyServoSystemModel()
-        self.identifyCurrentSystemModel()
+        self.servoModelParameters = self.identifyServoSystemModel()
+        self.simVel, self.simRefVel, self.simT = self.getSimResults()
+
+    @staticmethod
+    def checkForPreviousCalibration(configFileAsString, configClassName):
+        return PwmNonlinearityConfigHandler.checkForPreviousCalibration(configFileAsString, configClassName)
+
+    def getServoSystemMatrices(self, outputDt):
+        dt = self.dt * self.dStep
+        discreteA = self.servoModelParameters[0]
+        discreteB = self.servoModelParameters[1]
+
+        #discreteA = math.exp(-contineusA * dt) =>
+        contineusA = -math.log(discreteA) / dt
+
+        #discreteB = contineusB * (1.0 - discreteA) / contineusA =>
+        contineusB = discreteB * contineusA / (1.0 - discreteA)
+
+        scaledDiscreteA = math.exp(outputDt * -contineusA)
+        scaledDiscreteB = contineusB * (1.0 - scaledDiscreteA) / contineusA
+
+        scaledDiscretePosA = (1.0 - scaledDiscreteA) / contineusA
+        scaledDiscretePosB = contineusB * (outputDt - scaledDiscretePosA) / contineusA
+
+        aMat = np.array([[1.0, scaledDiscretePosA], [0.0, scaledDiscreteA]])
+        bMat = np.array([[scaledDiscretePosB], [scaledDiscreteB]])
+
+        return (aMat, bMat)
 
     def getServoSystemModelParameters(self, outputDt):
-        contineusEqiv = -math.log(self.servoModelParameters[0]) / self.dt
-        scaledPoleA = math.exp(outputDt * -contineusEqiv)
-        scaledB = self.servoModelParameters[1, 0] / self.dt
-        return np.array([scaledPoleA, scaledB])
+        aMat, bMat = self.getServoSystemMatrices(outputDt)
 
-    def identifyCurrentSystemModel(self):
-        self.currentModelParams = np.array([1.0, self.servoModelParameters[3,0]])
-        return self.currentModelParams
+        return np.array([aMat[1, 1], bMat[1, 0], self.servoModelParameters[2], self.servoModelParameters[3]])
+
+    def getCurrentModelParameters(self):
+        currentModelParams = np.array([1.0, 0.0])
+        return currentModelParams
 
     def identifyServoSystemModel(self):
-        covDef = False
-        cov = None#np.matrix([[0.0, 0.0, 0.0, 0.0],
-            #[0.0, 0.0, 0.0, 0.0],
-            #[0.0, 0.0, 0.0, 0.0],
-            #[0.0, 0.0, 0.0, 0.0]])
-        covYDef = False
-        covY = None#np.matrix([[0.0],[0.0],[0.0],[0.0]])
+        # pylint: disable=too-many-locals, too-many-statements
+        index = -1
+        pwmVec = []
+        phi2SumList = []
+        yPhiSumList = []
+        phiSumList = []
+        ySumList = []
+        nrOfSumList = []
 
-        velData = np.abs(self.velData)
-        pwmData = np.abs(self.pwmData)
+        velData = self.velData
+        pwmData = self.pwmData
 
-        for d in zip(velData[1+5:-5], velData[0+5:-1-5], pwmData[0+5:-1-5], pwmData[0:-1-5-5], pwmData[0+5+5:-1]):
-            if d[4][0] == d[3][0]:
-                phi = np.matrix([[d[1][0]], [d[2][0]], [1.0], [d[1][0] * d[2][0]]])
-                y = d[0][0]
+        pltVec = []
 
-                temp = phi * np.transpose(phi)
-                if covDef is False:
-                    covDef = True
-                    cov = temp
+        lastPwm = pwmData[self.dStep]
+        if not math.isnan(lastPwm):
+            index += 1
+            pwmVec.append(abs(lastPwm))
+        for i, d in enumerate(zip(velData[self.dStep:], velData[0:-self.dStep], pwmData[self.dStep-1:-1])):
+            pwmSlice = pwmData[max(i - self.dStep, 0):i + self.dStep]
+            constPwm = all(pwmSlice[0] == d for d in pwmSlice[1:])
+            if constPwm and d[0] * d[1] > 0:
+                if abs(lastPwm) != abs(d[2]):
+                    index += 1
+                    pwmVec.append(abs(d[2]))
+                lastPwm = d[2]
+
+                pltVec.append(d[0])
+
+                phi = np.matrix([[d[1]], [d[2]], [sign(d[1])], [sign(d[2])]])
+                y = d[0]
+
+                phi2 = phi * np.transpose(phi)
+                yPhi = y * phi
+                if index == len(nrOfSumList):
+                    phi2SumList.append(phi2)
+                    yPhiSumList.append(yPhi)
+                    phiSumList.append(phi)
+                    ySumList.append(y)
+                    nrOfSumList.append(1)
                 else:
-                    cov += temp
-                if covYDef is False:
-                    covYDef = True
-                    covY = y * phi
-                else:
-                    covY += y * phi
+                    phi2SumList[index] += phi2
+                    yPhiSumList[index] += yPhi
+                    phiSumList[index] += phi
+                    ySumList[index] += y
+                    nrOfSumList[index] += 1
 
-        self.servoModelParameters = np.linalg.solve(cov, covY)
-        self.servoModelParameters[2,0] = -self.servoModelParameters[2,0] / self.servoModelParameters[1,0]
-        self.servoModelParameters[3,0] = self.servoModelParameters[3,0] / self.servoModelParameters[1,0]
-        return self.servoModelParameters
+        def sumAdjacent(l, nr):
+            out = []
+            for i in range(0, len(l) - nr + 1):
+                out.append(sum(l[i:i + nr]))
+            return out
+
+        def avarageAdjacent(l, nr):
+            return [v / nr for v in sumAdjacent(l, nr)]
+
+        phi2SumListCombined = []
+        yPhiSumListCombined = []
+        phiSumListCombined = []
+        ySumListCombined = []
+        nrOfSumListCombined = []
+        pwmVecCombined = []
+
+        for nr in [len(phi2SumList), len(phi2SumList) // 2]:
+            phi2SumListCombined += sumAdjacent(phi2SumList, nr)
+            yPhiSumListCombined += sumAdjacent(yPhiSumList, nr)
+            phiSumListCombined += sumAdjacent(phiSumList, nr)
+            ySumListCombined += sumAdjacent(ySumList, nr)
+            nrOfSumListCombined += sumAdjacent(nrOfSumList, nr)
+            pwmVecCombined += avarageAdjacent(pwmVec, nr)
+
+        phi2SumList = phi2SumListCombined
+        yPhiSumList = yPhiSumListCombined
+        phiSumList = phiSumListCombined
+        ySumList = ySumListCombined
+        nrOfSumList = nrOfSumListCombined
+        pwmVec = pwmVecCombined
+
+        phiCovList = []
+        yPhiCovList = []
+        for phi2Sum, yPhiSum, phiSum, ySum, nr in zip(phi2SumList, yPhiSumList, phiSumList, ySumList, nrOfSumList):
+            phiCovList.append(phi2Sum * nr - phiSum * np.transpose(phiSum))
+            yPhiCovList.append(yPhiSum * nr - phiSum * np.transpose(ySum))
+
+        aList = []
+        bList = []
+        fList = []
+        pList = []
+
+        for d in zip(phiCovList, yPhiCovList):
+            params = np.linalg.solve(d[0], d[1])
+            pwmOffset = -params[3, 0] / params[1, 0]
+            ad = params[0, 0]
+            bd = params[1, 0] * (1023 - pwmOffset) / 1023
+            friction = -params[2, 0] / bd
+
+            aList.append(ad)
+            bList.append(bd)
+            fList.append(friction)
+            pList.append(pwmOffset)
+
+        self.pwmVec = pwmVec
+        self.aList = aList
+        self.bList = bList
+        self.fList = fList
+        self.pList = pList
+
+        return np.array([aList[0], bList[0], fList[0], pList[0]])
+
+    def getSimResults(self):
+        # pylint: disable=too-many-locals
+        ad, bd, friction, pwmOffset = self.getServoSystemModelParameters(self.dt)
+
+        data = self.rawData
+        realPos = data[2:, 1]
+        pwmData = data[2:, 2]
+
+        simPos = 0 * realPos + realPos[0]
+        lastSimVel = 0
+        lastSimPos = simPos[0]
+        for i, pwm in enumerate(pwmData[0:-1]):
+            pwmScale = (1023 - pwmOffset) / 1023
+            #pwm = linearPwm * pwmScale + pwmOffset
+            linearPwm = (abs(pwm) - pwmOffset) / pwmScale * sign(pwm)
+
+            newVel = (ad * lastSimVel +
+                bd * (linearPwm - friction * sign(lastSimVel)))
+            lastSimPos += self.dt * (lastSimVel + newVel) / 2
+            lastSimVel = newVel
+
+            simPos[i + 1] = lastSimPos
+
+        realVel = 0 * realPos
+        simVel = 0 * realPos
+        for i, d in enumerate(zip(realPos[1:], realPos[0:-1], simPos[1:], simPos[0:-1])):
+            realVel[i + 1] = (d[0] - d[1]) / self.dt
+            simVel[i + 1] = (d[2] - d[3]) / self.dt
+
+        highPassConst = self.pwmChangeDelay * 5 / (self.pwmChangeDelay * 5 + 1)
+        realVel = highPassFilter(realVel[1:], highPassConst)
+        simVel = highPassFilter(simVel[1:], highPassConst)
+
+        t = np.arange(len(simVel)) * self.dt
+
+        return (simVel, realVel, t)
+
+    def showAdditionalDiagnosticPlots(self, color=None):
+        plotColor=color
+        if not plotColor:
+            plotColor='g'
+
+        plt.figure(1)
+        plt.plot(self.simT, self.simRefVel, '--', color=plotColor)
+        plt.plot(self.simT, self.simVel, 'k')
+
+        plt.figure(2)
+        plt.plot(self.pwmVec[1:], self.aList[1:], '+', color=plotColor)
+        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.aList[0], self.aList[0]], color=plotColor)
+        plt.figure(3)
+        plt.plot(self.pwmVec[1:], self.bList[1:], '+', color=plotColor)
+        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.bList[0], self.bList[0]], color=plotColor)
+        plt.figure(4)
+        plt.plot(self.pwmVec[1:], self.fList[1:], '+', color=plotColor)
+        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.fList[0], self.fList[0]], color=plotColor)
+        plt.figure(5)
+        plt.plot(self.pwmVec[1:], self.pList[1:], '+', color=plotColor)
+        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.pList[0], self.pList[0]], color=plotColor)
+
+        plt.figure(6)
+        pwmChangeDelay = self.pwmChangeDelay
+        simRefVelFiltered = np.array([np.mean(self.simRefVel[i:i+pwmChangeDelay]) for i in range(0, len(self.simRefVel)
+                - pwmChangeDelay)])
+        simVelFiltered = np.array([np.mean(self.simVel[i:i+pwmChangeDelay]) for i in range(0, len(self.simVel)
+                - pwmChangeDelay)])
+        t = np.arange(len(simVelFiltered)) * self.dt
+        temp = sorted(simRefVelFiltered)
+        velAmplitude = max(np.abs([temp[len(temp) // 100], temp[-len(temp) // 100]]))
+        plt.plot(t, (np.abs(simRefVelFiltered) - np.abs(simVelFiltered)) / velAmplitude, color=plotColor)
+
+        plt.figure(7)
+        plt.plot(self.velData, color=plotColor)
+
+        plt.figure(8)
+        plt.plot(self.dtError, color=plotColor)
+
+        if not color:
+            plt.show()
 
     def plotServoSystemModel(self, box):
-        simVel = 0 * self.velData
-        lastSimVel = None
-        for i, d in enumerate(zip(self.velData[1:], self.velData[0:-1], self.pwmData[0:-1])):
-            if lastSimVel is None:
-                lastSimVel = d[1][0]
-
-            pwm = d[2][0]
-            friction = 0
-            if pwm > 0:
-                friction = -self.servoModelParameters[2,0]
-            elif pwm < 0:
-                friction = self.servoModelParameters[2,0]
-            simVel[i] = (self.servoModelParameters[0] * lastSimVel +
-                self.servoModelParameters[1] * (pwm + friction
-                        + self.servoModelParameters[3] * lastSimVel * abs(pwm)))
-
-            lastSimVel = simVel[i]
-
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        t = np.arange(len(simVel)) * self.dt
-        ax.plot(t, self.velData, 'b')
-        ax.plot(t, simVel, 'k')
+        ax.plot(self.simT, self.simRefVel, 'g--')
+        ax.plot(self.simT, self.simVel, 'k')
+        ax.set_xlim(0, self.dt * self.pwmChangeDelay * 100)
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
         box.add(canvas)
 
-        label = Gtk.Label(label='Blue curve is real system and black is model. A good result\n'
-                            'is indicated by the black curve resembling the blue.')
+        label = Gtk.Label(label='Green curve is real system and black is model. A good result\n'
+                            'is indicated by the black curve resembling the green.')
         label.set_use_markup(True)
         label.set_margin_start(30)
         label.set_margin_end(50)
@@ -209,20 +397,17 @@ def getModelDtFromConfigFileString(configFileAsString, configClassName):
 class ServoModel:
     """docstring for ServoModel"""
     def __init__(self, dt, systemModel):
-        self.dt = dt
-        self.systemModel = systemModel
 
-        modelDt = self.dt
-        modelDt2 = self.dt**2
-        temp = self.systemModel.getServoSystemModelParameters(self.dt)
-        a = temp[0]
-        b = temp[1]
-
-        self.aMat = np.array([[1, modelDt], [0, a]])
-        self.bMat = np.array([[modelDt2 / 2], [modelDt]]) * b
-        self.cMat = np.array([[1, 0]])
+        self.aMat, self.bMat = systemModel.getServoSystemMatrices(dt)
+        self.cMat = np.array([[1.0, 0.0]])
 
         self.kalmanFilter = KalmanFilter(dt, self.aMat, self.bMat, self.cMat)
+
+        _, _, self.friction, pwmOffset = systemModel.getServoSystemModelParameters(dt)
+
+        self.pwmNonlinearityComp = PwmNonlinearityConfigHandler(pwmOffset=pwmOffset)
+
+        self.pwmToStallCurrent, self.backEmfCurrent = systemModel.getCurrentModelParameters()
 
     def  getControlParametersClassContentStr(self, indent):
         out = ''
@@ -263,32 +448,29 @@ class ServoModel:
         out += indent + '        return B;\n'
         out += indent + '    }\n'
         out += '\n'
+        out += indent + '    static bool internalFeedForwardEnabled()\n'
+        out += indent + '    {\n'
+        out += indent + '        return true;\n'
+        out += indent + '    }\n'
+        out += '\n'
         out += indent + '    //system model friction comp value\n'
         out += indent + '    static float getFrictionComp()\n'
         out += indent + '    {\n'
-        out += indent + '        return ' + str(self.systemModel.servoModelParameters[2,0]) + 'f;\n'
+        out += indent + '        return ' + str(self.friction) + 'f;\n'
         out += indent + '    }\n'
         out += indent + '};'
         return out
 
     def writeModelToConfigFileString(self, configFileAsString, configClassName):
+        configFileAsString = self.pwmNonlinearityComp.writeLinearizationFunctionToConfigFileString(
+                configFileAsString, configClassName)
+
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
-        pwmToStallCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+pwmToStallCurrent\s*)\{[^\}]*\};')
-        backEmfCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+backEmfCurrent\s*)\{[^\}]*\};')
         controlParametersPattern = re.compile(r'((\s*)class\s+ControlParameters\s+:.*\n\2\{)(.*\n)*?\2\};')
 
-        temp = True
-        temp = pwmToStallCurrentPattern.search(configClassString) is not None and temp
-        temp = backEmfCurrentPattern.search(configClassString) is not None and temp
-        temp = controlParametersPattern.search(configClassString) is not None and temp
+        temp = controlParametersPattern.search(configClassString) is not None
         if temp:
-            out = r'\1{' + str(self.systemModel.currentModelParams[0]) + r'f};'
-            configClassString = re.sub(pwmToStallCurrentPattern, out, configClassString)
-
-            out = r'\1{' + str(self.systemModel.currentModelParams[1]) + r'f};'
-            configClassString = re.sub(backEmfCurrentPattern, out, configClassString)
-
             out = r'\1\n'
             out += self.getControlParametersClassContentStr(r'\2')
             configClassString = re.sub(controlParametersPattern, out, configClassString)
@@ -303,8 +485,7 @@ class ServoModel:
         out = ''
         out += '--------------------------------------------------------------------------------\n'
         out += '\n'
-        out += '        constexpr float pwmToStallCurrent{' + str(self.systemModel.currentModelParams[0]) + 'f};\n'
-        out += '        constexpr float backEmfCurrent{' + str(self.systemModel.currentModelParams[1]) + 'f};\n'
+        out += self.pwmNonlinearityComp.getLinearizationFunction('        ') + '\n'
         out += '\n'
         out += '--------------------------------------------------------------------------------\n'
         out += '\n'
@@ -318,6 +499,28 @@ class ServoModel:
 
 def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     # pylint: disable=too-many-locals, too-many-statements
+    with open(configFilePath, 'r', encoding='utf-8') as configFile:
+        configFileAsString = configFile.read()
+
+        try:
+            SystemIdentificationObject.checkForPreviousCalibration(configFileAsString, configClassName)
+        except Exception:
+            dialog = Gtk.MessageDialog(
+                    transient_for=parent,
+                    flags=0,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.YES_NO,
+                    text='Pwm calibration not compatible with this configuration! Continue any way?',
+            )
+            dialog.format_secondary_text(
+                ''
+            )
+            response = dialog.run()
+            dialog.destroy()
+
+            if response == Gtk.ResponseType.NO:
+                return None
+
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
@@ -346,9 +549,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     limitMovementButton[1].connect('toggled', onLockPosition)
 
     outputModelDt = 0.0012
-    motorSettleTime = 1
-    minPwmValue = 40
-    maxPwmValue = 200
+    motorSettleTime = 0.3
+    minPwmValue = 0
+    maxPwmValue = 1023
 
     try:
         with open(configFilePath, "r", encoding='utf-8') as configFile:
@@ -359,7 +562,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         pass
 
 
-    motorSettleTimeScale = GuiFunctions.creatHScale(motorSettleTime, 1, 10, 1, getLowLev=True)
+    motorSettleTimeScale = GuiFunctions.creatHScale(motorSettleTime, 0.1, 5.0, 0.1, getLowLev=True)
     motorSettleTimeScale = (GuiFunctions.addTopLabelTo('<b>Motor settle time</b>', motorSettleTimeScale[0]),
             motorSettleTimeScale[1])
     calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
@@ -559,6 +762,22 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 text='System identification done!',
         )
         dialog.format_secondary_text(
+            "Do you want to plot extended data?"
+        )
+        response = dialog.run()
+        dialog.destroy()
+
+        if response == Gtk.ResponseType.YES:
+            systemIdentifier.showAdditionalDiagnosticPlots()
+
+        dialog = Gtk.MessageDialog(
+                transient_for=parent,
+                flags=0,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text='System identification done!',
+        )
+        dialog.format_secondary_text(
             "Should the configuration be updated with the new model?"
         )
         systemIdentifier.plotServoSystemModel(dialog.get_message_area())
@@ -604,83 +823,119 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal runThread
 
         try:
-            with createServoManager(nodeNr, port, 0.018) as servoManager:
+            with createServoManager(nodeNr, port, dt=0.004) as servoManager:
                 pwmSampleValues = []
-                nr = 10
+                nr = 20
                 for i in range(0, nr):
                     pwmSampleValues.append(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue)
-                    pwmSampleValues.append(minPwmValue)
-                    pwmSampleValues.append(-(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue))
-                    pwmSampleValues.append(-minPwmValue)
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     return
 
                 t = 0.0
-                if startPos is not None:
-                    t = -float(motorSettleTime)
+                wallTime = 0.0
+                timestamp = time.monotonic()
 
                 doneRunning = False
                 i = 0
+                lastI = -1
                 pwm = None
-                pwmDir = -1
-                outEncDir = 1
+                encDirDetectMem = [None, 0]
+                outEncDir = 0
+                lastDirChangePos = 0
+                lastPwmSignFlipp = 0.0
 
                 out = []
+
+                if os.path.isfile('sysTestDataToLoad.txt'):
+                    out = np.loadtxt('sysTestDataToLoad.txt')
+                    doneRunning = True
 
                 def readResultHandlerFunction(dt, servoManager):
                     # pylint: disable=too-many-branches
                     nonlocal t
+                    nonlocal wallTime
+                    nonlocal timestamp
                     nonlocal doneRunning
                     nonlocal pwm
                     nonlocal i
-                    nonlocal pwmDir
+                    nonlocal lastI
                     nonlocal startPos
+                    nonlocal encDirDetectMem
                     nonlocal outEncDir
+                    nonlocal lastDirChangePos
+                    nonlocal lastPwmSignFlipp
 
                     stop = False
 
                     servo = servoManager.servoArray[0]
-
-                    d = [t, servo.getPosition(False) / servo.getScaling(),
-                            pwm]
-                    if pwm is not None:
-                        out.append(d)
-
                     pos = servo.getPosition(True)
 
-                    if t < 0: # negative time if startPos != None (limit movement active)
-                        if pwmDir == -1:
-                            if abs(pos - startPos) > 1.0:
-                                pwmDir = 1
-                                if pos - startPos >= 0.0:
-                                    outEncDir = -1
-                            t = -motorSettleTime
-                        elif abs(pos - startPos) > 1.0:
-                            t = -motorSettleTime
+                    if encDirDetectMem[0] is None:
+                        encDirDetectMem[0] = pos
+
+                    diff = pos - encDirDetectMem[0]
+                    diff2 = diff - encDirDetectMem[1]
+                    velSign = sign(diff)
+                    lastVelSign = sign(encDirDetectMem[1])
+                    lastPos = encDirDetectMem[0]
+                    encDirDetectMem[0] = pos
+                    encDirDetectMem[1] = diff
+                    outEncDir += diff2 * servo.getFeedforwardU()
+
+                    pwmSignFlipp = 0.5
+                    if startPos is not None:
+                        deadZone = 0.0
+                        maxDiffFromStart = 1.0
+                        if lastVelSign != velSign:
+                            lastDirChangePos = lastPos
+
+                        diff = 2 * pos - lastDirChangePos - startPos
+                        scaledPosDiff = diff / maxDiffFromStart
+                        if outEncDir < 0:
+                            scaledPosDiff *= -1.0
+
+
+                        if abs(scaledPosDiff) <= deadZone:
+                            scaledPosDiff = 0.0
+                        elif abs(scaledPosDiff) < 1.0 and sign(scaledPosDiff) != velSign:
+                            scaledPosDiff = 0.0
                         else:
-                            pwmDir = 0
+                            scaledPosDiff = (abs(scaledPosDiff) - deadZone) / (1.0 - deadZone) * sign(scaledPosDiff)
 
-                        servo.setOpenLoopControlSignal(maxPwmValue * pwmDir, True)
 
-                        pwm = None
+                        pwmSignFlipp = min(max(0.5 * scaledPosDiff + 0.5, 0.0), 1.0)
+
+                        if lastPwmSignFlipp != pwmSignFlipp and pwmSignFlipp in (0.0, 1.0):
+                            lastI = i - 1
+
+                        lastPwmSignFlipp = pwmSignFlipp
+
+                    if pwm is not None:
+                        temp = pos
+                        if startPos is not None:
+                            temp -= startPos
+                        d = [t, servo.getPosition(False) / servo.getScaling(),
+                                servo.getFeedforwardU(),
+                                wallTime]
+                        out.append(d)
+
+                    i = int(t / (motorSettleTime * 0.2))
+                    if i // 50 < len(pwmSampleValues):
+
+                        if lastI < i:
+                            pwm = pwmSampleValues[i // 50]
+                            if random.random() < pwmSignFlipp:
+                                pwm = -pwm
+                        lastI = i
                     else:
-                        i = int(t / motorSettleTime)
-                        if i < len(pwmSampleValues):
-                            pwm = pwmSampleValues[i]
+                        pwm = 0
+                        stop = True
 
-                            if startPos is not None:
-                                if outEncDir * pwm < 0 and pos - startPos > 1.0:
-                                    t -= dt
-                                if outEncDir * pwm > 0 and pos - startPos < -1.0:
-                                    t -= dt
-                        else:
-                            pwm = 0
-                            stop = True
+                    servo.setOpenLoopControlSignal(pwm, True)
 
-                        servo.setOpenLoopControlSignal(pwm, True)
-
-                    GLib.idle_add(updateRecordingProgressBar, t / (motorSettleTime * len(pwmSampleValues)))
+                    GLib.idle_add(updateRecordingProgressBar,
+                            (t / (motorSettleTime * 0.2 * 50)) / len(pwmSampleValues))
 
                     with threadMutex:
                         if runThread is False:
@@ -693,7 +948,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     t += dt
 
-                servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
+                    newTimestamp = time.monotonic()
+                    wallTime += newTimestamp - timestamp
+                    timestamp = newTimestamp
+
+                if not doneRunning:
+                    servoManager.setHandlerFunctions(sendCommandHandlerFunction, readResultHandlerFunction)
 
                 while not doneRunning:
                     if not servoManager.isAlive():
@@ -705,6 +965,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 if runThread is True:
                     data = np.array(out)
+                    np.savetxt('lastSysTestData.txt', data)
                     GLib.idle_add(handleResults, data)
 
         except Exception as e:
@@ -717,6 +978,41 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal runThread
 
         if widget.get_label() == 'Start calibration':
+            with open(configFilePath, 'r', encoding='utf-8') as configFile:
+                configFileAsString = configFile.read()
+
+                previousCalibrationDetected = False
+                try:
+                    previousCalibrationDetected = PwmNonlinearityConfigHandler.checkForPreviousCalibration(
+                            configFileAsString, configClassName)
+                except Exception:
+                    pass
+
+                if previousCalibrationDetected:
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.ERROR,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Pwm calibration already done for this configuration!',
+                    )
+                    dialog.format_secondary_text(
+                        'Pwm linarization only works on configurations without previous calibration.\n\n'
+                        'Should the calibration be reset?'
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
+
+                    if response == Gtk.ResponseType.NO:
+                        return
+
+                    configFileAsString = PwmNonlinearityConfigHandler.resetPreviousCalibration(
+                            configFileAsString, configClassName)
+                    with open(configFilePath, 'w', encoding='utf-8') as configFile:
+                        configFile.write(configFileAsString)
+                        GuiFunctions.transferToTargetMessage(parent)
+                    return
+
             widget.set_label('Abort calibration')
 
             recordingProgressBar[1].set_fraction(0.0)
@@ -748,3 +1044,18 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.show_all()
 
     return calibrationBox
+
+def main():
+    data = np.loadtxt('lastSysTestDataDtCheck1.txt')
+    systemIdentifier = SystemIdentificationObject(data)
+    systemIdentifier.showAdditionalDiagnosticPlots(color='r')
+    data = np.loadtxt('lastSysTestDataDtCheck2.txt')
+    systemIdentifier = SystemIdentificationObject(data)
+    systemIdentifier.showAdditionalDiagnosticPlots(color='g')
+    data = np.loadtxt('lastSysTestDataDtCheck3.txt')
+    systemIdentifier = SystemIdentificationObject(data)
+    systemIdentifier.showAdditionalDiagnosticPlots(color='b')
+    plt.show()
+
+if __name__ == '__main__':
+    main()

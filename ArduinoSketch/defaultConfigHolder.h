@@ -72,6 +72,11 @@ public:
             return B;
         }
 
+        static bool internalFeedForwardEnabled()
+        {
+            return false;
+        }
+
         static float getMaxVelocity()
         {
             return std::numeric_limits<float>::max();
@@ -98,7 +103,8 @@ std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlas
     auto mainEncoder = T::createMainEncoderHandler();
     auto outputEncoder = T::createOutputEncoderHandler();
     auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
-    bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012f;
+    bool enableInternalFeedForward = T::ControlParameters::internalFeedForwardEnabled();
+    bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012f && !enableInternalFeedForward;
     auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>(kalmanFilterApproximation);
 
     auto dcServo = std::make_unique<DCServo>(
@@ -113,6 +119,8 @@ std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlas
         dcServo->setControlSpeed(controlSpeed);
         dcServo->setBacklashControlSpeed(backlashControlSpeed);
     }
+
+    dcServo->enableInternalFeedForward();
 
     return dcServo;
 }

@@ -488,13 +488,13 @@ class GuiWindow(Gtk.Window):
                         box1.pack_start(activeNodeNrCombo[0], False, False, 0)
 
                     supportedCalibrationOptions = ['',
-                            'Pwm nonlinearity',
                             'Optical encoder',
-                            'System identification',
+                            'Pwm and system identification',
                             'Motor cogging torque',
                             'Output encoder calibration',
                             'Test control loop',
-                            'Test control loop (Advanced)']
+                            'Test control loop (Advanced)',
+                            'Pwm nonlinearity (legacy)']
 
                 def getNodeNrFromCombo(nodeNrCombo):
                     nodeNr = nodeNrCombo.get_model()[nodeNrCombo.get_active()][0]
@@ -522,7 +522,7 @@ class GuiWindow(Gtk.Window):
                     if calibrationType == '':
                         calibrationBox = None
 
-                    elif calibrationType == 'Pwm nonlinearity':
+                    elif calibrationType == 'Pwm nonlinearity (legacy)':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
@@ -536,7 +536,7 @@ class GuiWindow(Gtk.Window):
                         calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun,
                                                                                 configFilePath, configClassName)
 
-                    elif calibrationType == 'System identification':
+                    elif calibrationType == 'Pwm and system identification':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])

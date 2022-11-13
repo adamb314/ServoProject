@@ -121,6 +121,11 @@ void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t back
     this->backlashSize = backlashSize;
 }
 
+void DCServo::enableInternalFeedForward(bool enable)
+{
+    internalFeedForwardEnabled = enable;
+}
+
 void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
@@ -140,7 +145,7 @@ void DCServo::triggerReferenceTiming()
 float DCServo::getPosition()
 {
     ThreadInterruptBlocker blocker;
-    return rawOutputPos;
+    return rawOutputPos - posRefTimingOffset;
 }
 
 int16_t DCServo::getVelocity()
@@ -182,7 +187,7 @@ float DCServo::getBacklashCompensation()
 float DCServo::getMainEncoderPosition()
 {
     ThreadInterruptBlocker blocker;
-    return rawMainPos + initialOutputPosOffset;
+    return rawMainPos + initialOutputPosOffset - posRefTimingOffset;
 }
 
 EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
@@ -204,6 +209,9 @@ void DCServo::controlLoop()
     float posRef;
     float velRef;
     float feedForwardU;
+    float nextPosRef;
+    float nextVelRef;
+    float nextFeedForwardU;
 
     float controlSignal = 0.0f;
 
@@ -215,7 +223,10 @@ void DCServo::controlLoop()
             Ivel += L[3] * (pwm - currentController->getLimitedRef());
         }
 
-        refInterpolator.getNext(posRef, velRef, feedForwardU);
+        std::tie(posRef, velRef, feedForwardU) = refInterpolator.get();
+        refInterpolator.calculateNext();
+        std::tie(nextPosRef, nextVelRef, nextFeedForwardU) = refInterpolator.get();
+        posRefTimingOffset = posRef - std::get<0>(refInterpolator.getUninterpolated());
     }
     pendingIntegralCalc = false;
 
@@ -240,6 +251,11 @@ void DCServo::controlLoop()
             controlConfig->limitVelocity(vControlRef);
 
             controlSignal = L[1] * (vControlRef - x[1]) + Ivel;
+
+            if (internalFeedForwardEnabled)
+            {
+                controlSignal += controlConfig->calculateFeedForward(nextVelRef, velRef);
+            }
 
             kalmanControlSignal = controlSignal;
 
@@ -430,7 +446,7 @@ void ReferenceInterpolator::updateTiming()
     uint16_t timestamp = micros();
     if (timingInvalid)
     {
-        midPointTimeOffset = getTimeInterval;
+        midPointTimeOffset = 2 * getTimeInterval;
 
         timingInvalid = false;
     }
@@ -439,7 +455,7 @@ void ReferenceInterpolator::updateTiming()
         uint16_t updatePeriod = timestamp - lastUpdateTimingTimestamp;
         uint16_t timeSinceLastGet = timestamp - lastGetTimestamp;
 
-        int16_t timingError = getTimeInterval - (midPointTimeOffset + timeSinceLastGet);
+        int16_t timingError = 2 * getTimeInterval - (midPointTimeOffset + timeSinceLastGet);
         int16_t periodError = updatePeriod - loadTimeInterval;
 
         midPointTimeOffset += timingError / 8;
@@ -447,6 +463,7 @@ void ReferenceInterpolator::updateTiming()
 
         dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
         invertedLoadInterval = 1.0f / loadTimeInterval;
+        getTStepSize = getTimeInterval * invertedLoadInterval;
     }
 
     lastUpdateTimingTimestamp = timestamp;
@@ -456,17 +473,24 @@ void ReferenceInterpolator::resetTiming()
 {
     timingInvalid = true;
     refInvalid = true;
+
+    stepAndUpdateInter();
 }
 
-void ReferenceInterpolator::getNext(float& position, float& velocity, float& feedForward)
+void ReferenceInterpolator::calculateNext()
 {
     lastGetTimestamp = micros();
 
+    stepAndUpdateInter();
+}
+
+void ReferenceInterpolator::stepAndUpdateInter()
+{
     if (refInvalid)
     {
-        position = pos[2];
-        velocity = vel[2];
-        feedForward = feed[2];
+        interPos = pos[2];
+        interVel = vel[2];
+        interFeed = feed[2];
 
         return;
     }
@@ -480,7 +504,6 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
     t = std::min(t, 1.2f);
     t = std::max(t, -1.0f);
 
-
     if (t < 0.0f)
     {
         t += 1.0f;
@@ -488,18 +511,28 @@ void ReferenceInterpolator::getNext(float& position, float& velocity, float& fee
         float s = midPointTimeOffset * invertedGetInterval + 1.0f;
         s = std::max(s, 0.0f);
 
-        feedForward = feed[0] * (1.0f - s) + feed[1] * s;
+        interFeed = feed[0] * (1.0f - s) + feed[1] * s;
         float velDiff = vel[1] - vel[0];
-        velocity = vel[0] + t * velDiff;
-        position = pos[0] + t * (pos[1] - pos[0] + dtDiv2 * (t * velDiff - velDiff));
+        interVel = vel[0] + t * velDiff;
+        interPos = pos[0] + t * (pos[1] - pos[0] + dtDiv2 * (t * velDiff - velDiff));
     }
     else
     {
-        feedForward = feed[1];
+        interFeed = feed[1];
         float velDiff = vel[2] - vel[1];
-        velocity = vel[1] + t * velDiff;
-        position = pos[1] + t * (pos[2] - pos[1] + dtDiv2 * (t * velDiff - velDiff));
+        interVel = vel[1] + t * velDiff;
+        interPos = pos[1] + t * (pos[2] - pos[1] + dtDiv2 * (t * velDiff - velDiff));
     }
+}
+
+std::tuple<float, float, float> ReferenceInterpolator::get()
+{
+    return std::make_tuple(interPos, interVel, interFeed);
+}
+
+std::tuple<float, float, float> ReferenceInterpolator::getUninterpolated()
+{
+    return std::make_tuple(pos[1], vel[1], feed[1]);
 }
 
 void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
@@ -508,6 +541,7 @@ void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
 
     getTimeInterval = interval;
     invertedGetInterval = 1.0f / getTimeInterval;
+    getTStepSize = getTimeInterval * invertedLoadInterval;
 }
 
 void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
@@ -517,4 +551,5 @@ void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
     loadTimeInterval = interval;
     invertedLoadInterval = 1.0f / loadTimeInterval;
     dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
+    getTStepSize = getTimeInterval * invertedLoadInterval;
 }

@@ -11,6 +11,8 @@
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
+//#define SIMULATE
+
 template <typename T, int maxN>
 class SampleAveragingHandler
 {
@@ -36,7 +38,10 @@ class ReferenceInterpolator
 
     void resetTiming();
 
-    void getNext(float& position, float& velocity, float& feedForward);
+    void calculateNext();
+
+    std::tuple<float, float, float> get();
+    std::tuple<float, float, float> getUninterpolated();
 
     void setGetTimeInterval(const uint16_t& interval);
 
@@ -44,9 +49,15 @@ class ReferenceInterpolator
 
     int16_t midPointTimeOffset{0};
  private:
+    void stepAndUpdateInter();
+
     float pos[3]{0};
     float vel[3]{0};
     float feed[3]{0};
+
+    float interPos;
+    float interVel;
+    float interFeed;
 
     uint16_t lastUpdateTimingTimestamp{0};
     uint16_t lastGetTimestamp{0};
@@ -58,6 +69,7 @@ class ReferenceInterpolator
     float dtDiv2{loadTimeInterval * 0.000001f * 0.5f};
     uint16_t getTimeInterval{1200};
     float invertedGetInterval{1.0f / getTimeInterval};
+    float getTStepSize{getTimeInterval * invertedLoadInterval};
 };
 
 class ControlConfigurationInterface
@@ -67,6 +79,7 @@ public:
     virtual const Eigen::Vector3f& getB() = 0;
     virtual void limitVelocity(float& vel) = 0;
     virtual float applyForceCompensations(float u, uint16_t rawEncPos, float velRef, float vel) = 0;
+    virtual float calculateFeedForward(float v1, float v0) = 0;
 
     virtual float getCycleTime()
     {
@@ -93,6 +106,7 @@ public:
         const EncoderHandlerInterface* encoder) :
             A(A),
             B(B),
+            b1Inv{1.0f / B[1]},
             maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
             frictionComp(frictionComp),
             posDepForceCompVec(posDepForceCompVec)
@@ -148,9 +162,15 @@ public:
         return out;
     }
 
+    virtual float calculateFeedForward(float v1, float v0)
+    {
+        return b1Inv * (v1 - A(1, 1) * v0);
+    }
+
 private:
     Eigen::Matrix3f A;
     Eigen::Vector3f B;
+    float b1Inv;
     float frictionComp;
     float maxVel;
     std::array<int16_t, vecSize> posDepForceCompVec;
@@ -191,6 +211,8 @@ class DCServo
 
     void setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain = 0, uint8_t backlashSize = 0);
 
+    void enableInternalFeedForward(bool enable = true);
+
     void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
 
     void triggerReferenceTiming();
@@ -224,6 +246,7 @@ class DCServo
     bool onlyUseMainEncoderControl{false};
     bool openLoopControlMode{false};
     bool pwmOpenLoopMode{false};
+    bool internalFeedForwardEnabled{false};
 
     uint8_t controlSpeed{50};
     uint16_t velControlSpeed{50 * 4};
@@ -250,6 +273,7 @@ class DCServo
     int forceDir{0};
     float outputPosOffset{0.0f};
     float initialOutputPosOffset{0.0f};
+    float posRefTimingOffset{0.0f};
 
     //x[0]: Estimated position
     //x[1]: Estimated velocity

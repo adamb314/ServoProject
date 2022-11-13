@@ -22,15 +22,12 @@ public:
 
     static std::unique_ptr<CurrentController> createCurrentController()
     {
-        constexpr float pwmToStallCurrent{1.0f};
-        constexpr float backEmfCurrent{0.0f};
-
         auto pwmHighFrqCompFun = [](uint16_t in)
         {
             return in;
         };
         auto pwm = std::make_unique<HBridgeHighResPin11And12Pwm>(true, pwmHighFrqCompFun, 20000);
-        return std::make_unique<CurrentControlModel>(pwmToStallCurrent, backEmfCurrent, std::move(pwm));
+        return std::make_unique<CurrentControlModel>(std::move(pwm));
     }
 
     class DefaultControlParametersWithPositionCompensation : public SetupConfigHolder::DefaultControlParameters
