@@ -272,46 +272,46 @@ class SmoothMoveHandler:
         v = self.d * a * math.sin(self.w)
         return self.p, v
 
-def main():
-    moveHandler = SmoothMoveHandler(0.0, 0.4)
-    moveHandler.set(0.0, 0.2)
+class PiecewiseLinearFunction:
+    def __init__(self, xList, yList):
+        if len(xList) != len(yList):
+            raise Exception('x and y list not same length')
+        if len(xList) < 2:
+            raise Exception('x list is too short')
 
-    refV = 1.0
-    r = 1.0
-    moveHandler.set(r, refV)
+        if sorted(xList) != xList:
+            raise Exception('x list is not sorted')
 
-    p, v = moveHandler.getNextRef(0.0)
+        sortedY = sorted(yList)
+        monotoneFunction = sortedY in (yList, yList[::-1])
+        if not monotoneFunction:
+            raise Exception('not a monotone function')
 
-    pVec = [p]
-    vVec = [v]
-    rVec = [r]
-    for i in range(0, 100):
-        p, v = moveHandler.getNextRef(0.01)
-        pVec.append(p)
-        vVec.append(v)
-        rVec.append(r)
+        self.xList = xList
+        self.yList = yList
 
-    r = 1.5
+    @staticmethod
+    def _findIndex(l, v):
+        for i, d in enumerate(l):
+            if v < d:
+                return i - 1
+        return len(l) - 1
 
-    for i in range(0, 100):
-        moveHandler.set(r, refV)
-        p, v = moveHandler.getNextRef(0.01)
-        pVec.append(p)
-        vVec.append(v)
-        rVec.append(r)
+    @staticmethod
+    def _calcInterpolation(inputList, outputList, inputValue):
+        i = PiecewiseLinearFunction._findIndex(inputList, inputValue)
+        i = max(i, 0)
+        i = min(i, len(inputList) - 2)
+        x0 = inputList[i]
+        x1 = inputList[i + 1]
 
-    for i in range(0, 500):
-        r = 0.5 + min(0.3, i * 0.001)
-        moveHandler.set(r, refV)
-        p, v = moveHandler.getNextRef(0.01)
-        pVec.append(p)
-        vVec.append(v)
-        rVec.append(r)
+        y0 = outputList[i]
+        y1 = outputList[i + 1]
 
-    plt.plot(pVec, 'g+')
-    plt.plot(vVec, 'y+')
-    plt.plot(rVec, 'r+')
-    plt.show()
+        return (y1 - y0) * (inputValue - x0) / (x1 - x0) + y0
 
-if __name__ == '__main__':
-    main()
+    def getX(self, y):
+        return PiecewiseLinearFunction._calcInterpolation(self.yList, self.xList, y)
+
+    def getY(self, x):
+        return PiecewiseLinearFunction._calcInterpolation(self.xList, self.yList, x)
