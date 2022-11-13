@@ -823,7 +823,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     GLib.idle_add(updateStatusLabel,
                             f'Sensor A: {opticalEncoderData.a}\n'
                             f'Sensor B: {opticalEncoderData.b}\n'
-                            f'Encoder position: {opticalEncoderData.minCostIndex}'
+                            f'Encoder position: {opticalEncoderData.minCostIndex}\n'
+                            f'Output Encoder position: {servo.getPosition(True) / pi * 180.0:0.2f}'
                     )
 
                     stop = False
