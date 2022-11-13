@@ -435,8 +435,8 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
 {
     newPositionReference = true;
     newOpenLoopControlSignal = false;
-    refPos = (pos - offset) / scale * positionUpscaling;
-    refVel = vel / scale;
+    refPos = std::round((pos - offset) / scale * positionUpscaling);
+    refVel = std::round(vel / scale);
 
     if (refVel > 4)
     {
@@ -446,7 +446,7 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     {
         frictionCompensation = -std::abs(frictionCompensation);
     }
-    this->feedforwardU = feedforwardU + frictionCompensation;
+    this->feedforwardU = std::round(feedforwardU + frictionCompensation);
 }
 
 void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)

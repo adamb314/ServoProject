@@ -640,14 +640,14 @@ class DCServoCommunicator:
     def setReference(self, pos, vel, feedforwardU):
         self.newPositionReference = True
         self.newOpenLoopControlSignal = False
-        self.refPos = (pos - self.offset) / self.scale * self.positionUpscaling
-        self.refVel = vel / self.scale
+        self.refPos = round((pos - self.offset) / self.scale * self.positionUpscaling)
+        self.refVel = round(vel / self.scale)
 
         if self.refVel > 4:
             self.frictionCompensation = abs(self.frictionCompensation)
         elif self.refVel < -4:
             self.frictionCompensation = -abs(self.frictionCompensation)
-        self.feedforwardU = feedforwardU + self.frictionCompensation
+        self.feedforwardU = round(feedforwardU + self.frictionCompensation)
 
     def setOpenLoopControlSignal(self, feedforwardU, pwmMode):
         self.newOpenLoopControlSignal = True
