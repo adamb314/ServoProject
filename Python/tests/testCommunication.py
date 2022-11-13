@@ -94,7 +94,7 @@ class Tester(TestCase):
         self.assertEqual(1000, com.getLastReadInt(2))
 
     def testDCServo(self):
-        com = SimulateCommunication()
+        com = SimulateCommunication(enableNoise=False)
         servo = DCServoCommunicator(1, com)
 
         while not servo.isInitComplete():

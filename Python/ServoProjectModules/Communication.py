@@ -276,7 +276,7 @@ class ComDelayInt:
 
 class SimulateCommunication(SerialCommunication):
     class ServoSim:
-        def __init__(self, nodeNr):
+        def __init__(self, nodeNr, cycleTime=0.0, enableNoise=True):
             self.nodeNr = nodeNr
             self.pos = 1257.5
             self.vel = 0
@@ -288,20 +288,25 @@ class SimulateCommunication(SerialCommunication):
             self.comDelayedVel = ComDelayInt(delay=2, initValue=self.intArray[4])
             self.comDelayedForce = ComDelayInt(delay=2, initValue=self.intArray[5])
 
+            self.activeSimForce = self.comDelayedForce.getLeft()
+
             self.intArray[3] = toUnsignedInt16(self.comDelayedPos.getLeft())
             self.intArray[10] = self.intArray[3]
             self.charArray[9] = toUnsignedChar(self.comDelayedPos.getLeft() // 2**16)
 
             self.intArray[0] = self.intArray[3]
             self.timestamp = None
+            self.dt = cycleTime
+            self.enableNoise = enableNoise
 
         def run(self):
-            # pylint: disable=too-many-locals, too-many-statements
+            # pylint: disable=too-many-locals, too-many-statements, too-many-branches
             gearRatio = 100
             damp = 50
-            backEmf = 0.3
+            backEmf = 0.0
             maxFriction = 40
             b = 0.1
+            pwmOffset = -575
 
             dt = 0.0
             newTimestamp = time.monotonic()
@@ -309,18 +314,27 @@ class SimulateCommunication(SerialCommunication):
                 dt = newTimestamp - self.timestamp
             self.timestamp = newTimestamp
 
-            force = unsignedToSignedInt(self.intArray[2])
+            if self.dt > 0.0:
+                dt = round(dt / self.dt) * self.dt
 
             rawPwmMode = self.charArray[1] != 0
+
+            force = 0
 
             if dt == 0.0:
                 pass
             elif rawPwmMode:
+                force = self.activeSimForce
+
+                forceSign = 1 if force >= 0 else -1
+                force = max(0.0, (abs(force) + pwmOffset) * 1023 / (1023 + pwmOffset)) * forceSign
+
                 subStep = 1000
                 for _ in range(0, subStep):
                     velInRad = self.vel / 2048 * math.pi
 
-                    f = force - backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023))
+                    f = force
+                    f -= backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023))
                     friction = f - damp * velInRad + velInRad / (dt / subStep * b)
                     if friction > maxFriction:
                         friction = maxFriction
@@ -343,12 +357,19 @@ class SimulateCommunication(SerialCommunication):
                 force = min(max(force, -1023), 1023)
                 self.vel = newVel
 
+            self.activeSimForce = unsignedToSignedInt(self.intArray[2])
+
             self.comDelayedPos.execute()
             self.comDelayedVel.execute()
             self.comDelayedForce.execute()
 
-            self.comDelayedPos.setRight(int(round(self.pos * 32)))
-            self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel)))
+            posNoise = 0.0
+            velNoise = 0.0
+            if self.enableNoise:
+                posNoise = (2.0 * random.random() - 1.0) * abs(self.vel) * 0.016
+                velNoise = 0.04 * (2.0 * random.random() - 1.0)
+            self.comDelayedPos.setRight(int(round(self.pos * 32 + posNoise)))
+            self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel * (1.0 + velNoise))))
             self.comDelayedForce.setRight(toUnsignedInt16(round(force)))
 
             # optical encoder simulation
@@ -485,14 +506,17 @@ class SimulateCommunication(SerialCommunication):
                 self.intArray = intArrayBuffer
                 self.charArray = charArrayBuffer
 
-    def __init__(self):
+    def __init__(self, cycleTime=0.0, enableNoise=True):
         super().__init__('')
         self.port = SimulatedSerialPort()
         self.servoSims = []
+        self.dt = cycleTime
+        self.enableNoise = enableNoise
 
     def execute(self):
         while len(self.servoSims) < self.nodeNr:
-            self.servoSims.append(self.ServoSim(self.nodeNr))
+            newServo = self.ServoSim(self.nodeNr, self.dt, self.enableNoise)
+            self.servoSims.append(newServo)
         servo = self.servoSims[self.nodeNr - 1]
         servo.run()
 

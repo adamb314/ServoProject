@@ -24,7 +24,7 @@ def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
     if port != '':
         com = ServoComModule.SerialCommunication(port)
     else:
-        com = ServoComModule.SimulateCommunication()
+        com = ServoComModule.SimulateCommunication(cycleTime=dt)
 
     def createServoFunction():
         nonlocal nodeNr
