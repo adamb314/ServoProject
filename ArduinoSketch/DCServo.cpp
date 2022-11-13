@@ -31,7 +31,7 @@ void DCServo::init()
 
 #ifdef SIMULATE
     rawMainPos = 2048;
-    rawOutputPos = rawMainPos;
+    rawOutputPos = rawMainPos * 0.99f;
 #else
     mainEncoderHandler->triggerSample();
     if (outputEncoderHandler)
@@ -304,7 +304,7 @@ void DCServo::controlLoop()
     currentAveraging.add(current);
 
 #ifdef SIMULATE
-    rawOutputPos = rawMainPos;
+    rawOutputPos = rawMainPos * 0.99f;
 #else
     if (outputEncoderHandler)
     {
