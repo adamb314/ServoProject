@@ -16,6 +16,8 @@ DCServo::DCServo(std::unique_ptr<CurrentController> currentController,
 
 void DCServo::init()
 {
+    InterruptTimer::getInstance()->enableTimerSyncEvents(false);
+
     uint32_t cycleTime = controlConfig->getCycleTimeUs();
 
     refInterpolator.setGetTimeInterval(cycleTime);

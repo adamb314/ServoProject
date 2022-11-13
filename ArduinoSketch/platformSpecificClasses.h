@@ -31,6 +31,8 @@ public:
  
     static  uint32_t getInterruptTimestampImp();
 
+    static void enableTimerSyncEvents(bool enable);
+
 private:
     InterruptTimer(uint16_t interruptTick);
 
@@ -51,6 +53,8 @@ private:
     static uint32_t interruptTimerTime;
 
     static uint32_t microsTimerOffset;
+
+    static bool timerSyncEventsEnabled;
 
     friend void tc5InterruptRunCaller();
 };

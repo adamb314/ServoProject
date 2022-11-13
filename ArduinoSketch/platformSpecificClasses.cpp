@@ -79,6 +79,12 @@ uint32_t InterruptTimer::syncedMicrosImp()
 
 uint32_t InterruptTimer::interruptTimerTime = 0;
 uint32_t InterruptTimer::microsTimerOffset = 0;
+bool InterruptTimer::timerSyncEventsEnabled = true;
+
+void InterruptTimer::enableTimerSyncEvents(bool enable)
+{
+    timerSyncEventsEnabled = enable;
+}
 
 void InterruptTimer::interruptRun()
 {
@@ -93,7 +99,8 @@ void InterruptTimer::interruptRun()
     {
         uint32_t newMicrosTimerOffset = micros() - interruptTimerTime;
 
-        while (static_cast<int16_t>(newMicrosTimerOffset - microsTimerOffset) >
+        while (timerSyncEventsEnabled &&
+                static_cast<int16_t>(newMicrosTimerOffset - microsTimerOffset) >
                 static_cast<int16_t>(interruptTick / 2))
         {
             interruptTimerTime += interruptTick;
