@@ -24,6 +24,7 @@ protected:
 
     virtual void loadConfigAndStart() = 0;
     virtual bool handleResultAndCleanUp(int32_t result) = 0;
+    virtual void handleRetriggering() {};
 
 private:
     uint32_t pin;
@@ -57,6 +58,8 @@ public:
 
     void triggerSample(uint8_t sampleNrEnum = ADC_AVGCTRL_SAMPLENUM_1_Val);
 
+    void startAutoSampling(uint8_t sampleNrEnum = ADC_AVGCTRL_SAMPLENUM_1_Val);
+
     int32_t getValue();
 
 protected:
@@ -64,10 +67,13 @@ protected:
 
     virtual bool handleResultAndCleanUp(int32_t result) override;
 
+    virtual void handleRetriggering() override;
+
     int32_t value{0};
 
 private:
     uint8_t sampleNrEnum;
+    bool autoRetrigger{false};
     uint8_t prescalerDivEnum;
     uint8_t defaultSAMPLENUM;
     uint16_t defaultRESSEL;

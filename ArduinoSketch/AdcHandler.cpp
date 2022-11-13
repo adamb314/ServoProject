@@ -156,6 +156,7 @@ void ADC_Handler()
                 AdcHandler::endOfQueueInstance = nullptr;
                 currentActive->pendingInQueue = false;
             }
+            currentActive->handleRetriggering();
         }
         else
         {
@@ -182,11 +183,27 @@ AnalogSampler::~AnalogSampler()
 void AnalogSampler::triggerSample(uint8_t sampleNrEnum)
 {
     this->sampleNrEnum = sampleNrEnum;
+    autoRetrigger = false;
+    AdcSamplerInstance::getAdcLockAndStartSampling();
+}
+
+void AnalogSampler::startAutoSampling(uint8_t sampleNrEnum)
+{
+    this->sampleNrEnum = sampleNrEnum;
+    autoRetrigger = true;
     AdcSamplerInstance::getAdcLockAndStartSampling();
 }
 
 int32_t AnalogSampler::getValue()
 {
+    if (autoRetrigger)
+    {
+        noInterrupts();
+        int32_t out = value;
+        interrupts();
+        return out;
+    }
+
     AdcSamplerInstance::unlockFromAdc();
     return value;
 }
@@ -212,6 +229,14 @@ bool AnalogSampler::handleResultAndCleanUp(int32_t result)
 
     value = result;
     return true;
+}
+
+void AnalogSampler::handleRetriggering()
+{
+    if (autoRetrigger)
+    {
+        AdcSamplerInstance::getAdcLockAndStartSampling();
+    }
 }
 
 AverageAnalogSampler::AverageAnalogSampler(uint32_t pin) :
