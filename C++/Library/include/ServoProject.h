@@ -6,7 +6,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/serial_port.hpp> 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 
 #ifndef SERVO_PROJECT_H
 #define SERVO_PROJECT_H
