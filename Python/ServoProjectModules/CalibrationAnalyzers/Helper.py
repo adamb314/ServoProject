@@ -222,6 +222,90 @@ def setConfiguredGearRatio(configClassString, gearRatioStr):
 
     return configClassString
 
+class PwmNonlinearityConfigHandler:
+    def __init__(self, pwmCompLookUp=None, pwmOffset=None):
+        self.pwmCompLookUp = pwmCompLookUp
+        self.pwmOffset = pwmOffset
+
+    _linearizeFuncReturnPattern = re.compile(
+            r'(\n([ \t]*).*createCurrentController\(\)\s*\{(.*\n)*?(\s*)auto\s+pwmHighFrqCompFun\s+=\s+'
+            r'\[\]\(uint16_t\s+in\)\4\{\n)([ \t]*)(?P<function>(.*\n)*?.*)(\4\};(.*\n)*?\2\})')
+    _linearizeVecPattern = re.compile(
+            r'((\s*).*createCurrentController\(\)\s*\{(.*\n)*?)(\s*)auto\s+pwmHighFrqCompFun\s+=\s+'
+            r'\[\]\(uint16_t\s+in\)(.*\n)*?\4\};((.*\n)*?\2\})')
+
+    @staticmethod
+    def checkForPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        temp = PwmNonlinearityConfigHandler._linearizeFuncReturnPattern.search(configClassString)
+        if not temp:
+            raise Exception('Configuration not compatible')
+
+        if temp.group('function') != 'return in;':
+            return True
+
+        return False
+
+    @staticmethod
+    def resetPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        configClassString = re.sub(PwmNonlinearityConfigHandler._linearizeFuncReturnPattern, r'\1\5return in;\8',
+                                    configClassString)
+        configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+        return configFileAsString
+
+    def writeLinearizationFunctionToConfigFileString(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+        linearizeVecPattern = PwmNonlinearityConfigHandler._linearizeVecPattern
+
+        temp = linearizeVecPattern.search(configClassString)
+        if temp is not None:
+            out = r'\1'
+            out += self.getLinearizationFunction(r'\4')
+            out += r'\6'
+            configClassString = re.sub(linearizeVecPattern, out, configClassString)
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+            return configFileAsString
+
+        return ''
+
+    def getLinearizationFunction(self, indent = ''):
+        out = ''
+        out += indent + 'auto pwmHighFrqCompFun = [](uint16_t in)\n'
+        out += indent + '{\n'
+
+        if self.pwmOffset is None:
+            lookUpSize = len(self.pwmCompLookUp)
+            out += indent + (f'    constexpr static std::array<uint16_t, {lookUpSize}> linearizeVec = '
+                            + f'{intArrayToString(self.pwmCompLookUp)}\n')
+            out += '\n'
+            out += indent + f'    float t = in * ({lookUpSize - 1.0}f / 1023.0f);\n'
+            out += indent + f'    size_t index = std::min(static_cast<size_t>(t), (size_t){lookUpSize - 2});\n'
+            out += indent +  '    t -= index;\n'
+            out += indent +  '    const uint16_t& a = linearizeVec[index];\n'
+            out += indent +  '    const uint16_t& b = linearizeVec[index + 1];\n'
+            out += '\n'
+            out += indent +  '    return static_cast<uint16_t>((b - a) * t + a);\n'
+        else:
+            out += indent + f'    constexpr static uint16_t pwmOffset = {int(round(self.pwmOffset))};\n'
+            out += indent +  '    constexpr static uint16_t maxPwm = 1023;\n'
+            out += '\n'
+            out += indent +  '    if (in == 0)\n'
+            out += indent +  '    {\n'
+            out += indent +  '        return static_cast<uint16_t>(0);\n'
+            out += indent +  '    }\n'
+            out += '\n'
+            out += indent + ('    return static_cast<uint16_t>(pwmOffset + static_cast<uint32_t>(maxPwm - pwmOffset)'
+                                ' * in / maxPwm);\n')
+
+        out += indent + '};'
+
+        return out
+
 class SmoothMoveHandler:
     def __init__(self, startPos, minMoveTime = 0.1):
         self.minMoveTime = minMoveTime
