@@ -74,7 +74,7 @@ EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData
 
 void OpticalEncoderHandler::updatePosition()
 {
-    int16_t offset = sensorValueOffset;
+    int16_t offset = sensorValueOffset / 16;
     diagnosticData.a = sensor1Value;
     diagnosticData.b = sensor2Value;
     sensor1Value -= offset;
@@ -147,7 +147,7 @@ void OpticalEncoderHandler::updatePosition()
         const uint16_t& b = bVec[bestI];
         int16_t currentOffset = (diagnosticData.a - a + diagnosticData.b - b) / 2;
 
-        sensorValueOffset = 0.95f * sensorValueOffset + 0.05f * currentOffset;
+        sensorValueOffset = (15 * sensorValueOffset) / 16 + currentOffset;
     }
 
     int lastMinCostIndexChange = bestI - lastMinCostIndex;

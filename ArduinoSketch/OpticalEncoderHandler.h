@@ -44,7 +44,7 @@ class OpticalEncoderHandler : public EncoderHandlerInterface
     AnalogSampler sensor2;
     uint16_t sensor1Value{0};
     uint16_t sensor2Value{0};
-    float sensorValueOffset{0.0f};
+    int32_t sensorValueOffset{0};
     float value{0.0f};
     float wrapAroundCorretion{0.0f};
     bool newData{false};

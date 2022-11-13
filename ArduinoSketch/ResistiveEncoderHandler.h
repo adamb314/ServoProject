@@ -9,7 +9,7 @@
 class ResistiveEncoderHandler : public EncoderHandlerInterface
 {
   public:
-    static constexpr int vecSize = 513;
+    static constexpr size_t vecSize = 513;
     ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, vecSize>& compVec = {0});
 
     ~ResistiveEncoderHandler();

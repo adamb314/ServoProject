@@ -29,7 +29,8 @@ public:
 
     void reset(const Eigen::Vector3f& xhat0);
 
-    virtual auto update(float u, float y) -> decltype(xhat);
+    virtual auto update(float y) -> decltype(xhat);
+    virtual void postUpdate(float u);
 
 protected:
     static Eigen::Matrix<float, 3, 7> translateKVecToPolyK(const Eigen::Matrix<float, 3, 7>& in)
@@ -67,7 +68,8 @@ public:
     {
     }
 
-    virtual auto update(float u, float y) -> decltype(KalmanFilter::update(u, y)) override;
+    virtual auto update(float y) -> decltype(KalmanFilter::update(y)) override;
+    virtual void postUpdate(float u) override;
 };
 
 template<typename T>

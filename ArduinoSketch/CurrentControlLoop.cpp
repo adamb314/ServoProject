@@ -143,20 +143,17 @@ void CurrentControlLoop::run()
     u -= uLimitError;
 }
 
+CurrentControlModel::CurrentControlModel(std::unique_ptr<PwmHandler> pwmInstance) :
+    pwmInstance(std::move(pwmInstance))
+{
+}
+
 CurrentControlModel::CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent,
         std::unique_ptr<PwmHandler> pwmInstance) :
     pwmToStallCurrent{pwmToStallCurrent},
     backEmfCurrent{backEmfCurrent},
-    pwmInstance(std::move(pwmInstance)),
-    pwmOverride(true),
-    brake(true),
-    ref(0),
-    y(0),
-    filteredY(0),
-    filteredPwm(0),
-    u(0),
-    limitedU(0),
-    lastULimited(false)
+    backEmfCompDisabled{false},
+    pwmInstance(std::move(pwmInstance))
 {
 }
 
@@ -203,25 +200,47 @@ void CurrentControlModel::applyChanges()
         {
             limitedU = pwmInstance->setOutput(u);
         }
-        y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
+        if (backEmfCompDisabled)
+        {
+            y = limitedU;
+        }
+        else
+        {
+            y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
+        }
         filteredY = y;
         filteredPwm = limitedU;
         return;
     }
 
-    //ref = (pwmToStallCurrent * u + backEmfKoeff * abs(u);
-    if (ref >= 0)
+    if (backEmfCompDisabled)
     {
-        u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent + backEmfKoeff);
+        u = ref;
     }
     else
     {
-        u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent - backEmfKoeff);
+        //ref = (pwmToStallCurrent * u + backEmfKoeff * abs(u);
+        if (ref >= 0)
+        {
+            u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent + backEmfKoeff);
+        }
+        else
+        {
+            u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent - backEmfKoeff);
+        }
     }
 
     limitedU = pwmInstance->setOutput(u);
 
-    y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
+    if (backEmfCompDisabled)
+    {
+        y = limitedU;
+    }
+    else
+    {
+        y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
+    }
+
     filteredY = y;
     filteredPwm = limitedU;
 

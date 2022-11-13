@@ -66,7 +66,7 @@ public:
     virtual const Eigen::Matrix3f& getA() = 0;
     virtual const Eigen::Vector3f& getB() = 0;
     virtual void limitVelocity(float& vel) = 0;
-    virtual float applyForceCompensations(float u, float rawEncPos, float velRef, float vel) = 0;
+    virtual float applyForceCompensations(float u, uint16_t rawEncPos, float velRef, float vel) = 0;
 
     virtual float getCycleTime()
     {
@@ -113,7 +113,7 @@ public:
 
     static constexpr int vecSize = 512;
 
-    virtual float applyForceCompensations(float u, float rawEncPos, float velRef, float vel) override
+    virtual float applyForceCompensations(float u, uint16_t rawEncPos, float velRef, float vel) override
     {
         float out = u;
         constexpr float eps = 1.0f;
@@ -136,8 +136,7 @@ public:
             out -= frictionComp;
         }
 
-        constexpr float s = vecSize / 4096.0f;
-        size_t i = static_cast<int>(rawEncPos * s);
+        size_t i = (rawEncPos * vecSize) / 4096;
         out += posDepForceCompVec[i];
 
         return out;
@@ -256,20 +255,17 @@ class DCServo
 #endif
 
     int16_t current{0};
-    int16_t pwmControlSIgnal{0};
-    float controlSignal{0.0f};
+    int16_t pwmControlSignal{0};
+    float kalmanControlSignal{0.0f};
     SampleAveragingHandler<int32_t, 32> currentAveraging;
     SampleAveragingHandler<int32_t, 32> controlSignalAveraging;
 
     ReferenceInterpolator refInterpolator;
 
-    float posRef{0};
-    float velRef{0};
-    float feedForwardU{0};
-
     float Ivel{0.0f};
     float vControlRef{0.0f};
     int16_t pwm{0};
+    bool pendingIntegralCalc{false};
 
     std::unique_ptr<CurrentController> currentController;
     std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler;

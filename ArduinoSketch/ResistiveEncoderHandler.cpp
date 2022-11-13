@@ -38,10 +38,10 @@ float ResistiveEncoderHandler::getValue()
             newSensorValue = 0xfff - newSensorValue;
         }
 
-        float t = newSensorValue * (vecSize / 4096.0f);
-        int i = std::min(vecSize - 2, static_cast<int>(t));
-        t -= i;
-        newSensorValue -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
+        int32_t t = (newSensorValue * vecSize + 32) / 64;
+        size_t i = std::min(vecSize - 2, static_cast<size_t>(t / 64));
+        t -= i * 64;
+        newSensorValue -= (compVec[i] * (64 - t) + compVec[i + 1] * t + 32) / 64;
 
         sensorValue = (15 * sensorValue) / 16 + newSensorValue;
     }

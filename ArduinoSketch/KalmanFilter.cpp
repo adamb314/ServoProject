@@ -42,19 +42,30 @@ void KalmanFilter::reset(const Eigen::Vector3f& xhat0)
     xhat = xhat0;
 }
 
-auto KalmanFilter::update(float u, float y) -> decltype(xhat)
+auto KalmanFilter::update(float y) -> decltype(xhat)
 {
-    xhat += AInvXK * (y - xhat[0]);
-    Eigen::Vector3f out = xhat;
-    xhat = A * xhat + B * u;
-    return out;
+    float error = y - xhat[0];
+    xhat[0] += AInvXK[0] * error;
+    xhat[1] += AInvXK[1] * error;
+    xhat[2] += AInvXK[2] * error;
+    return xhat;
 }
 
-auto KalmanFilterApproximation::update(float u, float y) -> decltype(KalmanFilter::update(u, y))
+void KalmanFilter::postUpdate(float u)
+{
+    float uComp = xhat[2] + u;
+    xhat[0] += A(0, 1) * xhat[1] + B[0] * uComp;
+    xhat[1] = A(1, 1) * xhat[1] + B[1] * uComp;
+}
+
+auto KalmanFilterApproximation::update(float y) -> decltype(KalmanFilter::update(y))
 {
     xhat[1] += AInvXK[1] * (y - xhat[0]);
     xhat[0] = y;
-    Eigen::Vector3f out = xhat;
+    return xhat;
+}
+
+void KalmanFilterApproximation::postUpdate(float u)
+{
     xhat[0] += A(0, 1) * xhat[1];
-    return out;
 }

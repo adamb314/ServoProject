@@ -78,6 +78,8 @@ private:
 class CurrentControlModel : public CurrentController
 {
 public:
+    CurrentControlModel(
+            std::unique_ptr<PwmHandler> pwmInstance = std::make_unique<HBridgeHighResPin11And12Pwm>());
     CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent,
             std::unique_ptr<PwmHandler> pwmInstance = std::make_unique<HBridgeHighResPin11And12Pwm>());
 
@@ -100,20 +102,21 @@ public:
     int16_t getCurrent() override;
 
 private:
-    const float pwmToStallCurrent;
-    const float backEmfCurrent;
+    const float pwmToStallCurrent{1.0f};
+    const float backEmfCurrent{0.0f};
+    const bool backEmfCompDisabled{true};
 
     std::unique_ptr<PwmHandler> pwmInstance;
-    bool pwmOverride;
-    bool brake;
-    int16_t ref;
-    int16_t y;
-    int16_t filteredY;
-    int16_t filteredPwm;
-    int16_t u;
-    int16_t limitedU;
-    float vel;
-    bool lastULimited;
+    bool pwmOverride{true};
+    bool brake{true};
+    int16_t ref{0};
+    int16_t y{0};
+    int16_t filteredY{0};
+    int16_t filteredPwm{0};
+    int16_t u{0};
+    int16_t limitedU{0};
+    float vel{0.0f};
+    bool lastULimited{false};
 };
 
 #endif
