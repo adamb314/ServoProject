@@ -187,12 +187,22 @@ class KalmanFilter:
 def getModelDtFromConfigFileString(configFileAsString, configClassName):
     configClassString = getConfigClassString(configFileAsString, configClassName)
 
-    dtPattern = re.compile(r'Eigen::Matrix3f\s+A;[\n\s]+A\s*<<\s*[^,]*,\s*([^,]*)')
+    dtPattern = re.compile(
+            r'Eigen::Matrix3f\s+A;[\n\s]+A\s*<<\s*([^,;]*,){1}(?P<a01>[^,;]*)([^,;]*,){3}(?P<a11>[^,;]*)')
     temp = dtPattern.search(configClassString)
     if temp is not None:
-        dtStr = temp.group(1)
-        dtStr = re.sub(r'f', '', dtStr)
-        return float(dtStr)
+        a01Str = temp.group('a01')
+        a11Str = temp.group('a11')
+        a01Str = re.sub(r'f', '', a01Str)
+        a11Str = re.sub(r'f', '', a11Str)
+
+        a01 = float(a01Str)
+        a11 = float(a11Str)
+
+        contineusA = (1.0 - a11) / a01
+
+        dt = -math.log(a11) / contineusA
+        return dt
 
     raise Exception('Could not find model dt')
 
@@ -344,6 +354,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with open(configFilePath, "r", encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
             outputModelDt = getModelDtFromConfigFileString(configFileAsString, configClassName)
+            outputModelDt = 0.0002 * int(round(outputModelDt / 0.0002))
     except Exception:
         pass
 

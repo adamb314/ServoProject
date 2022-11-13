@@ -70,12 +70,18 @@ public:
 
     virtual float getCycleTime()
     {
-        return getA()(0, 1);
+        auto A = getA();
+        auto B = getB();
+
+        float contineusA = (1.0f - A(1, 1)) / A(0, 1);
+
+        return -log(A(1, 1)) / contineusA;
     }
 
     virtual uint32_t getCycleTimeUs()
     {
-        return static_cast<uint32_t>(getCycleTime() * 1000000ul);
+        float dt = round(getCycleTime() / 0.0002f) * 0.0002f;
+        return static_cast<uint32_t>(dt * 1000000ul);
     }
 };
 
