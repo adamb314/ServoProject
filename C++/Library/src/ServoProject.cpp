@@ -723,7 +723,8 @@ void DCServoCommunicator::run()
 }
 
 ServoManager::ServoManager(double cycleTime,
-        std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction) :
+        std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction,
+        bool startManager) :
     servos{initFunction()},
     cycleTime{cycleTime}
 {
@@ -747,7 +748,10 @@ ServoManager::ServoManager(double cycleTime,
         currentPosition.push_back(s->getPosition());
     }
 
-    start();
+    if (startManager)
+    {
+        start();
+    }
 }
 
 ServoManager::~ServoManager()
@@ -757,6 +761,11 @@ ServoManager::~ServoManager()
 
 void ServoManager::run()
 {
+    while (waitForThreadInit && !shuttingDown)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
     using namespace std::chrono;
     high_resolution_clock::time_point sleepUntilTimePoint = high_resolution_clock::now();
     high_resolution_clock::duration clockDurationCycleTime(
@@ -850,7 +859,7 @@ void ServoManager::removeHandlerFunctions()
     setHandlerFunctions(nullFun, nullFun);
 }
 
-void ServoManager::start()
+void ServoManager::start(std::function<void(std::thread&)> threadInitFunction)
 {
     shuttingDown = false;
     if (t.get_id() == std::this_thread::get_id())
@@ -860,7 +869,10 @@ void ServoManager::start()
 
     if (!t.joinable())
     {
+        waitForThreadInit = true;
         t = std::thread{&ServoManager::run, this};
+        threadInitFunction(t);
+        waitForThreadInit = false;
     }
 }
 

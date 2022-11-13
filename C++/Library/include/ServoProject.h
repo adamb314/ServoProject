@@ -316,7 +316,8 @@ class ServoManager
 {
 public:
     ServoManager(double cycleTime,
-            std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction);
+            std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction,
+            bool startManager = true);
 
     virtual ~ServoManager();
 
@@ -330,7 +331,7 @@ public:
 
     void removeHandlerFunctions();
 
-    void start();
+    void start(std::function<void(std::thread&)> threadInitFunction = [](std::thread& t){});
 
     void shutdown();
 
@@ -353,6 +354,7 @@ protected:
     double cycleTime;
     double cycleSleepTime{0.0};
     bool shuttingDown{true};
+    bool waitForThreadInit{true};
     bool delayedExceptionsEnabled{false};
     std::exception_ptr exception;
 
