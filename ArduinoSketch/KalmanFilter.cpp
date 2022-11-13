@@ -67,5 +67,5 @@ auto KalmanFilterApproximation::update(float y) -> decltype(KalmanFilter::update
 
 void KalmanFilterApproximation::postUpdate(float u)
 {
-    xhat[0] += A(0, 1) * xhat[1];
+    xhat[0] += approxA01 * xhat[1];
 }

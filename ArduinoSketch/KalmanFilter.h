@@ -64,12 +64,22 @@ public:
             const Eigen::Vector3f& B,
             const Eigen::Matrix3f& AInv,
             const Eigen::Matrix<float, 3, 7>& polyK) :
-        KalmanFilter(A, B, AInv, polyK)
+        KalmanFilter(A, B, AInv, polyK),
+        // pk1 = pk + A(0, 1) * vk + B[0] * uk
+        // vk1 = A(1, 1) * vk + B[1] * uk
+        // constant velocity  =>  vk1 = vk  =>  uk = (1 - A(1, 1)) / B[1] * vk
+        //  =>  pk1 = pk + A(0, 1) * vk + B[0] * (1 - A(1, 1)) / B[1] * vk =
+        //          = pk + (A(0, 1)  + (1 - A(1, 1)) * B[0] / B[1]) * vk =
+        //          = pk + approxA01 * vk  =>
+        approxA01(A(0, 1)  + (1 - A(1, 1)) * B[0] / B[1])
     {
     }
 
     virtual auto update(float y) -> decltype(KalmanFilter::update(y)) override;
     virtual void postUpdate(float u) override;
+
+private:
+    const float approxA01;
 };
 
 template<typename T>
