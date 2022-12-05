@@ -818,7 +818,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             opticalEncoderData.b,
                             opticalEncoderData.minCostIndex,
                             opticalEncoderData.minCost,
-                            servo.getVelocity()])
+                            servo.getVelocity(),
+                            servo.getPosition(True) / pi * 180.0])
 
                     GLib.idle_add(updateStatusLabel,
                             f'Sensor A: {opticalEncoderData.a}\n'
@@ -886,6 +887,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         fig.suptitle('Sensor values over encoder position')
                         plt.plot(data[:, 3], data[:, 1], 'r')
                         plt.plot(data[:, 3], data[:, 2], 'g')
+
+                        fig = plt.figure(7)
+                        fig.suptitle('Output encoder position')
+                        plt.plot(data[:, 0], data[:, 6])
                         plt.show()
 
                 GLib.idle_add(plotData, data)
