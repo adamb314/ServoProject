@@ -302,9 +302,9 @@ class SimulateCommunication(SerialCommunication):
         def run(self):
             # pylint: disable=too-many-locals, too-many-statements, too-many-branches
             gearRatio = 100
-            damp = 50
-            backEmf = 0.0
-            maxFriction = 40
+            damp = 10
+            backEmf = 0.3
+            maxFriction = 75
             b = 0.1
             pwmOffset = -575
 
@@ -334,7 +334,7 @@ class SimulateCommunication(SerialCommunication):
                     velInRad = self.vel / 2048 * math.pi
 
                     f = force
-                    f -= backEmf * velInRad * (math.sqrt(abs(force)) * math.sqrt(1023))
+                    f -= backEmf * velInRad * abs(self.activeSimForce)
                     friction = f - damp * velInRad + velInRad / (dt / subStep * b)
                     if friction > maxFriction:
                         friction = maxFriction

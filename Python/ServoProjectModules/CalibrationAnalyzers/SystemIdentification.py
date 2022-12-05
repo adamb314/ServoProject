@@ -6,17 +6,164 @@ Module for calibrating pwm nonlinearity
 import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
+def discToContA(a, dt):
+    #discreteA = math.exp(-contineusA * dt) =>
+    return -math.log(a) / dt
+
+def discToContB(a, b, dt):
+    #discreteB = contineusB * (1.0 - discreteA) / contineusA =>
+    return b * discToContA(a, dt) / (1.0 - a)
+
 def highPassFilter(v, a):
+    v = np.array(v)
     out = 0 * v + v[0]
     for i in range(0, len(v) - 1):
         out[i + 1] = a * out[i] + a * (v[i + 1] - v[i])
     return out
 
+def lowPassFilter(v, a):
+    v = np.array(v)
+    out = 0 * v + v[0]
+    for i in range(0, len(v) - 1):
+        out[i + 1] = a * out[i] + (1.0 - a) * v[i + 1]
+    return out
+
+def calcSpikeResistantAvarage(vec, excluded=0.33):
+    vec = sorted(vec)
+    excludeIndex = int(len(vec) * excluded)
+    vec = vec[excludeIndex - 1:-excludeIndex]
+    return sum(vec) / len(vec)
+
+def calcMedian(vec):
+    vec = sorted(vec)
+    out = vec[len(vec) // 2 - 1]
+    if len(vec) % 2 == 0:
+        out += vec[len(vec) // 2]
+        out = out / 2
+    return out
+
+def renderPolynome(x, p):
+    y = 0
+    for i in range(0, len(p)):
+        y += p[i] * x**(len(p) - 1 - i)
+    return y
+
+def getMinPolynomeRepFrom(xList, p):
+    t = [v / (len(p) - 1) for v in range(0, len(p))]
+    sparceX = sorted(xList)
+    sparceX = [sparceX[0] + (sparceX[-1] - sparceX[0]) * v for v in t]
+    out = [renderPolynome(x, p) for x in sparceX]
+    return (sparceX, out)
+
+def getPolynomeFrom(polynomeRep):
+    return np.polyfit(polynomeRep[0], polynomeRep[1], len(polynomeRep[1]) - 1)
+
+def findPwmChangeDelay(pwmData):
+    lastPwm = pwmData[2]
+    constPwmSamples = []
+    nrOfConstPwm = 0
+    for pwm in pwmData:
+        if lastPwm == pwm:
+            nrOfConstPwm += 1
+        else:
+            constPwmSamples.append(nrOfConstPwm)
+            nrOfConstPwm = 0
+        lastPwm = pwm
+
+    constPwmSamples = sorted(constPwmSamples)
+    return constPwmSamples[len(constPwmSamples) // 20]
+
+def calcVelFromPos(posData, dt, dStep):
+    velData = np.array([0.0 for d in range(0, len(posData))])
+    for i, _ in enumerate(zip(posData[dStep:], posData[0:-dStep])):
+        diffs = [d[0] - d[1] for d in zip(posData[i+1:i+1+dStep], posData[i:i+dStep])]
+        medianDiff = calcMedian(diffs)
+        velData[i + dStep] = medianDiff / dt
+
+    return velData
+
+def calcParamsAndPwmLists(pwmData, velData, dStep, calcPhiAndY, *, nrOfPwmAmpsToCombine=1, skipSampleIf=lambda d: False):
+    # pylint: disable=too-many-locals, too-many-statements
+    index = -1
+    tempPwmList = []
+    phi2SumList = []
+    yPhiSumList = []
+    phiSumList = []
+    ySumList = []
+    nrOfSumList = []
+
+    pltVec = []
+
+    lastPwm = math.nan
+    for i, d in enumerate(zip(velData[dStep:], velData[0:-dStep], pwmData[dStep-1:-1])):
+        pwmSlice = pwmData[max(i - dStep, 0):i + dStep]
+        constPwm = all(pwmSlice[0] == d for d in pwmSlice[1:])
+        if constPwm and not skipSampleIf(d):
+            if abs(lastPwm) != abs(d[2]):
+                index += 1
+                tempPwmList.append(abs(d[2]))
+            lastPwm = d[2]
+
+            pltVec.append(d[0])
+
+            phi, y = calcPhiAndY(d)
+
+            phi2 = phi * np.transpose(phi)
+            yPhi = y * phi
+            if index == len(nrOfSumList):
+                phi2SumList.append(phi2)
+                yPhiSumList.append(yPhi)
+                phiSumList.append(phi)
+                ySumList.append(y)
+                nrOfSumList.append(1)
+            else:
+                phi2SumList[index] += phi2
+                yPhiSumList[index] += yPhi
+                phiSumList[index] += phi
+                ySumList[index] += y
+                nrOfSumList[index] += 1
+
+    def sumAdjacent(l, nr):
+        out = []
+        for i in range(0, len(l) - nr + 1):
+            out.append(sum(l[i:i + nr]))
+        return out
+
+    def avarageAdjacent(l, nr):
+        return [v / nr for v in sumAdjacent(l, nr)]
+
+    phi2SumList = sumAdjacent(phi2SumList, nrOfPwmAmpsToCombine)
+    yPhiSumList = sumAdjacent(yPhiSumList, nrOfPwmAmpsToCombine)
+    phiSumList = sumAdjacent(phiSumList, nrOfPwmAmpsToCombine)
+    ySumList = sumAdjacent(ySumList, nrOfPwmAmpsToCombine)
+    nrOfSumList = sumAdjacent(nrOfSumList, nrOfPwmAmpsToCombine)
+    tempPwmList = avarageAdjacent(tempPwmList, nrOfPwmAmpsToCombine)
+
+    phiCovList = []
+    yPhiCovList = []
+    for phi2Sum, yPhiSum, phiSum, ySum, nr in zip(phi2SumList, yPhiSumList, phiSumList, ySumList, nrOfSumList):
+        phiCovList.append(phi2Sum * nr - phiSum * np.transpose(phiSum))
+        yPhiCovList.append(yPhiSum * nr - phiSum * np.transpose(ySum))
+
+    pwmList = []
+    paramsList = []
+
+    for d in zip(phiCovList, yPhiCovList, tempPwmList):
+        try:
+            params = np.linalg.solve(d[0], d[1])
+            pwmList.append(d[2])
+            paramsList.append(params)
+        except Exception:
+            pass
+
+    return (pwmList, paramsList)
+
 class SystemIdentificationObject:
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, data, *, ad=None, bd=None, friction=None, pwmOffset=None, dt=None):
+    def __init__(self, data, *, additionalData=[], ad=None, bd=None, friction=None, pwmOffset=None, dt=None,
+                shouldAbort=lambda:False, updateProgress=lambda v:None):
         # pylint: disable=too-many-locals
-        if len(data) == 0:
+        if len(data) == 0 and len(additionalData) == 0:
             self.dt = dt
             self.velData = np.array([[0], [0]])
             self.pwmData = np.array([[0], [0]])
@@ -24,86 +171,195 @@ class SystemIdentificationObject:
             self.servoModelParameters = np.array([ad, bd, friction, pwmOffset])
             return
 
-        self.rawData = data[:]
-        self.dt = data[1, 0] - data[0, 0]
+        def extractDataVectors(data):
+            dt = data[1, 0] - data[0, 0]
+            t = np.array(data[:, 0])
+            wallTime = np.array(data[:, 3])
+            posData = data[:, 1]
+            pwmData = np.array(data[:, 2])
 
-        t = np.array(data[:, 0])
-        wallTime = np.array(data[:, 3])
-        posData = data[:, 1]
-        pwmData = np.array(data[:, 2])
+            dtError = wallTime - t
+            dtError += np.arange(0, 1.0, 1.0 / len(dtError)) * np.mean(wallTime[-100:] - t[-100:])
+            dtError -= calcSpikeResistantAvarage(dtError, excluded=0.2)
+            outOfDtSync = [abs(d / dt) >= 0.5 for d in dtError]
 
-        dtError = wallTime - t
-        dtError += np.arange(0, 1.0, 1.0 / len(dtError)) * np.mean(wallTime[-100:] - t[-100:])
-        dtError -= np.mean(sorted(dtError)[len(dtError) // 5: -len(dtError) // 5])
-        outOfDtSync = [abs(d / self.dt) >= 0.5 for d in dtError]
-        self.dtError = dtError
+            dStep = max(1, findPwmChangeDelay(pwmData) // 3)
 
-        def findPwmChangeDelay(pwmData):
-            lastPwm = pwmData[2]
-            constPwmSamples = []
-            nrOfConstPwm = 0
-            for pwm in pwmData:
-                if lastPwm == pwm:
-                    nrOfConstPwm += 1
+            for i, d in enumerate(outOfDtSync):
+                if d:
+                    pwmData[i] = math.nan
+                    if i != 0:
+                        pwmData[i - 1] = math.nan
+                    if i != len(pwmData) - 1:
+                        pwmData[i + 1] = math.nan
+
+            velData = calcVelFromPos(posData, dt, dStep)
+            velData = velData[dStep:]
+            pwmData = pwmData[dStep:]
+
+            return (dt, dStep, dtError, pwmData, velData)
+
+        def extractParametersVsPwm(dt, dStep, pwmData, velData):
+            dt = dt * dStep
+
+            def calcPhiAndY(d):
+                phi = np.array([[d[1]], [d[2]]])
+                y = d[0]
+
+                return (phi, y)
+
+            pwmList, paramsList = calcParamsAndPwmLists(
+                    pwmData, velData, dStep, calcPhiAndY,
+                    nrOfPwmAmpsToCombine=1, skipSampleIf=lambda d: sign(d[1]) != sign(d[2]))
+
+            pwmList = pwmList[::-1]
+            aList = [d[0, 0] for d in paramsList[::-1]]
+            bList = [d[1, 0] for d in paramsList[::-1]]
+
+            bList = [discToContB(a, b, dt) for a, b in zip(aList, bList)]
+            aList = [discToContA(a, dt) for a in aList]
+
+            return (pwmList, aList, bList)
+
+        tempListForSorting = []
+        self.dtError = []
+
+        dataLists = []
+        if len(additionalData) != 0:
+            dataLists += additionalData[1:] + [additionalData[0]]
+        dataLists += [data]
+        for d in dataLists:
+            if len(d) == 0:
+                continue
+
+            self.dt, dStep, dtError, pwmData, velData = extractDataVectors(d)
+            self.dtError += [v for v in dtError]
+            self.pwmChangeDelay = findPwmChangeDelay(d[:, 2])
+
+            pwmList, aList, bList = extractParametersVsPwm(self.dt, dStep, pwmData, velData)
+
+            tempListForSorting += [(pwm, a, comp) for pwm, a, comp in zip(pwmList, aList, bList)]
+
+        tempListForSorting.sort(key = lambda d: d[0])
+        pwmList = [d[0] for d in tempListForSorting]
+        aList = [d[1] for d in tempListForSorting]
+        bList = [d[2] for d in tempListForSorting]
+
+        def calcModelParameters(pwmList, aList, bList):
+            testData = []
+            if len(data) != 0:
+                testData += [data]
+            testData += additionalData
+
+            def getErrorAndParamsForFrictionComp(uFric):
+                def getPwmCompPolynome(pwm, comp, degree):
+                    p = np.polyfit(pwm, comp, degree)
+
+                    dx = 100
+                    x1 = renderPolynome(pwm[-1], p)
+                    x0 = renderPolynome(pwm[-1] - dx, p)
+                    k = (x1 - x0) / dx
+                    k = max(k, x1 / pwm[-1])
+
+                    xPad = np.arange(pwm[-1] + 10, 1023 + dx, 10)
+                    compPad = x1 + k * (xPad - pwm[-1])
+
+                    x1 = renderPolynome(pwm[0] + dx, p)
+                    x0 = renderPolynome(pwm[0], p)
+                    k = (x1 - x0) / dx
+                    k = max(k, x0 / pwm[0])
+
+                    xPad0 = np.arange(-dx, pwm[0] - 10, 10)
+                    compPad0 = x0 + k * (xPad0 - pwm[0])
+                    pwmExt = [v for v in xPad0] + pwm + [v for v in xPad]
+                    compExt = [v for v in compPad0] + comp + [v for v in compPad]
+
+                    return np.polyfit(pwmExt, compExt, degree)
+
+                pwmCompList = [u * b + uFric for u, b in zip(pwmList, bList)]
+                p = getPwmCompPolynome(pwmList, pwmCompList, 8)
+                contineusB = renderPolynome(1023, p) / 1023
+
+                p = p / contineusB
+                friction = uFric / contineusB
+
+                pwmCompModel = getMinPolynomeRepFrom(pwmList, p)
+
+                x = np.array(list(dict.fromkeys(pwmList)))
+                y = renderPolynome(x, p)
+                pwmCompFun = PiecewiseLinearFunction(x, y)
+                linearPwmList = [pwmCompFun.getY(x) for x in pwmList]
+
+                p = np.polyfit(linearPwmList, aList, 1)
+                contineusA = p[1]
+                emf = p[0]
+
+                modelParameters = (contineusA, contineusB, friction, emf, pwmCompModel)
+                _, _, _, errorSum = self.calcSimResults(testData[0], modelParameters)
+
+                return errorSum, modelParameters
+
+            uFric0 = 0
+            uFric1 = bList[-1] * pwmList[0]
+
+            lastFriction = 0
+            for i in range(1, 11):
+                updateProgress(i / 10)
+
+                e0, modelParameters = getErrorAndParamsForFrictionComp(uFric0)
+                e1, _ = getErrorAndParamsForFrictionComp(uFric1)
+
+                if shouldAbort():
+                    return modelParameters
+
+                uFric = -e0 / (e1 - e0) * (uFric1 - uFric0) + uFric0
+                uFric = max(0.0, uFric)
+
+                e, modelParameters = getErrorAndParamsForFrictionComp(uFric)
+
+                if int(round(modelParameters[2])) == int(round(lastFriction)) or uFric == 0.0:
+                    break
+                lastFriction = modelParameters[2]
+
+                if e < 0:
+                    uFric1 = uFric
                 else:
-                    constPwmSamples.append(nrOfConstPwm)
-                    nrOfConstPwm = 0
-                lastPwm = pwm
+                    uFric0 = uFric
 
-            constPwmSamples = sorted(constPwmSamples)
-            return constPwmSamples[len(constPwmSamples) // 20]
+            updateProgress(1.0)
 
-        self.pwmChangeDelay = findPwmChangeDelay(pwmData)
+            return modelParameters
 
-        self.dStep = self.pwmChangeDelay // 3
+        self.servoModelParameters = calcModelParameters(pwmList, aList, bList)
 
-        def calcVelFromPos(posData, dt, dStep):
-            velData = np.array([0.0 for d in range(0, len(posData))])
-            for i, d in enumerate(zip(posData[self.dStep:], posData[0:-self.dStep])):
-                diffs = [d[0] - d[1] for d in zip(posData[i+1:i+1+self.dStep], posData[i:i+self.dStep])]
-                diffs.sort()
-                medianDiff = diffs[len(diffs) // 2]
-                if len(diffs) % 2 == 0:
-                    medianDiff += diffs[len(diffs) // 2 + 1]
-                    medianDiff = medianDiff / 2
-                velData[i + self.dStep] = medianDiff / self.dt
+        self.pwmList = pwmList
+        self.aList = aList
+        self.pwmCompList = [u * b / self.servoModelParameters[1] + self.servoModelParameters[2] for u, b in zip(pwmList, bList)]
 
-            return velData
+        self.simVel = []
+        self.simRefVel = []
+        self.simError = []
 
-        for i, d in enumerate(outOfDtSync):
-            if d:
-                pwmData[i - 1] = math.nan
-                pwmData[i] = math.nan
-                pwmData[i + 1] = math.nan
+        for d in [data] + additionalData:
+            if len(d) == 0:
+                continue
+            tempSimVel, tempSimRefVel, tempSimError, errorSum = self.calcSimResults(d,
+                self.servoModelParameters)
 
-        velData = calcVelFromPos(posData, self.dt, self.dStep)
-        velData = velData[self.dStep:]
-        pwmData = pwmData[self.dStep:]
-
-        self.velData = velData
-        self.pwmData = pwmData
-
-        self.servoModelParameters = self.identifyServoSystemModel()
-        self.simVel, self.simRefVel, self.simT = self.getSimResults()
+            self.simVel += [v for v in tempSimVel]
+            self.simRefVel += [v for v in tempSimRefVel]
+            self.simError += [v for v in tempSimError]
 
     @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
         return PwmNonlinearityConfigHandler.checkForPreviousCalibration(configFileAsString, configClassName)
 
     def getServoSystemMatrices(self, outputDt):
-        dt = self.dt * self.dStep
-        discreteA = self.servoModelParameters[0]
-        discreteB = self.servoModelParameters[1]
-
-        #discreteA = math.exp(-contineusA * dt) =>
-        contineusA = -math.log(discreteA) / dt
-
-        #discreteB = contineusB * (1.0 - discreteA) / contineusA =>
-        contineusB = discreteB * contineusA / (1.0 - discreteA)
+        contineusA = self.servoModelParameters[0]
+        contineusB = self.servoModelParameters[1]
 
         scaledDiscreteA = math.exp(outputDt * -contineusA)
         scaledDiscreteB = contineusB * (1.0 - scaledDiscreteA) / contineusA
-
         scaledDiscretePosA = (1.0 - scaledDiscreteA) / contineusA
         scaledDiscretePosB = contineusB * (outputDt - scaledDiscretePosA) / contineusA
 
@@ -115,215 +371,193 @@ class SystemIdentificationObject:
     def getServoSystemModelParameters(self, outputDt):
         aMat, bMat = self.getServoSystemMatrices(outputDt)
 
-        return np.array([aMat[1, 1], bMat[1, 0], self.servoModelParameters[2], self.servoModelParameters[3]])
+        pwmCompModel = self.servoModelParameters[4]
+        pwmCompModel = (pwmCompModel[1], pwmCompModel[0])
+        p = getPolynomeFrom(pwmCompModel)
+        pwmList = np.array(range(0, 256)) * 1023 / 255
+        linearPwmList = renderPolynome(pwmList, p)
+
+        pwmList = [v for v in pwmList]
+        linearPwmList = [max(0, v) for v in linearPwmList]
+        linearPwmList[0] = 0
+
+        return (aMat[1, 1], bMat[1, 0], self.servoModelParameters[2], (pwmList, linearPwmList))
 
     def getCurrentModelParameters(self):
-        currentModelParams = np.array([1.0, 0.0])
+        _, contineusB, _, emf, _ = self.servoModelParameters
+
+        # dy / dt = -(a + emf * abs(pwm)) * y + b * pwm =
+        #         = -a * y + b * (pwm - emf / b * y * abs(pwm)) =>
+        currentModelParams = [1.0, -emf / contineusB]
         return currentModelParams
 
-    def identifyServoSystemModel(self):
-        # pylint: disable=too-many-locals, too-many-statements
-        index = -1
-        pwmVec = []
-        phi2SumList = []
-        yPhiSumList = []
-        phiSumList = []
-        ySumList = []
-        nrOfSumList = []
-
-        velData = self.velData
-        pwmData = self.pwmData
-
-        pltVec = []
-
-        lastPwm = pwmData[self.dStep]
-        if not math.isnan(lastPwm):
-            index += 1
-            pwmVec.append(abs(lastPwm))
-        for i, d in enumerate(zip(velData[self.dStep:], velData[0:-self.dStep], pwmData[self.dStep-1:-1])):
-            pwmSlice = pwmData[max(i - self.dStep, 0):i + self.dStep]
-            constPwm = all(pwmSlice[0] == d for d in pwmSlice[1:])
-            if constPwm and d[0] * d[1] > 0:
-                if abs(lastPwm) != abs(d[2]):
-                    index += 1
-                    pwmVec.append(abs(d[2]))
-                lastPwm = d[2]
-
-                pltVec.append(d[0])
-
-                phi = np.matrix([[d[1]], [d[2]], [sign(d[1])], [sign(d[2])]])
-                y = d[0]
-
-                phi2 = phi * np.transpose(phi)
-                yPhi = y * phi
-                if index == len(nrOfSumList):
-                    phi2SumList.append(phi2)
-                    yPhiSumList.append(yPhi)
-                    phiSumList.append(phi)
-                    ySumList.append(y)
-                    nrOfSumList.append(1)
-                else:
-                    phi2SumList[index] += phi2
-                    yPhiSumList[index] += yPhi
-                    phiSumList[index] += phi
-                    ySumList[index] += y
-                    nrOfSumList[index] += 1
-
-        def sumAdjacent(l, nr):
-            out = []
-            for i in range(0, len(l) - nr + 1):
-                out.append(sum(l[i:i + nr]))
-            return out
-
-        def avarageAdjacent(l, nr):
-            return [v / nr for v in sumAdjacent(l, nr)]
-
-        phi2SumListCombined = []
-        yPhiSumListCombined = []
-        phiSumListCombined = []
-        ySumListCombined = []
-        nrOfSumListCombined = []
-        pwmVecCombined = []
-
-        for nr in [len(phi2SumList), len(phi2SumList) // 2]:
-            phi2SumListCombined += sumAdjacent(phi2SumList, nr)
-            yPhiSumListCombined += sumAdjacent(yPhiSumList, nr)
-            phiSumListCombined += sumAdjacent(phiSumList, nr)
-            ySumListCombined += sumAdjacent(ySumList, nr)
-            nrOfSumListCombined += sumAdjacent(nrOfSumList, nr)
-            pwmVecCombined += avarageAdjacent(pwmVec, nr)
-
-        phi2SumList = phi2SumListCombined
-        yPhiSumList = yPhiSumListCombined
-        phiSumList = phiSumListCombined
-        ySumList = ySumListCombined
-        nrOfSumList = nrOfSumListCombined
-        pwmVec = pwmVecCombined
-
-        phiCovList = []
-        yPhiCovList = []
-        for phi2Sum, yPhiSum, phiSum, ySum, nr in zip(phi2SumList, yPhiSumList, phiSumList, ySumList, nrOfSumList):
-            phiCovList.append(phi2Sum * nr - phiSum * np.transpose(phiSum))
-            yPhiCovList.append(yPhiSum * nr - phiSum * np.transpose(ySum))
-
-        aList = []
-        bList = []
-        fList = []
-        pList = []
-
-        for d in zip(phiCovList, yPhiCovList):
-            params = np.linalg.solve(d[0], d[1])
-            pwmOffset = -params[3, 0] / params[1, 0]
-            ad = params[0, 0]
-            bd = params[1, 0] * (1023 - pwmOffset) / 1023
-            friction = -params[2, 0] / bd
-
-            aList.append(ad)
-            bList.append(bd)
-            fList.append(friction)
-            pList.append(pwmOffset)
-
-        self.pwmVec = pwmVec
-        self.aList = aList
-        self.bList = bList
-        self.fList = fList
-        self.pList = pList
-
-        return np.array([aList[0], bList[0], fList[0], pList[0]])
-
-    def getSimResults(self):
+    @staticmethod
+    def calcSimResults(data, modelParameters):
         # pylint: disable=too-many-locals
-        ad, bd, friction, pwmOffset = self.getServoSystemModelParameters(self.dt)
 
-        data = self.rawData
+        contineusA, contineusB, friction, emf, pwmCompModel = modelParameters
+        p = getPolynomeFrom(pwmCompModel)
+        x = np.arange(pwmCompModel[0][0], 1024, 4)
+        y = renderPolynome(x, p)
+        pwmCompFun = PiecewiseLinearFunction(x, y)
+
+        dt = data[1, 0] - data[0, 0]
+        pwmChangeDelay = findPwmChangeDelay(data[:, 2])
+
         realPos = data[2:, 1]
-        pwmData = data[2:, 2]
+        linearPwmData = [pwmCompFun.getY(abs(pwm)) * sign(pwm) for pwm in data[2:, 2]]
 
         simPos = 0 * realPos + realPos[0]
         lastSimVel = 0
         lastSimPos = simPos[0]
-        for i, pwm in enumerate(pwmData[0:-1]):
-            pwmScale = (1023 - pwmOffset) / 1023
-            #pwm = linearPwm * pwmScale + pwmOffset
-            linearPwm = (abs(pwm) - pwmOffset) / pwmScale * sign(pwm)
+        for i, linearPwm in enumerate(linearPwmData[0:-1]):
+            aTemp = contineusA + emf * abs(linearPwm)
+            adTemp = math.exp(dt * -aTemp)
+            bdTemp = contineusB * (1.0 - adTemp) / aTemp
 
-            newVel = (ad * lastSimVel +
-                bd * (linearPwm - friction * sign(lastSimVel)))
-            lastSimPos += self.dt * (lastSimVel + newVel) / 2
-            lastSimVel = newVel
+            newVel = (adTemp * lastSimVel +
+                bdTemp * (linearPwm - friction * sign(lastSimVel)))
+
+            if sign(newVel) != sign(lastSimVel):
+                subSetp = 10
+                for _ in range(0, subSetp):
+                    aTemp = contineusA + emf * abs(linearPwm)
+                    adTemp = math.exp((dt / subSetp) * -aTemp)
+                    bdTemp = contineusB * (1.0 - adTemp) / aTemp
+
+                    newVel = (adTemp * lastSimVel +
+                        bdTemp * (linearPwm - friction * sign(lastSimVel)))
+
+                    lastSimPos += (dt / subSetp) * (lastSimVel + newVel) / 2
+                    lastSimVel = newVel
+            else:
+                lastSimPos += dt * (lastSimVel + newVel) / 2
+                lastSimVel = newVel
 
             simPos[i + 1] = lastSimPos
 
-        realVel = 0 * realPos
-        simVel = 0 * realPos
-        for i, d in enumerate(zip(realPos[1:], realPos[0:-1], simPos[1:], simPos[0:-1])):
-            realVel[i + 1] = (d[0] - d[1]) / self.dt
-            simVel[i + 1] = (d[2] - d[3]) / self.dt
 
-        highPassConst = self.pwmChangeDelay * 5 / (self.pwmChangeDelay * 5 + 1)
+        realVel = calcVelFromPos(realPos, dt, 1)[1:]
+        simVel = calcVelFromPos(simPos, dt, 1)[1:]
+        linearPwmData = linearPwmData[1:]
+
+        highPassConst = pwmChangeDelay * 10 / (pwmChangeDelay * 10 + 1)
         realVel = highPassFilter(realVel[1:], highPassConst)
         simVel = highPassFilter(simVel[1:], highPassConst)
+        linearPwmData = linearPwmData[1:]        
 
-        t = np.arange(len(simVel)) * self.dt
 
-        return (simVel, realVel, t)
+        simError = realVel - simVel
+        temp = [e * sign(pwm) for e, pwm in zip(simError, linearPwmData)]
+        temp = [calcSpikeResistantAvarage(temp[i:i + pwmChangeDelay], excluded=0.2) for i in range(0, len(temp) - pwmChangeDelay)]
+        l = max(1, int(len(temp) * 0.05))
+        temp = sorted(temp)[l:-l]
+        errorSum = sum(temp) / len(temp)
 
-    def showAdditionalDiagnosticPlots(self, color=None):
-        plotColor=color
-        if not plotColor:
-            plotColor='g'
+        return (simVel, realVel, simError, errorSum)
 
-        plt.figure(1)
-        plt.plot(self.simT, self.simRefVel, '--', color=plotColor)
-        plt.plot(self.simT, self.simVel, 'k')
+    def showAdditionalDiagnosticPlots(self, color='g', skipCallToShow=False):
+        p = getPolynomeFrom(self.servoModelParameters[4])
+        x = np.array(list(dict.fromkeys(self.pwmList)))
+        y = renderPolynome(x, p)
+        pwmCompFun = PiecewiseLinearFunction(x, y)
+        linearPwmList = [pwmCompFun.getY(x) for x in self.pwmList]
 
-        plt.figure(2)
-        plt.plot(self.pwmVec[1:], self.aList[1:], '+', color=plotColor)
-        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.aList[0], self.aList[0]], color=plotColor)
-        plt.figure(3)
-        plt.plot(self.pwmVec[1:], self.bList[1:], '+', color=plotColor)
-        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.bList[0], self.bList[0]], color=plotColor)
-        plt.figure(4)
-        plt.plot(self.pwmVec[1:], self.fList[1:], '+', color=plotColor)
-        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.fList[0], self.fList[0]], color=plotColor)
-        plt.figure(5)
-        plt.plot(self.pwmVec[1:], self.pList[1:], '+', color=plotColor)
-        plt.plot([self.pwmVec[1], self.pwmVec[-1]], [self.pList[0], self.pList[0]], color=plotColor)
+        fig = plt.figure(1)
+        fig.suptitle('Inverse time constant over pwm')
+        x = np.arange(linearPwmList[0], linearPwmList[-1], 4)
+        y = renderPolynome(x, [self.servoModelParameters[3], self.servoModelParameters[0]])
 
-        plt.figure(6)
-        pwmChangeDelay = self.pwmChangeDelay
-        simRefVelFiltered = np.array([np.mean(self.simRefVel[i:i+pwmChangeDelay]) for i in range(0, len(self.simRefVel)
-                - pwmChangeDelay)])
-        simVelFiltered = np.array([np.mean(self.simVel[i:i+pwmChangeDelay]) for i in range(0, len(self.simVel)
-                - pwmChangeDelay)])
-        t = np.arange(len(simVelFiltered)) * self.dt
-        temp = sorted(simRefVelFiltered)
-        velAmplitude = max(np.abs([temp[len(temp) // 100], temp[-len(temp) // 100]]))
-        plt.plot(t, (np.abs(simRefVelFiltered) - np.abs(simVelFiltered)) / velAmplitude, color=plotColor)
+        line = plt.plot(x, y, '--', color=color, alpha=0.4)
+        if color is None:
+            color=line[0].get_color()
 
-        plt.figure(7)
-        plt.plot(self.velData, color=plotColor)
+        plt.plot(linearPwmList, self.aList, '+', color=color)
 
-        plt.figure(8)
-        plt.plot(self.dtError, color=plotColor)
+        fig = plt.figure(2)
+        fig.suptitle('Pwm nonlinearity')
+        if len(fig.get_axes()) == 0:
+            plt.plot([0, 1023], [0, 0], 'k:', alpha=0.4)
+            plt.plot([0, 1023], [0, 1023], 'k:', alpha=0.4)
+        p = getPolynomeFrom(self.servoModelParameters[4])
+        x = np.arange(0.0, 1024.0, 1)
+        plt.plot(x, renderPolynome(x, p), '--', color=color, alpha=0.4)
+        plt.plot(self.pwmList, self.pwmCompList, '+', color=color)
+        plt.xlim(-20, 1043)
+        plt.ylim(-20, 1043)
 
-        if not color:
+        fig = plt.figure(3)
+        fig.suptitle('Model error in percent of max velocity')
+        t = np.arange(len(self.simRefVel)) * self.dt
+        maxVel = max((abs(v) for v in self.simVel))
+        simError = [100 * v / maxVel for v in self.simError]
+        if len(fig.get_axes()) == 0:
+            plt.plot(t, [0 for _ in simError], 'k--', alpha=0.5)
+        plt.plot(t, simError, '+', color=color, alpha=0.1)
+        plt.ylim(-20, 20)
+
+        fig = plt.figure(4)
+        fig.suptitle('Cycle time error [s]')
+        t = np.arange(len(self.dtError)) * self.dt
+        plt.plot(t, self.dtError, color=color)
+
+        if not skipCallToShow:
             plt.show()
 
     def plotServoSystemModel(self, box):
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        ax.plot(self.simT, self.simRefVel, 'g--')
-        ax.plot(self.simT, self.simVel, 'k')
-        ax.set_xlim(0, self.dt * self.pwmChangeDelay * 100)
+        t = np.arange(len(self.simVel)) * self.dt
+        simError = self.simError
+        ax.plot(t, self.simRefVel, '--', color=(0.0, 0.8, 0.0, 0.5))
+        ax.plot(t, self.simVel, '-', color=(0.0, 0.0, 0.0, 1.0))
+        ax.plot(t, self.simRefVel, '+', color=(0.0, 0.4, 0.0, 0.5))
+        ax.plot(t, [0 for _ in simError], '--', color=(0.0, 0.0, 0.0, 1.0))
+        ax.plot(t, simError, '--', color=(0.4, 0.0, 0.0, 0.5))
+        ax.plot(t, simError, '+', color=(0.8, 0.0, 0.0, 0.5))
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
+        zoomWindow = self.dt * self.pwmChangeDelay * 32
+        defaultXLims = [-t[-1] * 0.02, t[-1] * 1.02]
+        xLims = defaultXLims
+        ax.set_xlim(xLims[0], xLims[1])
+        ax.set_ylim(min(self.simVel) * 1.15, max(self.simVel) * 1.15)
+
+        def on_release(event):
+            nonlocal xLims
+
+            xLims = defaultXLims
+            ax.set_xlim(xLims[0], xLims[1])
+            canvas.draw()
+
+        def on_move(event):
+            nonlocal xLims
+
+            if event.button != 1:
+                on_release(event)
+                return
+
+            x = event.xdata
+            if not x is None:
+                xt = (x - xLims[0]) / (xLims[1] - xLims[0])
+                x = defaultXLims[0] + xt * (defaultXLims[1] - defaultXLims[0])
+                xLims = [x - zoomWindow / 2, x + zoomWindow / 2]
+                ax.set_xlim(xLims[0], xLims[1])
+                canvas.draw()
+
+        canvas.mpl_connect('button_press_event', on_move)
+        canvas.mpl_connect('button_release_event', on_release)
+        canvas.mpl_connect('motion_notify_event', on_move)
         box.add(canvas)
 
-        label = Gtk.Label(label='Green curve is real system and black is model. A good result\n'
-                            'is indicated by the black curve resembling the green.')
+        label = Gtk.Label(label='Green curve shows the recorded velocity and the black shows the\n'
+                                'identified model\'s response. The error between them is shown in red.\n'
+                                'A good result is indicated by the error being small and\n'
+                                'looking like white noise.\n\n'
+                                'Click in the graph to zoom.')
+
         label.set_use_markup(True)
         label.set_margin_start(30)
         label.set_margin_end(50)
@@ -403,9 +637,9 @@ class ServoModel:
 
         self.kalmanFilter = KalmanFilter(dt, self.aMat, self.bMat, self.cMat)
 
-        _, _, self.friction, pwmOffset = systemModel.getServoSystemModelParameters(dt)
+        _, _, self.friction, (_, linearPwmList) = systemModel.getServoSystemModelParameters(dt)
 
-        self.pwmNonlinearityComp = PwmNonlinearityConfigHandler(pwmOffset=pwmOffset)
+        self.pwmNonlinearityComp = PwmNonlinearityConfigHandler(pwmCompLookUp=linearPwmList)
 
         self.pwmToStallCurrent, self.backEmfCurrent = systemModel.getCurrentModelParameters()
 
@@ -467,10 +701,21 @@ class ServoModel:
 
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
+        pwmToStallCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+pwmToStallCurrent\s*)\{[^\}]*\};')
+        backEmfCurrentPattern = re.compile(r'((\s*)constexpr\s+float\s+backEmfCurrent\s*)\{[^\}]*\};')
         controlParametersPattern = re.compile(r'((\s*)class\s+ControlParameters\s+:.*\n\2\{)(.*\n)*?\2\};')
 
-        temp = controlParametersPattern.search(configClassString) is not None
+        temp = True
+        temp = pwmToStallCurrentPattern.search(configClassString) is not None and temp
+        temp = backEmfCurrentPattern.search(configClassString) is not None and temp
+        temp = controlParametersPattern.search(configClassString) is not None and temp
         if temp:
+            out = r'\1{' + str(self.pwmToStallCurrent) + r'f};'
+            configClassString = re.sub(pwmToStallCurrentPattern, out, configClassString)
+
+            out = r'\1{' + str(self.backEmfCurrent) + r'f};'
+            configClassString = re.sub(backEmfCurrentPattern, out, configClassString)
+
             out = r'\1\n'
             out += self.getControlParametersClassContentStr(r'\2')
             configClassString = re.sub(controlParametersPattern, out, configClassString)
@@ -483,6 +728,11 @@ class ServoModel:
 
     def getGeneratedModel(self):
         out = ''
+        out += '--------------------------------------------------------------------------------\n'
+        out += '\n'
+        out += '        constexpr float pwmToStallCurrent{' + str(self.systemModel.currentModelParams[0]) + 'f};\n'
+        out += '        constexpr float backEmfCurrent{' + str(self.systemModel.currentModelParams[1]) + 'f};\n'
+        out += '\n'
         out += '--------------------------------------------------------------------------------\n'
         out += '\n'
         out += self.pwmNonlinearityComp.getLinearizationFunction('        ') + '\n'
@@ -588,6 +838,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
 
     recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
+    analyzingProgressBar = GuiFunctions.creatProgressBar(label='Analyzing', getLowLev=True)
 
     testPwmValue = minPwmValue
 
@@ -632,6 +883,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         startButton[1].set_label('Start calibration')
         startButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
+        calibrationBox.remove(analyzingProgressBar[0])
         motorSettleTimeScale[1].set_sensitive(True)
         minPwmScale[1].set_sensitive(True)
         maxPwmScale[1].set_sensitive(True)
@@ -751,9 +1003,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def updateRecordingProgressBar(fraction):
         recordingProgressBar[1].set_fraction(fraction)
 
-    def handleResults(data):
-        systemIdentifier = SystemIdentificationObject(data)
+    def updateAnalyzingProgressBar(fraction):
+        analyzingProgressBar[1].set_fraction(fraction)
 
+    def handleResults(systemIdentifier):
         dialog = Gtk.MessageDialog(
                 transient_for=parent,
                 flags=0,
@@ -823,11 +1076,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal runThread
 
         try:
-            with createServoManager(nodeNr, port, dt=0.004) as servoManager:
+            sampleTime = max(0.004, motorSettleTime * 0.2 / 15)
+            with createServoManager(nodeNr, port, dt=sampleTime) as servoManager:
                 pwmSampleValues = []
-                nr = 20
+                nr = 30
                 for i in range(0, nr):
-                    pwmSampleValues.append(i * (minPwmValue - maxPwmValue) / nr + maxPwmValue)
+                    t = i / nr
+                    t = t**0.5
+                    pwmSampleValues.append(maxPwmValue - t * (maxPwmValue - minPwmValue))
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     return
@@ -963,10 +1219,27 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 servoManager.shutdown()
 
+                def shouldAbort():
+                    with threadMutex:
+                        if runThread is False:
+                            return True
+                    return False
+
+                lastFraction = 0.0
+                def updateProgress(fraction):
+                    nonlocal lastFraction
+
+                    if abs(fraction - lastFraction) > 0.01:
+                        lastFraction = fraction
+                        GLib.idle_add(updateAnalyzingProgressBar, fraction)
+
                 if runThread is True:
                     data = np.array(out)
                     np.savetxt('lastSysTestData.txt', data)
-                    GLib.idle_add(handleResults, data)
+                    systemIdentifier = SystemIdentificationObject(data,
+                                shouldAbort=shouldAbort,
+                                updateProgress=updateProgress)
+                    GLib.idle_add(handleResults, systemIdentifier)
 
         except Exception as e:
             GuiFunctions.exceptionMessage(parent, e)
@@ -1016,9 +1289,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             widget.set_label('Abort calibration')
 
             recordingProgressBar[1].set_fraction(0.0)
+            analyzingProgressBar[1].set_fraction(0.0)
             testButton[1].set_sensitive(False)
             dtSpinButton[1].set_sensitive(False)
             calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
+            calibrationBox.pack_start(analyzingProgressBar[0], False, False, 0)
             motorSettleTimeScale[1].set_sensitive(False)
             minPwmScale[1].set_sensitive(False)
             maxPwmScale[1].set_sensitive(False)
@@ -1046,16 +1321,19 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     return calibrationBox
 
 def main():
-    data = np.loadtxt('lastSysTestDataDtCheck1.txt')
-    systemIdentifier = SystemIdentificationObject(data)
-    systemIdentifier.showAdditionalDiagnosticPlots(color='r')
-    data = np.loadtxt('lastSysTestDataDtCheck2.txt')
-    systemIdentifier = SystemIdentificationObject(data)
-    systemIdentifier.showAdditionalDiagnosticPlots(color='g')
-    data = np.loadtxt('lastSysTestDataDtCheck3.txt')
-    systemIdentifier = SystemIdentificationObject(data)
-    systemIdentifier.showAdditionalDiagnosticPlots(color='b')
+    dataLists = []
+
+    #dataLists.append([
+    #    np.loadtxt('sysTestDataServoNr1T02.txt')])
+    #dataLists.append([
+    #    np.loadtxt('sysTestDataServoNr2T02.txt')])
+
+    for data in dataLists:
+        systemIdentifier = SystemIdentificationObject([], additionalData=data)
+        systemIdentifier.showAdditionalDiagnosticPlots(color=None, skipCallToShow=True)
+
     plt.show()
+    return
 
 if __name__ == '__main__':
     main()
