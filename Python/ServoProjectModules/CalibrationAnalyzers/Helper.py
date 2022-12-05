@@ -277,22 +277,24 @@ class PwmNonlinearityConfigHandler:
         out = ''
         out += indent + 'auto pwmHighFrqCompFun = [](uint16_t in)\n'
         out += indent + '{\n'
+        out += indent + '    constexpr static uint16_t maxPwm = 1023;\n'
 
         if self.pwmOffset is None:
             lookUpSize = len(self.pwmCompLookUp)
             out += indent + (f'    constexpr static std::array<uint16_t, {lookUpSize}> linearizeVec = '
                             + f'{intArrayToString(self.pwmCompLookUp)}\n')
             out += '\n'
-            out += indent + f'    float t = in * ({lookUpSize - 1.0}f / 1023.0f);\n'
-            out += indent + f'    size_t index = std::min(static_cast<size_t>(t), (size_t){lookUpSize - 2});\n'
-            out += indent +  '    t -= index;\n'
+            out += indent + f'    int32_t t = in * {lookUpSize - 1};\n'
+            out += indent + f'    size_t index = std::min(static_cast<size_t>({lookUpSize - 2}),\n'
+            out += indent +  '                            static_cast<size_t>(t / maxPwm));\n'
+            out += indent +  '    t -= index * maxPwm;\n'
+            out += '\n'
             out += indent +  '    const uint16_t& a = linearizeVec[index];\n'
             out += indent +  '    const uint16_t& b = linearizeVec[index + 1];\n'
             out += '\n'
-            out += indent +  '    return static_cast<uint16_t>((b - a) * t + a);\n'
+            out += indent +  '    return static_cast<uint16_t>((a * (maxPwm - t) + b * t + maxPwm / 2) / maxPwm);\n'
         else:
             out += indent + f'    constexpr static uint16_t pwmOffset = {int(round(self.pwmOffset))};\n'
-            out += indent +  '    constexpr static uint16_t maxPwm = 1023;\n'
             out += '\n'
             out += indent +  '    if (in == 0)\n'
             out += indent +  '    {\n'
