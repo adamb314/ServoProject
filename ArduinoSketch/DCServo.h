@@ -41,7 +41,8 @@ class ReferenceInterpolator
     void calculateNext();
 
     std::tuple<float, float, float> get();
-    std::tuple<float, float, float> getUninterpolated();
+
+    float getPositionInterpolationDist();
 
     void setGetTimeInterval(const uint16_t& interval);
 

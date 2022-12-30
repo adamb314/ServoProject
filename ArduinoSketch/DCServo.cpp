@@ -224,9 +224,15 @@ void DCServo::controlLoop()
         }
 
         std::tie(posRef, velRef, feedForwardU) = refInterpolator.get();
+
+        posRefTimingOffset = 0.0f;
+        if (!openLoopControlMode)
+        {
+            posRefTimingOffset = refInterpolator.getPositionInterpolationDist();
+        }
+
         refInterpolator.calculateNext();
         std::tie(nextPosRef, nextVelRef, nextFeedForwardU) = refInterpolator.get();
-        posRefTimingOffset = posRef - std::get<0>(refInterpolator.getUninterpolated());
     }
     pendingIntegralCalc = false;
 
@@ -530,9 +536,9 @@ std::tuple<float, float, float> ReferenceInterpolator::get()
     return std::make_tuple(interPos, interVel, interFeed);
 }
 
-std::tuple<float, float, float> ReferenceInterpolator::getUninterpolated()
+float ReferenceInterpolator::getPositionInterpolationDist()
 {
-    return std::make_tuple(pos[1], vel[1], feed[1]);
+    return interPos - pos[1];
 }
 
 void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
