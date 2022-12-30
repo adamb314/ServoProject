@@ -53,10 +53,10 @@ void EncoderHandler::triggerSample()
     }
     value = newValue;
 
-    float t = value * (vecSize / 4096.0f);
-    int i = std::min(vecSize - 2, static_cast<int>(t));
-    t -= i;
-    value -= compVec[i] * (1.0f - t) + compVec[i + 1] * t;
+    int32_t t = (value * vecSize + 32) / 64;
+    size_t i = std::min(vecSize - 2, static_cast<size_t>(t / 64));
+    t -= i * 64;
+    value -= (compVec[i] * (64 - t) + compVec[i + 1] * t + 32) / 64;
 
     status = 0;
 }
