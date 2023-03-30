@@ -84,6 +84,7 @@ class Tester(TestCase):
 
         with self.assertRaises(Exception) as context:
             f = PiecewiseLinearFunction([1, 2, 3], [2, 3, 2])
+            f.getX(2)
         self.assertEqual(str(Exception('not a monotone function')), str(context.exception))
 
         f = PiecewiseLinearFunction([1, 2], [2, 3])

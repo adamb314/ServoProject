@@ -360,8 +360,9 @@ class SmoothMoveHandler:
 
 class PiecewiseLinearFunction:
     def __init__(self, xList, yList):
-        xList = [v for v in xList]
-        yList = [v for v in yList]
+        xList = list(xList)
+        yList = list(yList)
+
         if len(xList) != len(yList):
             raise Exception('x and y list not same length')
         if len(xList) < 2:
