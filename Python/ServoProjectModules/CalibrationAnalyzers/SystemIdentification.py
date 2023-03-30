@@ -1111,6 +1111,17 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 out = []
 
                 if os.path.isfile('sysTestDataToLoad.txt'):
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.OK,
+                            text='Found file: "sysTestDataToLoad.txt"!\n'
+                                'Aborting calibration and loading it instead.',
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
+
                     out = np.loadtxt('sysTestDataToLoad.txt')
                     doneRunning = True
 
