@@ -107,11 +107,12 @@ void DCServo::setControlSpeed(uint8_t controlSpeed)
     setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 4 * 8);
 }
 
-void DCServo::setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed)
+void DCServo::setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed, float inertiaMarg)
 {
     this->controlSpeed = controlSpeed;
     this->velControlSpeed = velControlSpeed;
     this->filterSpeed = filterSpeed;
+    this->inertiaMarg = inertiaMarg;
 }
 
 void DCServo::setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain, uint8_t backlashSize)
@@ -151,7 +152,7 @@ float DCServo::getPosition()
 int16_t DCServo::getVelocity()
 {
     ThreadInterruptBlocker blocker;
-    return x[1];
+    return clamp_cast<int16_t>(x[1]);
 }
 
 int16_t DCServo::getControlSignal()
@@ -218,9 +219,14 @@ void DCServo::controlLoop()
     if (controlEnabled)
     {
         if (pendingIntegralCalc)
-        {
-            Ivel -= L[2] * (vControlRef - x[1]);
-            Ivel += L[3] * (pwm - currentController->getLimitedRef());
+        { 
+#ifndef SIMULATE
+            float limitedRefDiff = pwm - currentController->getLimitedRef();
+#else
+            float limitedRefDiff = pwm - std::min(std::max(pwm, -1023.0f), 1023.0f);
+#endif
+            Ivel += L[2 + inertiaMargDisabled * 6] * (vControlRef - x[1]);
+            Ivel -= L[3 + inertiaMargDisabled * 6] * (limitedRefDiff);
         }
 
         std::tie(posRef, velRef, feedForwardU) = refInterpolator.get();
@@ -237,10 +243,11 @@ void DCServo::controlLoop()
     pendingIntegralCalc = false;
 
 #ifdef SIMULATE
-    float uSim = kalmanControlSignal;
+    float uSim = std::min(std::max(kalmanControlSignal, -1023.0f), 1023.0f);
     xSim[0] += controlConfig->getA()(0, 1) * xSim[1] + controlConfig->getB()[0] * uSim;
     xSim[1] = controlConfig->getA()(1, 1) * xSim[1] + controlConfig->getB()[1] * uSim;
-    rawMainPos = xSim[0];
+    constexpr float gearing = 10.0f / 1 * 11.0f / 62 * 14.0f / 48 * 13.0f / 45 * 1.0f / 42;
+    rawMainPos = static_cast<int32_t>(xSim[0] * (1.0f / gearing)) * gearing;
 #else
     rawMainPos = mainEncoderHandler->getValue();
 #endif
@@ -256,7 +263,9 @@ void DCServo::controlLoop()
             vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
 
-            controlSignal = L[1] * (vControlRef - x[1]) + Ivel;
+            inertiaMargDisabled = std::abs(posDiff) <= inertiaMargDisableRange;
+
+            controlSignal = L[1 + inertiaMargDisabled * 6] * (vControlRef - x[1]) + Ivel;
 
             if (internalFeedForwardEnabled)
             {
@@ -269,12 +278,14 @@ void DCServo::controlLoop()
 #ifndef SIMULATE
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, vControlRef, x[1]);
+            
+            currentController->setReference(clamp_cast<int16_t>(pwm));
 #else
-            pwm = 0;
+            pwm = controlSignal;
+            currentController->setReference(0);
 #endif
 
             currentController->updateVelocity(x[1]);
-            currentController->setReference(static_cast<int16_t>(pwm));
             currentController->applyChanges();
 
             current = currentController->getCurrent();
@@ -285,6 +296,7 @@ void DCServo::controlLoop()
         else
         {
             Ivel = 0.0f;
+            inertiaMargDisabled = false;
             outputPosOffset = rawOutputPos - rawMainPos;
             backlashControlGainDelayCounter = 0;
 
@@ -298,7 +310,7 @@ void DCServo::controlLoop()
             {
                 controlSignal = feedForwardU;
                 kalmanControlSignal = controlSignal;
-                currentController->setReference(static_cast<int16_t>(controlSignal));
+                currentController->setReference(clamp_cast<int16_t>(controlSignal));
             }
             currentController->applyChanges();
             current = currentController->getCurrent();
@@ -310,6 +322,7 @@ void DCServo::controlLoop()
         refInterpolator.resetTiming();
         loadNewReference(rawOutputPos, 0.0f, 0.0f);
         Ivel = 0.0f;
+        inertiaMargDisabled = false;
         outputPosOffset = rawOutputPos - rawMainPos;
         backlashControlGainDelayCounter = 0.0f;
         controlSignal = 0.0f;
@@ -322,7 +335,12 @@ void DCServo::controlLoop()
 
     kalmanFilter->postUpdate(kalmanControlSignal);
 
-    controlSignalAveraging.add(controlSignal);
+#ifndef SIMULATE
+    controlSignalAveraging.add(currentController->getLimitedRef() - pwm + controlSignal);
+#else
+    controlSignalAveraging.add(std::min(std::max(pwm, -1023.0f), 1023.0f) - pwm + controlSignal);
+#endif
+
     currentAveraging.add(current);
 
 #ifdef SIMULATE
@@ -368,12 +386,11 @@ void DCServo::controlLoop()
         outputPosOffset -= backlashCompensationDiff;
     }
 
-    loopTime = std::max(loopTime, static_cast<uint16_t>(ThreadHandler::getInstance()->getTimingError()));
+    loopTime = std::max(loopTime, clamp_cast<uint16_t>(ThreadHandler::getInstance()->getTimingError()));
 }
 
 void DCServo::calculateAndUpdateLVector()
 {
-
     const Eigen::Matrix3f& A = controlConfig->getA();
     const Eigen::Vector3f& B = controlConfig->getB();
 
@@ -381,20 +398,40 @@ void DCServo::calculateAndUpdateLVector()
     float a = A(1, 1);
     float b = B(1);
 
+    // calculating discrete time poles from continues
     float posControlPole = exp(-dt * controlSpeed);
-    float velControlPole[] = {exp(-1.0f * dt * velControlSpeed), exp(-0.9f * dt * velControlSpeed)};
+    float velControlPole = exp(-1.0f * dt * velControlSpeed);
 
     auto tempL = L;
+
+    // see section 'Calculating the control parameters' of Doc/Theory.md for derivation of control equations
     tempL[0] = (1.0f - posControlPole) / dt;
-    tempL[1] = (a + 1 - velControlPole[0] - velControlPole[1]) / b;
-    tempL[2] = (a - b * tempL[1] - velControlPole[0] * velControlPole[1]) / b;
-    tempL[3] = 10 * tempL[2];
+
+    auto calculateVelContolParams = [](float a, float b, float velPole, float inertiaMarg)
+        {
+            velPole = std::min(std::min(velPole, a), 1.0f);
+
+            float L1 = inertiaMarg * (a - 2.0f * velPole + 1.0f)
+                        + 2.0f * sqrt(inertiaMarg * (inertiaMarg - 1.0f) * (1.0f - velPole) * (a - velPole));
+            float L2 = (L1 * L1 / inertiaMarg + (a - 1.0f) * (inertiaMarg * (a - 1.0f) - 2.0f * L1)) / 4.0f;
+            L1 = L1 / b;
+            L2 = L2 / b;
+            float L3 = std::min(10 * L2, 0.1f);
+
+            return std::make_tuple(L1, L2, L3);
+        };
+
+    std::tie(tempL[1], tempL[2], tempL[3]) = calculateVelContolParams(a, b, velControlPole, inertiaMarg);
 
     tempL[4] = backlashControlSpeed * controlConfig->getCycleTime();
     tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
     tempL[6] = backlashSize;
 
-    auto K = kalmanFilter->calculateNewKVector(filterSpeed);
+    std::tie(tempL[7], tempL[8], tempL[9]) = calculateVelContolParams(a, b, velControlPole, 1.0);
+
+    float velControlPoleAtInertiaMarg = 0.5f * (a - b * tempL[1] / inertiaMarg + 1.0f);
+    uint16_t minFilterSpeed = std::round(-log(velControlPoleAtInertiaMarg) / dt * 8.0f);
+    auto K = kalmanFilter->calculateNewKVector(std::max(filterSpeed, minFilterSpeed));
 
     ThreadInterruptBlocker blocker;
     L = tempL;

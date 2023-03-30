@@ -7,6 +7,7 @@
 #include "EncoderHandler.h"
 #include "OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
+#include "clamp_cast.h"
 
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
@@ -208,7 +209,7 @@ class DCServo
     void onlyUseMainEncoder(bool b = true);
 
     void setControlSpeed(uint8_t controlSpeed);
-    void setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed);
+    void setControlSpeed(uint8_t controlSpeed, uint16_t velControlSpeed, uint16_t filterSpeed, float inertiaMarg = 1.0f);
 
     void setBacklashControlSpeed(uint8_t backlashControlSpeed, uint8_t backlashControlSpeedVelGain = 0, uint8_t backlashSize = 0);
 
@@ -259,6 +260,10 @@ class DCServo
     uint8_t backlashControlGainDelayCounter{0};
     float backlashControlGain{0.0f};
 
+    float inertiaMarg{1.0f};
+    bool inertiaMargDisabled{false};
+    static constexpr float inertiaMargDisableRange{0.5f / 32};
+
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop
     //L[2]: Integral action gain of velocity control loop
@@ -266,7 +271,10 @@ class DCServo
     //L[4]: Backlash compensation integral action gain
     //L[5]: Backlash compensation velocity dependent gain
     //L[6]: Backlash size
-    Eigen::Matrix<float, 7, 1> L;
+    //L[7]: inertiaMargDisabled proportional gain of velocity control loop
+    //L[8]: inertiaMargDisabled integral action gain of velocity control loop
+    //L[9]: inertiaMargDisabled integral anti windup gain of velocity control loop
+    Eigen::Matrix<float, 10, 1> L;
 
     uint16_t loopTime{0};
     float rawMainPos{0.0f};
@@ -295,7 +303,7 @@ class DCServo
 
     float Ivel{0.0f};
     float vControlRef{0.0f};
-    int16_t pwm{0};
+    float pwm{0.0f};
     bool pendingIntegralCalc{false};
 
     std::unique_ptr<CurrentController> currentController;

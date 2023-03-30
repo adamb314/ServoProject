@@ -566,6 +566,7 @@ class DCServoCommunicator:
         self.controlSpeed = 50
         self.velControlSpeed = 50 * 4
         self.filterSpeed = 50 * 4 * 8
+        self.inertiaMarg = 1.0
         self.backlashCompensationSpeed = 10
         self.backlashCompensationSpeedVelDecrease = 0
         self.backlashSize = 0
@@ -609,7 +610,7 @@ class DCServoCommunicator:
         if self.isInitComplete():
             self._updateOffset()
 
-    def setControlSpeed(self, controlSpeed, velControlSpeed = None, filterSpeed = None):
+    def setControlSpeed(self, controlSpeed, velControlSpeed = None, filterSpeed = None, inertiaMarg = 1.0):
         if velControlSpeed is None:
             velControlSpeed = controlSpeed * 4
         if filterSpeed is None:
@@ -618,6 +619,7 @@ class DCServoCommunicator:
         self.controlSpeed = controlSpeed
         self.velControlSpeed = velControlSpeed
         self.filterSpeed = filterSpeed
+        self.inertiaMarg = min(max(inertiaMarg, 1.0), 1 + 255.0 / 128)
 
     def setBacklashControlSpeed(self, backlashCompensationSpeed, backlashCompensationCutOffSpeed, backlashSize):
         self.backlashCompensationSpeed = backlashCompensationSpeed
@@ -765,6 +767,7 @@ class DCServoCommunicator:
             self.bus.writeChar(3, self.controlSpeed)
             self.bus.writeChar(4, int(round(self.velControlSpeed / 4.0)))
             self.bus.writeChar(5, int(round(self.filterSpeed / 32.0)))
+            self.bus.writeChar(10, int(round((self.inertiaMarg - 1.0) * 128.0)))
             self.bus.writeChar(6, self.backlashCompensationSpeed)
             self.bus.writeChar(7, self.backlashCompensationSpeedVelDecrease)
             self.bus.writeChar(8, self.backlashSize)

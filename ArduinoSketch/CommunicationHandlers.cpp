@@ -27,7 +27,8 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
 
     if (CommunicationNode::charArrayChanged[3] ||
         CommunicationNode::charArrayChanged[4] ||
-        CommunicationNode::charArrayChanged[5])
+        CommunicationNode::charArrayChanged[5] ||
+        CommunicationNode::charArrayChanged[10])
     {
         if (!CommunicationNode::charArrayChanged[4] &&
                 !CommunicationNode::charArrayChanged[5])
@@ -37,7 +38,8 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
         }
         dcServo->setControlSpeed(CommunicationNode::charArray[3],
                 CommunicationNode::charArray[4] * 4,
-                CommunicationNode::charArray[5] * 32);
+                CommunicationNode::charArray[5] * 32,
+                1.0f + static_cast<uint8_t>(CommunicationNode::charArray[10]) * (1.0f / 128));
     }
 
     if (CommunicationNode::charArrayChanged[6] ||
