@@ -371,9 +371,7 @@ class PiecewiseLinearFunction:
             raise Exception('x list is not sorted')
 
         sortedY = sorted(yList)
-        monotoneFunction = sortedY in (yList, yList[::-1])
-        if not monotoneFunction:
-            raise Exception('not a monotone function')
+        self.monotoneFunction = sortedY in (yList, yList[::-1])
 
         self.xList = xList
         self.yList = yList
@@ -396,9 +394,13 @@ class PiecewiseLinearFunction:
         y0 = outputList[i]
         y1 = outputList[i + 1]
 
-        return (y1 - y0) * (inputValue - x0) / (x1 - x0) + y0
+        t = (inputValue - x0) / (x1 - x0) if x1 != x0 else 0.5
+
+        return (y1 - y0) * t + y0
 
     def getX(self, y):
+        if not self.monotoneFunction:
+            raise Exception('not a monotone function')
         return PiecewiseLinearFunction._calcInterpolation(self.yList, self.xList, y)
 
     def getY(self, x):

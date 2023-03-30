@@ -42,10 +42,12 @@ def calcMedian(vec):
         out = out / 2
     return out
 
+def fitPolynome(x, y, degree):
+    p = np.polyfit(x, y, degree)
+    return p
+
 def renderPolynome(x, p):
-    y = 0
-    for i in range(0, len(p)):
-        y += p[i] * x**(len(p) - 1 - i)
+    y = np.polyval(p, x)
     return y
 
 def getMinPolynomeRepFrom(xList, p):
@@ -56,7 +58,7 @@ def getMinPolynomeRepFrom(xList, p):
     return (sparceX, out)
 
 def getPolynomeFrom(polynomeRep):
-    return np.polyfit(polynomeRep[0], polynomeRep[1], len(polynomeRep[1]) - 1)
+    return fitPolynome(polynomeRep[0], polynomeRep[1], len(polynomeRep[1]) - 1)
 
 def findPwmChangeDelay(pwmData):
     lastPwm = pwmData[2]
@@ -253,37 +255,42 @@ class SystemIdentificationObject:
 
             def getErrorAndParamsForFrictionComp(uFric):
                 def getPwmCompPolynome(pwm, comp, degree):
-                    p = np.polyfit(pwm, comp, degree)
+                    interpolSample = 10
+                    derivDx = 100
 
-                    dx = 100
-                    x1 = renderPolynome(pwm[-1], p)
-                    x0 = renderPolynome(pwm[-1] - dx, p)
-                    k = (x1 - x0) / dx
+                    linearInterpol = PiecewiseLinearFunction(pwm, comp)
+                    pwmInter = [v for v in np.arange(pwm[0], pwm[-1] + interpolSample, interpolSample)]
+                    compInter = [linearInterpol.getY(v) for v in pwmInter]
+
+                    p = np.polyfit(pwmInter, compInter, degree)
+
+                    x1 = np.polyval(p, pwm[-1])
+                    x0 = np.polyval(p, pwm[-1] - derivDx)
+                    k = (x1 - x0) / derivDx
                     k = max(k, x1 / pwm[-1])
 
-                    xPad = np.arange(pwm[-1] + 10, 1023 + dx, 10)
+                    xPad = np.arange(pwm[-1] + interpolSample, 1023 + derivDx, interpolSample)
                     compPad = x1 + k * (xPad - pwm[-1])
 
-                    x1 = renderPolynome(pwm[0] + dx, p)
-                    x0 = renderPolynome(pwm[0], p)
-                    k = (x1 - x0) / dx
+                    x1 = np.polyval(p, pwm[0] + derivDx)
+                    x0 = np.polyval(p, pwm[0])
+                    k = (x1 - x0) / derivDx
                     k = max(k, x0 / pwm[0])
-
-                    xPad0 = np.arange(-dx, pwm[0] - 10, 10)
+                    xPad0 = np.arange(-derivDx, pwm[0] - interpolSample, interpolSample)
                     compPad0 = x0 + k * (xPad0 - pwm[0])
-                    pwmExt = [v for v in xPad0] + pwm + [v for v in xPad]
-                    compExt = [v for v in compPad0] + comp + [v for v in compPad]
+                    pwmExt = [v for v in xPad0] + pwmInter + [v for v in xPad]
+                    compExt = [v for v in compPad0] + compInter + [v for v in compPad]
 
-                    return np.polyfit(pwmExt, compExt, degree)
+                    return fitPolynome(pwmExt, compExt, degree)
 
                 pwmCompList = [u * b + uFric for u, b in zip(pwmList, bList)]
-                p = getPwmCompPolynome(pwmList, pwmCompList, 8)
+                p = getPwmCompPolynome(pwmList, pwmCompList, 16)
                 contineusB = renderPolynome(1023, p) / 1023
 
                 p = p / contineusB
                 friction = uFric / contineusB
 
-                pwmCompModel = getMinPolynomeRepFrom(pwmList, p)
+                pwmCompModel = getMinPolynomeRepFrom([0.0, 1023.0], p)
 
                 x = np.array(list(dict.fromkeys(pwmList)))
                 y = renderPolynome(x, p)
@@ -372,13 +379,13 @@ class SystemIdentificationObject:
         aMat, bMat = self.getServoSystemMatrices(outputDt)
 
         pwmCompModel = self.servoModelParameters[4]
-        pwmCompModel = (pwmCompModel[1], pwmCompModel[0])
         p = getPolynomeFrom(pwmCompModel)
-        pwmList = np.array(range(0, 256)) * 1023 / 255
-        linearPwmList = renderPolynome(pwmList, p)
+        x = np.arange(0, 1024, 1)
+        y = renderPolynome(x, p)
+        pwmCompFun = PiecewiseLinearFunction(x, y)
 
-        pwmList = [v for v in pwmList]
-        linearPwmList = [max(0, v) for v in linearPwmList]
+        pwmList = [i * 1023 / 255 for i in range(0, 256)]
+        linearPwmList = [max(0, pwmCompFun.getX(v)) for v in pwmList]
         linearPwmList[0] = 0
 
         return (aMat[1, 1], bMat[1, 0], self.servoModelParameters[2], (pwmList, linearPwmList))
