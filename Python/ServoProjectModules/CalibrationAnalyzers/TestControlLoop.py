@@ -63,6 +63,36 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
 
     threadMutex = threading.Lock()
 
+    if advancedMode is True:
+        velControlSpeedDefault = True
+        filterSpeedDefault = True
+
+        def onControlSpeedScaleChange(widget):
+            if velControlSpeedDefault:
+                controlSpeed = controlSpeedScale[1].get_value()
+                velControlSpeedScale[1].set_value(controlSpeed * 4)
+
+        def onVelControlSpeedScaleChange(widget):
+            nonlocal velControlSpeedDefault
+            controlSpeed = controlSpeedScale[1].get_value()
+            velControlSpeed = velControlSpeedScale[1].get_value()
+
+            velControlSpeedDefault = controlSpeed * 4 == velControlSpeed
+
+            if filterSpeedDefault:
+                filterSpeedScale[1].set_value(velControlSpeed * 8)
+
+        def onFilterSpeedScaleChange(widget):
+            nonlocal filterSpeedDefault
+            velControlSpeed = velControlSpeedScale[1].get_value()
+            filterSpeed = filterSpeedScale[1].get_value()
+
+            filterSpeedDefault = velControlSpeed * 8 == filterSpeed
+
+        controlSpeedScale[1].connect('value-changed', onControlSpeedScaleChange)
+        velControlSpeedScale[1].connect('value-changed', onVelControlSpeedScaleChange)
+        filterSpeedScale[1].connect('value-changed', onFilterSpeedScaleChange)
+
     def onRefVelScaleChange(widget):
         nonlocal refVel
         with threadMutex:
