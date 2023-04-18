@@ -276,7 +276,7 @@ class DCServo
     //L[9]: inertiaMargDisabled integral anti windup gain of velocity control loop
     Eigen::Matrix<float, 10, 1> L;
 
-    uint16_t loopTime{0};
+    uint32_t loopTime{0};
     float rawMainPos{0.0f};
     float rawOutputPos{0.0f};
     int forceDir{0};

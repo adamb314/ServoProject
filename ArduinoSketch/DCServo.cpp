@@ -174,7 +174,7 @@ int16_t DCServo::getPwmControlSignal()
 uint16_t DCServo::getLoopTime()
 {
     ThreadInterruptBlocker blocker;
-    auto out = loopTime;
+    auto out = clamp_cast<uint16_t>(loopTime);
     loopTime = 0;
     return out;
 }
@@ -388,7 +388,7 @@ void DCServo::controlLoop()
         outputPosOffset -= backlashCompensationDiff;
     }
 
-    loopTime = std::max(loopTime, clamp_cast<uint16_t>(ThreadHandler::getInstance()->getTimingError()));
+    loopTime = std::max(loopTime, ThreadHandler::getInstance()->getTimingError());
 }
 
 void DCServo::calculateAndUpdateLVector()
