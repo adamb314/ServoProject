@@ -44,14 +44,14 @@ CurrentControlLoop::~CurrentControlLoop()
     delete currentSampler;
 }
 
-void CurrentControlLoop::setReference(int16_t ref)
+void CurrentControlLoop::setReference(int32_t ref)
 {
     newPwmOverrideValue = false;
     newBrakeValue = false;
     newRefValue = ref;
 }
 
-int16_t CurrentControlLoop::getLimitedRef()
+int32_t CurrentControlLoop::getLimitedRef()
 {
     ThreadInterruptBlocker interruptBlocker;
     if (lastULimited)
@@ -62,14 +62,14 @@ int16_t CurrentControlLoop::getLimitedRef()
     return ref;
 }
 
-void CurrentControlLoop::overidePwmDuty(int16_t pwm)
+void CurrentControlLoop::overidePwmDuty(int32_t pwm)
 {
     newPwmOverrideValue = true;
     newBrakeValue = false;
     newUValue = pwm;
 }
 
-int16_t CurrentControlLoop::getFilteredPwm()
+int32_t CurrentControlLoop::getFilteredPwm()
 {
     ThreadInterruptBlocker interruptBlocker;
     return (filteredPwm >> 2);
@@ -81,7 +81,7 @@ void CurrentControlLoop::activateBrake()
     newBrakeValue = true;
 }
 
-int16_t CurrentControlLoop::getCurrent()
+int32_t CurrentControlLoop::getCurrent()
 {
     ThreadInterruptBlocker interruptBlocker;
     return filteredY;
@@ -117,7 +117,7 @@ void CurrentControlLoop::run()
         return;
     }
 
-    int16_t controlError;
+    int32_t controlError;
     {
         ThreadInterruptBlocker interruptBlocker;
         controlError = ref - y;
@@ -129,7 +129,7 @@ void CurrentControlLoop::run()
 
     filteredPwm = ((3 * filteredPwm) >> 2) + limitedU;
 
-    int16_t uLimitError = u - limitedU;
+    int32_t uLimitError = u - limitedU;
 
     if (uLimitError != 0)
     {
@@ -161,7 +161,7 @@ CurrentControlModel::~CurrentControlModel()
 {
 }
 
-void CurrentControlModel::setReference(int16_t ref)
+void CurrentControlModel::setReference(int32_t ref)
 {
     pwmOverride = false;
     this->ref = ref;
@@ -172,7 +172,7 @@ void CurrentControlModel::updateVelocity(float vel)
     this->vel = vel;
 }
 
-void CurrentControlModel::overidePwmDuty(int16_t pwm)
+void CurrentControlModel::overidePwmDuty(int32_t pwm)
 {
     pwmOverride = true;
     brake = false;
@@ -254,7 +254,7 @@ void CurrentControlModel::applyChanges()
     }
 }
 
-int16_t CurrentControlModel::getLimitedRef()
+int32_t CurrentControlModel::getLimitedRef()
 {
     if (lastULimited)
     {
@@ -264,12 +264,12 @@ int16_t CurrentControlModel::getLimitedRef()
     return ref;
 }
 
-int16_t CurrentControlModel::getFilteredPwm()
+int32_t CurrentControlModel::getFilteredPwm()
 {
     return filteredPwm;
 }
 
-int16_t CurrentControlModel::getCurrent()
+int32_t CurrentControlModel::getCurrent()
 {
     return filteredY;
 }

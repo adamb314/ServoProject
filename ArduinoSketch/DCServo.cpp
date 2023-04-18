@@ -214,7 +214,7 @@ void DCServo::controlLoop()
     float nextVelRef;
     float nextFeedForwardU;
 
-    float controlSignal = 0.0f;
+    int32_t controlSignal = 0;
 
     if (controlEnabled)
     {
@@ -223,7 +223,7 @@ void DCServo::controlLoop()
 #ifndef SIMULATE
             float limitedRefDiff = pwm - currentController->getLimitedRef();
 #else
-            float limitedRefDiff = pwm - std::min(std::max(pwm, -1023.0f), 1023.0f);
+            float limitedRefDiff = pwm - std::min(std::max(pwm, (int32_t)-1023), (int32_t)1023);
 #endif
             Ivel += L[2 + inertiaMargDisabled * 6] * (vControlRef - x[1]);
             Ivel -= L[3 + inertiaMargDisabled * 6] * (limitedRefDiff);
@@ -265,21 +265,21 @@ void DCServo::controlLoop()
 
             inertiaMargDisabled = std::abs(posDiff) <= inertiaMargDisableRange;
 
-            controlSignal = L[1 + inertiaMargDisabled * 6] * (vControlRef - x[1]) + Ivel;
+            controlSignal = clamp_cast<int16_t>(L[1 + inertiaMargDisabled * 6] * (vControlRef - x[1]) + Ivel);
 
             if (internalFeedForwardEnabled)
             {
-                controlSignal += controlConfig->calculateFeedForward(nextVelRef, velRef);
+                controlSignal += clamp_cast<int16_t>(controlConfig->calculateFeedForward(nextVelRef, velRef));
             }
 
             kalmanControlSignal = controlSignal;
 
-            controlSignal += feedForwardU;
+            controlSignal += clamp_cast<int16_t>(feedForwardU);
 #ifndef SIMULATE
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, vControlRef, x[1]);
             
-            currentController->setReference(clamp_cast<int16_t>(pwm));
+            currentController->setReference(pwm);
 #else
             pwm = controlSignal;
             currentController->setReference(0);
@@ -310,7 +310,9 @@ void DCServo::controlLoop()
             {
                 controlSignal = feedForwardU;
                 kalmanControlSignal = controlSignal;
-                currentController->setReference(clamp_cast<int16_t>(controlSignal));
+                uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
+                pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, 0.0f, x[1]);
+                currentController->setReference(pwm);
             }
             currentController->applyChanges();
             current = currentController->getCurrent();
@@ -338,7 +340,7 @@ void DCServo::controlLoop()
 #ifndef SIMULATE
     controlSignalAveraging.add(currentController->getLimitedRef() - pwm + controlSignal);
 #else
-    controlSignalAveraging.add(std::min(std::max(pwm, -1023.0f), 1023.0f) - pwm + controlSignal);
+    controlSignalAveraging.add(std::min(std::max(pwm, (int32_t)-1023), (int32_t)1023) - pwm + controlSignal);
 #endif
 
     currentAveraging.add(current);

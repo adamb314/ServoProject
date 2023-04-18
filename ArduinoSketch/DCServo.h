@@ -80,7 +80,7 @@ public:
     virtual const Eigen::Matrix3f& getA() = 0;
     virtual const Eigen::Vector3f& getB() = 0;
     virtual void limitVelocity(float& vel) = 0;
-    virtual float applyForceCompensations(float u, uint16_t rawEncPos, float velRef, float vel) = 0;
+    virtual int32_t applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) = 0;
     virtual float calculateFeedForward(float v1, float v0) = 0;
 
     virtual float getCycleTime()
@@ -110,7 +110,7 @@ public:
             B(B),
             b1Inv{1.0f / B[1]},
             maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
-            frictionComp(frictionComp),
+            frictionComp(std::round(frictionComp)),
             posDepForceCompVec(posDepForceCompVec)
     {}
 
@@ -135,10 +135,10 @@ public:
 
     static constexpr int vecSize = 512;
 
-    virtual float applyForceCompensations(float u, uint16_t rawEncPos, float velRef, float vel) override
+    virtual int32_t applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) override
     {
-        float out = u;
-        constexpr float eps = 1.0f;
+        int32_t out = u;
+        constexpr int32_t eps = 1;
 
         if (velRef > eps && vel >= -eps)
         {
@@ -173,7 +173,7 @@ private:
     Eigen::Matrix3f A;
     Eigen::Vector3f B;
     float b1Inv;
-    float frictionComp;
+    int16_t frictionComp;
     float maxVel;
     std::array<int16_t, vecSize> posDepForceCompVec;
     int fricCompDir{0};
@@ -303,7 +303,7 @@ class DCServo
 
     float Ivel{0.0f};
     float vControlRef{0.0f};
-    float pwm{0.0f};
+    int32_t pwm{0};
     bool pendingIntegralCalc{false};
 
     std::unique_ptr<CurrentController> currentController;

@@ -12,21 +12,21 @@
 class CurrentController
 {
 public:
-    virtual void setReference(int16_t ref) = 0;
+    virtual void setReference(int32_t ref) = 0;
 
     virtual void updateVelocity(float vel) {};
 
-    virtual void overidePwmDuty(int16_t pwm) = 0;
+    virtual void overidePwmDuty(int32_t pwm) = 0;
 
     virtual void activateBrake() = 0;
 
     virtual void applyChanges() = 0;
 
-    virtual int16_t getLimitedRef() = 0;
+    virtual int32_t getLimitedRef() = 0;
 
-    virtual int16_t getFilteredPwm() = 0;
+    virtual int32_t getFilteredPwm() = 0;
 
-    virtual int16_t getCurrent() = 0;
+    virtual int32_t getCurrent() = 0;
 };
 
 class CurrentControlLoop : public CurrentController
@@ -37,17 +37,17 @@ public:
 
     ~CurrentControlLoop();
 
-    void setReference(int16_t ref) override;
+    void setReference(int32_t ref) override;
 
-    int16_t getLimitedRef() override;
+    int32_t getLimitedRef() override;
 
-    void overidePwmDuty(int16_t pwm) override;
+    void overidePwmDuty(int32_t pwm) override;
 
-    int16_t getFilteredPwm() override;
+    int32_t getFilteredPwm() override;
 
     void activateBrake() override;
 
-    int16_t getCurrent() override;
+    int32_t getCurrent() override;
 
     void applyChanges();
 
@@ -59,17 +59,17 @@ private:
 
     bool newPwmOverrideValue;
     bool newBrakeValue;
-    int16_t newRefValue;
-    int16_t newUValue;
+    int32_t newRefValue;
+    int32_t newUValue;
 
     bool pwmOverride;
     bool brake;
-    int16_t ref;
-    int16_t y;
-    int16_t filteredY;
-    int16_t filteredPwm;
-    int16_t u;
-    int16_t limitedU;
+    int32_t ref;
+    int32_t y;
+    int32_t filteredY;
+    int32_t filteredPwm;
+    int32_t u;
+    int32_t limitedU;
     bool lastULimited;
     FunctionalWrapper<bool>* adcSampDoneCheck;
     std::vector<CodeBlocksThread*> threads;
@@ -85,21 +85,21 @@ public:
 
     ~CurrentControlModel();
 
-    void setReference(int16_t ref) override;
+    void setReference(int32_t ref) override;
 
     void updateVelocity(float vel) override;
 
-    void overidePwmDuty(int16_t pwm) override;
+    void overidePwmDuty(int32_t pwm) override;
 
     void activateBrake() override;
 
     void applyChanges() override;
 
-    int16_t getLimitedRef() override;
+    int32_t getLimitedRef() override;
 
-    int16_t getFilteredPwm() override;
+    int32_t getFilteredPwm() override;
 
-    int16_t getCurrent() override;
+    int32_t getCurrent() override;
 
 private:
     const float pwmToStallCurrent{1.0f};
@@ -109,12 +109,12 @@ private:
     std::unique_ptr<PwmHandler> pwmInstance;
     bool pwmOverride{true};
     bool brake{true};
-    int16_t ref{0};
-    int16_t y{0};
-    int16_t filteredY{0};
-    int16_t filteredPwm{0};
-    int16_t u{0};
-    int16_t limitedU{0};
+    int32_t ref{0};
+    int32_t y{0};
+    int32_t filteredY{0};
+    int32_t filteredPwm{0};
+    int32_t u{0};
+    int32_t limitedU{0};
     float vel{0.0f};
     bool lastULimited{false};
 };
