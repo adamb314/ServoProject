@@ -3,6 +3,7 @@ Module for calibrating the optical encoder
 '''
 # pylint: disable=too-many-lines, duplicate-code
 
+import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 @numba.jit(nopython=True)
@@ -1054,6 +1055,21 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 out = []
 
+                if os.path.isfile('optEncTestDataToLoad.txt'):
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.OK,
+                            text='Found file: "optEncTestDataToLoad.txt"!\n'
+                                'Aborting calibration and loading it instead.',
+                    )
+                    dialog.run()
+                    dialog.destroy()
+
+                    out = np.loadtxt('optEncTestDataToLoad.txt')
+                    doneRunning = True
+
                 def readResultHandlerFunction(dt, servoManager):
                     nonlocal t
                     nonlocal dirChangeWait
@@ -1112,6 +1128,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         GLib.idle_add(updateAnalyzingProgressBar, fraction)
 
                 if not shouldAbort():
+                    np.savetxt('lastOptEncTestData.txt', data)
                     try:
                         configFileAsString = ''
                         with open(configFilePath, "r", encoding='utf-8') as configFile:
