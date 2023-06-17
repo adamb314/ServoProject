@@ -203,9 +203,9 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
-    void setControlSpeed(unsigned char controlSpeed);
+    void setControlSpeed(unsigned char controlSpeed, double inertiaMarg = 1.0);
     void setControlSpeed(unsigned char controlSpeed, unsigned short int velControlSpeed,
-            unsigned short int filterSpeed);
+            unsigned short int filterSpeed, double inertiaMarg = 1.0);
 
     void setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
             double backlashCompensationCutOffSpeed, double backlashSize);
@@ -267,6 +267,7 @@ class DCServoCommunicator
     unsigned char controlSpeed{50};
     unsigned short int velControlSpeed{50 * 4};
     unsigned short int filterSpeed{50 * 32};
+    unsigned char inertiaMarg{0};
     unsigned char backlashCompensationSpeed{10};
     unsigned char backlashCompensationSpeedVelDecrease{0};
     unsigned char backlashSize{0};

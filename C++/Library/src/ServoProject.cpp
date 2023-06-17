@@ -387,17 +387,20 @@ void DCServoCommunicator::updateOffset()
     }
 }
 
-void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed)
+void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed, double inertiaMarg)
 {
-    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 32);
+    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 32, inertiaMarg);
 }
 
 void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed,
-        unsigned short int velControlSpeed, unsigned short int filterSpeed)
+        unsigned short int velControlSpeed, unsigned short int filterSpeed,
+        double inertiaMarg)
 {
     this->controlSpeed = controlSpeed;
     this->velControlSpeed = velControlSpeed;
     this->filterSpeed = filterSpeed;
+    inertiaMarg = std::min(std::max(inertiaMarg, 1.0), 1.0 + 255.0 / 128);
+    this->inertiaMarg = static_cast<unsigned char>(std::round((inertiaMarg - 1.0) * 128.0));
 }
 
 void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
@@ -623,6 +626,7 @@ void DCServoCommunicator::run()
         bus->write(3, static_cast<char>(controlSpeed));
         bus->write(4, static_cast<char>(std::round(velControlSpeed / 4.0)));
         bus->write(5, static_cast<char>(std::round(filterSpeed / 32.0)));
+        bus->write(10, static_cast<char>(inertiaMarg));
         bus->write(6, static_cast<char>(backlashCompensationSpeed));
         bus->write(7, static_cast<char>(backlashCompensationSpeedVelDecrease));
         bus->write(8, static_cast<char>(backlashSize));
@@ -661,6 +665,11 @@ void DCServoCommunicator::run()
         intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
         intReadBufferIndex10Upscaling.update(intReadBuffer[10]);
         intReadBufferIndex11Upscaling.update(intReadBuffer[11]);
+
+        if (loopNrReadActive)
+        {
+            remoteTimeHandler.update(charReadBuffer[11]);
+        }
     }
     else
     {
