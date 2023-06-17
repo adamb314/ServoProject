@@ -20,9 +20,11 @@ class ResistiveEncoderHandler : public EncoderHandlerInterface
 
     virtual float getValue() override;
 
-  private:
+  protected:
+    float getValue(uint16_t sensorValue);
+
     AnalogSampler sensor;
-    uint32_t sensorValue{0};
+    float value{0.0f};
     const float scaling;
     std::array<int16_t, vecSize> compVec;
     bool newData{false};

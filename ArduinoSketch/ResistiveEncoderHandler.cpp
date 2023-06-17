@@ -31,19 +31,24 @@ float ResistiveEncoderHandler::getValue()
     if (newData)
     {
         newData = false;
-        uint32_t newSensorValue = sensor.getValue() / 16;
+        uint32_t sensorValue = sensor.getValue() / 16;
 
-        if (scaling < 0)
-        {
-            newSensorValue = 0xfff - newSensorValue;
-        }
-
-        int32_t t = (newSensorValue * vecSize + 32) / 64;
-        size_t i = std::min(vecSize - 2, static_cast<size_t>(t / 64));
-        t -= i * 64;
-        newSensorValue -= (compVec[i] * (64 - t) + compVec[i + 1] * t + 32) / 64;
-
-        sensorValue = newSensorValue;
+        value = getValue(sensorValue);
     }
+    return value;
+}
+
+float ResistiveEncoderHandler::getValue(uint16_t sensorValue)
+{
+    if (scaling < 0)
+    {
+        sensorValue = 0xfff - sensorValue;
+    }
+
+    int32_t t = (sensorValue * vecSize + 32) / 64;
+    size_t i = std::min(vecSize - 2, static_cast<size_t>(t / 64));
+    t -= i * 64;
+    sensorValue -= (compVec[i] * (64 - t) + compVec[i + 1] * t + 32) / 64;
+
     return sensorValue * std::abs(scaling);
 }

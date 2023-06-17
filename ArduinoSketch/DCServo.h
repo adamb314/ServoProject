@@ -13,8 +13,6 @@
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
-//#define SIMULATE
-
 class ReferenceInterpolator
 {
  public:
@@ -280,10 +278,6 @@ class DCServo
     //x[1]: Estimated velocity
     //x[2]: Estimated load disturbance
     Eigen::Vector3f x;
-
-#ifdef SIMULATE
-    Eigen::Vector3f xSim;
-#endif
 
     int16_t current{0};
     int16_t pwmControlSignal{0};

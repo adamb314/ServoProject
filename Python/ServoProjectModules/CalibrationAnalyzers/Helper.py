@@ -173,7 +173,8 @@ def sign(v):
     return -1.0
 
 def getConfigClassString(configFileAsString, configClassName):
-    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\}(;\n+SimulationHandler\s+'
+            + configClassName + r'::simHandler)?)')
     temp = classPattern.search(configFileAsString)
     if not temp:
         return ''

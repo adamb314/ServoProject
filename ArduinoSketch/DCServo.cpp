@@ -29,10 +29,6 @@ void DCServo::init()
         outputEncoderHandler->init();
     }
 
-#ifdef SIMULATE
-    rawMainPos = 2048;
-    rawOutputPos = rawMainPos * 0.99f;
-#else
     mainEncoderHandler->triggerSample();
     if (outputEncoderHandler)
     {
@@ -48,7 +44,6 @@ void DCServo::init()
     {
         rawOutputPos = rawMainPos;
     }
-#endif
 
     initialOutputPosOffset = rawOutputPos - rawMainPos;
     outputPosOffset = initialOutputPosOffset;
@@ -56,10 +51,6 @@ void DCServo::init()
     x[0] = rawMainPos;
     x[1] = 0;
     x[2] = 0;
-
-#ifdef SIMULATE
-    xSim = x;
-#endif
 
     kalmanFilter->reset(x);
 
@@ -205,13 +196,11 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
 
 void DCServo::controlLoop()
 {
-#ifndef SIMULATE
     mainEncoderHandler->triggerSample();
     if (outputEncoderHandler)
     {
         outputEncoderHandler->triggerSample();
     }
-#endif
 
     float posRef;
     float velRef;
@@ -226,11 +215,7 @@ void DCServo::controlLoop()
     {
         if (pendingIntegralCalc)
         { 
-#ifndef SIMULATE
             float limitedRefDiff = pwm - currentController->getLimitedRef();
-#else
-            float limitedRefDiff = pwm - std::min(std::max(pwm, (int32_t)-1023), (int32_t)1023);
-#endif
             Ivel += L[2] * (vControlRef - x[1]);
             Ivel -= L[3] * (limitedRefDiff);
         }
@@ -248,15 +233,7 @@ void DCServo::controlLoop()
     }
     pendingIntegralCalc = false;
 
-#ifdef SIMULATE
-    float uSim = std::min(std::max(kalmanControlSignal, -1023.0f), 1023.0f);
-    xSim[0] += controlConfig->getA()(0, 1) * xSim[1] + controlConfig->getB()[0] * uSim;
-    xSim[1] = controlConfig->getA()(1, 1) * xSim[1] + controlConfig->getB()[1] * uSim;
-    constexpr float gearing = 10.0f / 1 * 11.0f / 62 * 14.0f / 48 * 13.0f / 45 * 1.0f / 42;
-    rawMainPos = static_cast<int32_t>(xSim[0] * (1.0f / gearing)) * gearing;
-#else
     rawMainPos = mainEncoderHandler->getValue();
-#endif
 
     x = kalmanFilter->update(rawMainPos);
 
@@ -279,15 +256,11 @@ void DCServo::controlLoop()
             kalmanControlSignal = controlSignal;
 
             controlSignal += clamp_cast<int16_t>(feedForwardU);
-#ifndef SIMULATE
+
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);
             
             currentController->setReference(pwm);
-#else
-            pwm = controlSignal;
-            currentController->setReference(0);
-#endif
 
             currentController->updateVelocity(x[1]);
             currentController->applyChanges();
@@ -339,17 +312,10 @@ void DCServo::controlLoop()
 
     kalmanFilter->postUpdate(kalmanControlSignal);
 
-#ifndef SIMULATE
     controlSignalAveraging.add(currentController->getLimitedRef() - pwm + controlSignal);
-#else
-    controlSignalAveraging.add(std::min(std::max(pwm, (int32_t)-1023), (int32_t)1023) - pwm + controlSignal);
-#endif
 
     currentAveraging.add(current);
 
-#ifdef SIMULATE
-    rawOutputPos = rawMainPos * 0.99f;
-#else
     if (outputEncoderHandler)
     {
         rawOutputPos = outputEncoderHandler->getValue();
@@ -358,7 +324,6 @@ void DCServo::controlLoop()
     {
         rawOutputPos = rawMainPos;
     }
-#endif
 
     if (controlEnabled && !openLoopControlMode && !onlyUseMainEncoderControl)
     {
