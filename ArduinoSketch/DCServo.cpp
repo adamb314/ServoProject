@@ -179,6 +179,12 @@ uint16_t DCServo::getLoopTime()
     return out;
 }
 
+uint16_t DCServo::getLoopNr()
+{
+    ThreadInterruptBlocker blocker;
+    return static_cast<uint16_t>(loopNr);;
+}
+
 float DCServo::getBacklashCompensation()
 {
     ThreadInterruptBlocker blocker;
@@ -385,6 +391,7 @@ void DCServo::controlLoop()
     }
 
     loopTime = std::max(loopTime, ThreadHandler::getInstance()->getTimingError());
+    loopNr += 1;
 }
 
 void DCServo::calculateAndUpdateLVector()

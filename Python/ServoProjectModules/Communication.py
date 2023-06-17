@@ -276,10 +276,11 @@ class ComDelayInt:
 
 class SimulateCommunication(SerialCommunication):
     class ServoSim:
-        def __init__(self, nodeNr, cycleTime=0.0, enableNoise=True):
+        def __init__(self, nodeNr, enableNoise=True):
             self.nodeNr = nodeNr
             self.pos = 1257.5
             self.vel = 0
+            self.loopNr = 0
             self.charArray = [0] * 16
             self.intArray = [0] * 16
 
@@ -287,6 +288,7 @@ class SimulateCommunication(SerialCommunication):
             self.comDelayedPos = ComDelayInt(delay=2, initValue=upscaledPos)
             self.comDelayedVel = ComDelayInt(delay=2, initValue=self.intArray[4])
             self.comDelayedForce = ComDelayInt(delay=2, initValue=self.intArray[5])
+            self.comDelayedLoopNr = ComDelayInt(delay=2, initValue=self.loopNr)
 
             self.activeSimForce = self.comDelayedForce.getLeft()
 
@@ -296,8 +298,8 @@ class SimulateCommunication(SerialCommunication):
 
             self.intArray[0] = self.intArray[3]
             self.timestamp = None
-            self.dt = cycleTime
             self.enableNoise = enableNoise
+            self.startTimeStamp = None
 
         def run(self):
             # pylint: disable=too-many-locals, too-many-statements, too-many-branches
@@ -307,6 +309,9 @@ class SimulateCommunication(SerialCommunication):
             maxFriction = 75
             b = 0.1
             pwmOffset = -575
+            servoLoopCycleTime = 0.0006
+
+            time.sleep(servoLoopCycleTime)
 
             dt = 0.0
             newTimestamp = time.monotonic()
@@ -314,8 +319,14 @@ class SimulateCommunication(SerialCommunication):
                 dt = newTimestamp - self.timestamp
             self.timestamp = newTimestamp
 
-            if self.dt > 0.0:
-                dt = round(dt / self.dt) * self.dt
+            if self.startTimeStamp is None:
+                self.startTimeStamp = newTimestamp
+
+            newLoopNr = int(round(((newTimestamp - self.startTimeStamp) / servoLoopCycleTime)))
+            nrOfLoops = newLoopNr - self.loopNr
+            self.loopNr = newLoopNr
+
+            dt = nrOfLoops * servoLoopCycleTime
 
             rawPwmMode = self.charArray[1] != 0
 
@@ -362,6 +373,7 @@ class SimulateCommunication(SerialCommunication):
             self.comDelayedPos.execute()
             self.comDelayedVel.execute()
             self.comDelayedForce.execute()
+            self.comDelayedLoopNr.execute()
 
             posNoise = 0.0
             velNoise = 0.0
@@ -371,6 +383,7 @@ class SimulateCommunication(SerialCommunication):
             self.comDelayedPos.setRight(int(round(self.pos * 32 + posNoise)))
             self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel * (1.0 + velNoise))))
             self.comDelayedForce.setRight(toUnsignedInt16(round(force)))
+            self.comDelayedLoopNr.setRight(self.loopNr % 256)
 
             # optical encoder simulation
             optEncPos = self.comDelayedPos.getLeft() / 32 * gearRatio
@@ -399,6 +412,7 @@ class SimulateCommunication(SerialCommunication):
             self.intArray[4] = self.comDelayedVel.getLeft()
             self.intArray[5] = self.comDelayedForce.getLeft()
             self.intArray[7] = self.intArray[5]
+            self.charArray[11] = self.comDelayedLoopNr.getLeft()
 
         def handleCommunication(self, port: SimulatedSerialPort):
             #pylint: disable=too-many-branches, too-many-statements
@@ -506,16 +520,15 @@ class SimulateCommunication(SerialCommunication):
                 self.intArray = intArrayBuffer
                 self.charArray = charArrayBuffer
 
-    def __init__(self, cycleTime=0.0, enableNoise=True):
+    def __init__(self, enableNoise=True):
         super().__init__('')
         self.port = SimulatedSerialPort()
         self.servoSims = []
-        self.dt = cycleTime
         self.enableNoise = enableNoise
 
     def execute(self):
         while len(self.servoSims) < self.nodeNr:
-            newServo = self.ServoSim(self.nodeNr, self.dt, self.enableNoise)
+            newServo = self.ServoSim(self.nodeNr, self.enableNoise)
             self.servoSims.append(newServo)
         servo = self.servoSims[self.nodeNr - 1]
         servo.run()
@@ -549,6 +562,64 @@ class DCServoCommunicator:
         minCostIndex: int = 0
         minCost: int = 0
 
+    class ControlLoopSyncedTimeHandler:
+        us200 = 200 / 1000000
+
+        def __init__(self):
+            self.initDataList = []
+            self.loopCycleTime = None
+            self.lastRemoteTime = 0
+
+        def isInitialized(self):
+            return self.loopCycleTime is not None
+
+        def initialize(self, loopNr):
+            if self.isInitialized():
+                return True
+
+            if len(self.initDataList) < 20:
+                self.initDataList.append([time.time(), loopNr])
+                return False
+
+            listOfDt = []
+            for d in zip(self.initDataList[1:], self.initDataList[0:-1]):
+                localTimeDiff = d[0][0] - d[1][0]
+                loopNrDiff = (d[0][1] - d[1][1] + 128) % 256 - 128
+
+                if loopNrDiff == 0:
+                    continue
+
+                listOfDt.append(localTimeDiff / loopNrDiff);
+
+            temp = sorted(listOfDt)[len(listOfDt)//4:-len(listOfDt)//4]
+            if len(temp) == 0:
+                self.loopCycleTime = -1
+                return True
+
+            self.loopCycleTime = sum(temp) / len(temp)
+            self.loopCycleTime = round(self.loopCycleTime / self.us200) * self.us200
+            return True
+
+        def update(self, loopNr):
+            localTime = time.time()
+
+            if self.loopCycleTime == -1:
+                self.lastRemoteTime = localTime
+                return
+
+            localTimeDiff = localTime - self.initDataList[-1][0]
+
+            nrOfLoops = ((loopNr - self.initDataList[-1][1]) % 256)
+            nrOfLoops += round((localTimeDiff / self.loopCycleTime - nrOfLoops) / 256) * 256;
+
+            self.lastRemoteTime += nrOfLoops * self.loopCycleTime;
+
+            self.initDataList[-1][0] = localTime
+            self.initDataList[-1][1] = loopNr
+
+        def get(self):
+            return self.lastRemoteTime
+
     def __init__(self, nodeNr, bus):
         self.activeIntReads = [True] * 16
         self.activeCharReads = [True] * 16
@@ -557,6 +628,7 @@ class DCServoCommunicator:
 
         self.communicationIsOk = False
         self.initState = 0
+        self.remoteTimeHandler = self.ControlLoopSyncedTimeHandler()
         self.backlashControlDisabled = False
         self.newPositionReference = False
         self.newOpenLoopControlSignal = False
@@ -634,7 +706,7 @@ class DCServoCommunicator:
         self.backlashControlDisabled = b
 
     def isInitComplete(self):
-        return self.initState == 10
+        return self.initState >= 10 and self.remoteTimeHandler.isInitialized()
 
     def isCommunicationOk(self):
         return self.communicationIsOk
@@ -712,6 +784,10 @@ class DCServoCommunicator:
         self.activeIntReads[9] = True
         return self.loopTime
 
+    def getTime(self):
+        self.activeCharReads[11] = True
+        return self.remoteTimeHandler.get()
+
     def getBacklashCompensation(self):
         self.activeIntReads[11] = True
         return self.scale * self.backlashCompensation
@@ -742,6 +818,8 @@ class DCServoCommunicator:
         for i, d in enumerate(self.activeCharReads):
             if d:
                 self.bus.requestReadChar(i)
+
+        loopNrReadActive = self.activeCharReads[11]
 
         # handle writes
         if self.isInitComplete():
@@ -793,6 +871,9 @@ class DCServoCommunicator:
             self.intReadBufferIndex3Upscaling.update(self.intReadBuffer[3])
             self.intReadBufferIndex10Upscaling.update(self.intReadBuffer[10])
             self.intReadBufferIndex11Upscaling.update(self.intReadBuffer[11])
+
+            if loopNrReadActive:
+                self.remoteTimeHandler.update(self.charReadBuffer[11])
         else:
             upscaledPos = toUnsignedInt16(self.intReadBuffer[3]) + toUnsignedChar(self.charReadBuffer[9]) * 2**16
             if upscaledPos >= 2**23:
@@ -823,6 +904,8 @@ class DCServoCommunicator:
         # handle initialization
         if not self.isInitComplete():
             self.initState += 1
+
+            self.remoteTimeHandler.initialize(self.charReadBuffer[11])
 
             pos = 0.0
             if not self.backlashControlDisabled:

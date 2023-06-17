@@ -240,6 +240,8 @@ class DCServoCommunicator
 
     short int getLoopTime() const;
 
+    double getTime() const;
+
     float getBacklashCompensation() const;
 
     OpticalEncoderChannelData getOpticalEncoderChannelData() const;
@@ -250,7 +252,38 @@ class DCServoCommunicator
 
     void run();
 
-  private:
+private:
+    class ControlLoopSyncedTimeHandler
+    {
+    public:
+        ControlLoopSyncedTimeHandler();
+
+        bool isInitialized() const;
+
+        bool initialize(unsigned char loopNr);
+
+        void update(unsigned char loopNr);
+
+        double get() const;
+
+        double getLocalTime() const;
+
+    private:
+        class InitData
+        {
+        public:
+            double localTime;
+            unsigned char loopNr;
+        };
+
+        constexpr static double us200 = 200.0 / 1000000;
+
+        mutable std::chrono::high_resolution_clock::time_point initTimePoint;
+        std::vector<InitData> initDataList;
+        double loopCycleTime{0.0};
+        double lastRemoteTime{0.0};
+    };
+
     void updateOffset();
 
     Communication* bus{nullptr};
@@ -259,6 +292,7 @@ class DCServoCommunicator
     bool communicationIsOk{false};
 
     int initState{0};
+    ControlLoopSyncedTimeHandler remoteTimeHandler;
     bool backlashControlDisabled{false};
     bool newPositionReference{false};
     bool newOpenLoopControlSignal{false};

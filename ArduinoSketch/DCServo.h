@@ -238,6 +238,8 @@ class DCServo
 
     uint16_t getLoopTime();
 
+    uint16_t getLoopNr();
+
     float getBacklashCompensation();
 
     float getMainEncoderPosition();
@@ -279,6 +281,7 @@ class DCServo
     Eigen::Matrix<float, 7, 1> L;
 
     uint32_t loopTime{0};
+    uint32_t loopNr{0};
     float rawMainPos{0.0f};
     float rawOutputPos{0.0f};
     int forceDir{0};

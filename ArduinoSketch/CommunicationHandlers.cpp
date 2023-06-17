@@ -110,6 +110,8 @@ void DCServoCommunicationHandler::onComCycleEvent()
         CommunicationNode::intArray[14] = opticalEncoderChannelData.c;
         CommunicationNode::intArray[15] = opticalEncoderChannelData.d;
 
+        CommunicationNode::charArray[11] = static_cast<char>(dcServo->getLoopNr());
+
         dcServo->triggerReferenceTiming();
     }
 

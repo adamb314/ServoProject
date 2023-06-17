@@ -426,7 +426,7 @@ void DCServoCommunicator::disableBacklashControl(bool b)
 
 bool DCServoCommunicator::isInitComplete() const
 {
-    return initState == 10;
+    return initState >= 10 and remoteTimeHandler.isInitialized();
 }
 
 bool DCServoCommunicator::isCommunicationOk() const
@@ -555,6 +555,12 @@ short int DCServoCommunicator::getLoopTime() const
     return loopTime;
 }
 
+double DCServoCommunicator::getTime() const
+{
+    activeCharReads[11] = true;
+    return remoteTimeHandler.get();
+}
+
 float DCServoCommunicator::getBacklashCompensation() const
 {
     activeIntReads[11] = true;
@@ -599,6 +605,8 @@ void DCServoCommunicator::run()
             bus->requestReadChar(i);
         }
     }
+
+    bool loopNrReadActive = activeCharReads[11];
 
     if (isInitComplete())
     {
@@ -719,6 +727,8 @@ void DCServoCommunicator::run()
     {
         ++initState;
 
+        remoteTimeHandler.initialize(charReadBuffer[11]);
+
         float pos;
         if (!backlashControlDisabled)
         {
@@ -740,6 +750,106 @@ void DCServoCommunicator::run()
             updateOffset();
         }
     }
+}
+
+DCServoCommunicator::ControlLoopSyncedTimeHandler::ControlLoopSyncedTimeHandler()
+{
+}
+
+bool DCServoCommunicator::ControlLoopSyncedTimeHandler::isInitialized() const
+{
+    return loopCycleTime != 0.0;
+}
+
+bool DCServoCommunicator::ControlLoopSyncedTimeHandler::initialize(unsigned char loopNr)
+{
+    if (isInitialized())
+    {
+        return true;
+    }
+
+    if (initDataList.size() < 20)
+    {
+        initDataList.push_back(InitData{getLocalTime(), loopNr});
+        return false;
+    }
+
+    std::vector<double> listOfDt;
+    for (size_t i = 0; i != initDataList.size() - 1; ++i)
+    {
+        const auto& d0 = initDataList[i];
+        const auto& d1 = initDataList[i + 1];
+        double localTimeDiff = d1.localTime - d0.localTime;
+        char loopNrDiff = static_cast<char>(d1.loopNr - d0.loopNr);
+
+        if (loopNrDiff == 0)
+        {
+            continue;
+        }
+
+        listOfDt.push_back(localTimeDiff / loopNrDiff);
+    }
+
+    std::sort(listOfDt.begin(), listOfDt.end());
+
+    size_t cutI = listOfDt.size() / 4;
+    listOfDt = std::vector<double>{listOfDt.begin() + cutI, listOfDt.end() - cutI};
+
+    if (listOfDt.size() == 0)
+    {
+        loopCycleTime = -1.0;
+        return true;
+    }
+
+    loopCycleTime = 0.0;
+    for (auto dt : listOfDt)
+    {
+        loopCycleTime += dt;
+    }
+    loopCycleTime /= listOfDt.size();
+    loopCycleTime = std::round(loopCycleTime / us200) * us200;
+    return true;
+}
+
+void DCServoCommunicator::ControlLoopSyncedTimeHandler::update(unsigned char loopNr)
+{
+    double localTime = getLocalTime();
+
+    if (loopCycleTime == -1.0)
+    {
+        lastRemoteTime = localTime;
+        return;
+    }
+
+    double localTimeDiff = localTime - initDataList.back().localTime;
+
+    unsigned long nrOfLoops = static_cast<unsigned char>(loopNr - initDataList.back().loopNr);
+    nrOfLoops += std::round((localTimeDiff / loopCycleTime - nrOfLoops) / 256) * 256;
+
+    lastRemoteTime += nrOfLoops * loopCycleTime;
+
+    initDataList.back().localTime = localTime;
+    initDataList.back().loopNr = loopNr;
+}
+
+double DCServoCommunicator::ControlLoopSyncedTimeHandler::get() const
+{
+  return lastRemoteTime;
+}
+
+double DCServoCommunicator::ControlLoopSyncedTimeHandler::getLocalTime() const
+{
+    using namespace std::chrono;
+
+    if (initDataList.size() == 0)
+    {
+        initTimePoint = high_resolution_clock::now();
+        return 0.0;
+    }
+
+    double localTime = std::chrono::duration<double>(high_resolution_clock::now()
+            - initTimePoint).count();
+    return localTime;
 }
 
 ServoManager::ServoManager(double cycleTime,
