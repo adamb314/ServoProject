@@ -189,21 +189,54 @@ class OpticalEncoderDataVectorGenerator:
             shouldAbort=None, updateProgress=None):
         # pylint: disable=too-many-locals, too-many-branches, too-many-statements
 
-        self.data = data[:, 0:2]
+        self.data = data[:, 0:3]
         self.noiseDepresMemLenght = noiseDepresMemLenght
         self.constVelIndex = constVelIndex
 
         self.shouldAbort = shouldAbort
         self.updateProgress = updateProgress
 
-        a0 = self.data[0, 0]
-        b0 = self.data[0, 1]
+        def removeSensorTrends(vec, trendLength=2000):
+            def getAvgMinMax(vec, p):
+                temp = sorted(vec)
+                l = max(1, int(len(temp) * p))
+                return np.mean(temp[0:l]), np.mean(temp[-l:])
+            xi = []
+            avgMin = []
+            avgMax = []
+            segNr = len(vec) // trendLength
+            for i in range(self.constVelIndex // trendLength + 1, segNr):
+                l = len(vec) // segNr
+                minVal, maxVal = getAvgMinMax(vec[i*l:(i+1)*l], 0.01)
+                xi.append((i+0.5)*l)
+                avgMin.append(minVal)
+                avgMax.append(maxVal)
+
+            minFun = PiecewiseLinearFunction(xi, avgMin)
+            maxFun = PiecewiseLinearFunction(xi, avgMax)
+            minRef = minFun.getY(0)
+            maxRef = maxFun.getY(0)
+            refDiff = maxRef - minRef
+
+            def rescale(i, val):
+                minVal = minFun.getY(i)
+                maxVal = maxFun.getY(i)
+                valDiff = maxVal - minVal
+                return refDiff / valDiff * (val - maxVal) + maxRef
+
+            return np.array([rescale(i, v) for i, v in enumerate(vec)])
+
+        self.data[:, 1] = removeSensorTrends(self.data[:, 1])
+        self.data[:, 2] = removeSensorTrends(self.data[:, 2])
+
+        a0 = self.data[0, 1]
+        b0 = self.data[0, 2]
         armed = 0
         startOfFirstRotation = None
         endOfFirstRotation = None
-        meanCost = sum(((d[0] - a0)**2 + (d[1] -b0)**2 for d in self.data[0:constVelIndex, 0:2])) / constVelIndex
+        meanCost = sum(((d[0] - a0)**2 + (d[1] -b0)**2 for d in self.data[0:constVelIndex, 1:3])) / constVelIndex
 
-        for i, d in enumerate(self.data[0:constVelIndex, 0:2]):
+        for i, d in enumerate(self.data[0:constVelIndex, 1:3]):
             c = (d[0] - a0)**2 + (d[1] -b0)**2
 
             if startOfFirstRotation is None:
@@ -228,10 +261,10 @@ class OpticalEncoderDataVectorGenerator:
         firstRotationLenght = endOfFirstRotation - startOfFirstRotation
         dirNoiseDepresMemLenght = int(math.ceil(firstRotationLenght / 10))
 
-        self.a0 = self.data[startIndex, 0]
-        self.b0 = self.data[startIndex, 1]
-        self.a1 = self.data[startIndex + dirNoiseDepresMemLenght, 0]
-        self.b1 = self.data[startIndex + dirNoiseDepresMemLenght, 1]
+        self.a0 = self.data[startIndex, 1]
+        self.b0 = self.data[startIndex, 2]
+        self.a1 = self.data[startIndex + dirNoiseDepresMemLenght, 1]
+        self.b1 = self.data[startIndex + dirNoiseDepresMemLenght, 2]
 
         self.aVecList = []
         self.bVecList = []
@@ -240,26 +273,25 @@ class OpticalEncoderDataVectorGenerator:
         bVecMean = np.zeros(segment)
 
         def filterOutStationarySegments(data):
+            def calcCov(a1, b1, a0, b0):
+                return (a1 - a0)**2 + (b1 - b0)**2
+
             filteredData = []
             filterSeg = []
             for d in data:
                 if len(filterSeg) < 10:
-                    filterSeg.append([d[0], d[1]])
+                    filterSeg.append(d)
                 else:
-                    cov = 0
                     s = filterSeg[0]
-                    for e in filterSeg[1:]:
-                        cov += (e[0] - s[0])**2
-                        cov += (e[1] - s[1])**2
+                    cov = sum((calcCov(d[1], d[2], s[1], s[2]) for d in filterSeg[1:]))
 
                     if cov > 10000:
-                        for d in filterSeg:
-                            filteredData.append(d)
+                        filteredData += filterSeg
 
                     filterSeg = []
             return filteredData
 
-        filteredData = filterOutStationarySegments(data)
+        filteredData = filterOutStationarySegments(self.data)
         filteredData = np.array(filteredData[constVelIndex:])
         nr = int(len(filteredData) / segment)
 
@@ -270,9 +302,8 @@ class OpticalEncoderDataVectorGenerator:
                     return
 
             try:
-                aVec, bVec = self.genVec(filteredData[segment * i: segment * (i + 1)], 1.0 / nr * 0.9, i / nr * 0.9)
-                aVec = np.array(shrinkArray(aVec, 4096))
-                bVec = np.array(shrinkArray(bVec, 4096))
+                dataSeg = filteredData[segment * i: segment * (i + 1)]
+                aVec, bVec = self.genVec(dataSeg, 1.0 / nr * 0.9, i / nr * 0.9)
 
                 self.aVecList.append(aVec)
                 self.bVecList.append(bVec)
@@ -354,8 +385,10 @@ class OpticalEncoderDataVectorGenerator:
 
         self.mergedAVectors = mergedAVectors
         self.mergedBVectors = mergedBVectors
-        self.aVec = np.array(shrinkArray(self.mergedAVectors, 2048))
-        self.bVec = np.array(shrinkArray(self.mergedBVectors, 2048))
+        aVec = np.array(shrinkArray(self.mergedAVectors, 1024, True))
+        bVec = np.array(shrinkArray(self.mergedBVectors, 1024, True))
+        self.aVec = [PiecewiseLinearFunction(np.arange(0, 2048, 2), aVec).getY(x) for x in range(0, 2048)]
+        self.bVec = [PiecewiseLinearFunction(np.arange(0, 2048, 2), bVec).getY(x) for x in range(0, 2048)]
 
         self.oldAVec = None
         self.oldBVec = None
@@ -396,6 +429,7 @@ class OpticalEncoderDataVectorGenerator:
             aVec.append(self.a0)
             bVec.append(self.b0)
 
+        data = data[:, 1:3]
         modData = data[:]
         wrapIndex = 0
 
@@ -410,7 +444,7 @@ class OpticalEncoderDataVectorGenerator:
 
             minIndex, done, wrapIndex = findBestFitt(data, modData, aVec, bVec, self.noiseDepresMemLenght)
 
-            if done:
+            if done and wrapIndex >= self.noiseDepresMemLenght:
                 break
 
             aVec.append(modData[minIndex, 0])
@@ -418,9 +452,11 @@ class OpticalEncoderDataVectorGenerator:
 
             modData = np.delete(modData, minIndex, 0)
 
+        wrapIndex = max(wrapIndex, self.noiseDepresMemLenght * 2)
+
         temp = []
         for d in modData:
-            temp.append(d[0:2])
+            temp.append(d)
         for d in zip(aVec[self.noiseDepresMemLenght:wrapIndex], bVec[self.noiseDepresMemLenght:wrapIndex]):
             temp.append(np.array(d))
         modData = np.array(temp)
@@ -460,28 +496,31 @@ class OpticalEncoderDataVectorGenerator:
 
         return (np.array(aVec), np.array(bVec))
 
-    def showAdditionalDiagnosticPlots(self):
+    def getAdditionalDiagnostics(self):
         # pylint: disable=too-many-locals, too-many-statements
         sensorValueOffset = 0
         predictNextPos = 0
         iAtLastOffsetUpdate = 0
         lastMinCostIndex = 0
+        
+        vecSize = len(self.aVec)
 
-        def calcCost(i, a, b, aVec, bVec):
-            vecSize = len(aVec)
-
-            if i >= vecSize:
+        def calcWrapAroundIndex(i):
+            while i >= vecSize:
                 i -= vecSize
-            elif i < 0:
+            while i < 0:
                 i += vecSize
 
+            return i
+
+        def calcCost(i, a, b, aVec, bVec):
             tempA = aVec[i] - a
             tempA = tempA * tempA
 
             tempB = bVec[i] - b
             tempB = tempB * tempB
 
-            return (tempA + tempB, i)
+            return tempA + tempB
 
         def calculatePosition(ca, cb, aVec, bVec):
             # pylint: disable=too-many-locals, too-many-statements
@@ -492,31 +531,23 @@ class OpticalEncoderDataVectorGenerator:
 
             sensor1Value = ca
             sensor2Value = cb
-            vecSize = len(aVec)
 
-            #int16_t offset = sensorValueOffset
-            diagnosticDataA = sensor1Value
-            diagnosticDataB = sensor2Value
-            #sensor1Value -= offset
-            #sensor2Value -= offset
+            stepSize = vecSize // 2
 
-            stepSize = int(vecSize / 2.0 + 1)
+            bestI = predictNextPos
+            bestCost = calcCost(bestI, sensor1Value, sensor2Value, aVec, bVec)
 
-            i = predictNextPos
-            cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
-
-            bestI = i
-            bestCost = cost
-
-            i += stepSize
-            while i < vecSize:
-                cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
+            i = bestI + stepSize
+            while i < vecSize + bestI:
+                cost = calcCost(calcWrapAroundIndex(i), sensor1Value, sensor2Value, aVec, bVec)
 
                 if cost < bestCost:
                     bestI = i
                     bestCost = cost
 
                 i += stepSize
+
+            bestI = calcWrapAroundIndex(bestI);
 
             checkDir = 1
 
@@ -530,9 +561,9 @@ class OpticalEncoderDataVectorGenerator:
                     if stepSize == 0:
                         stepSize = 1
 
-                i += stepSize * checkDir
+                i = calcWrapAroundIndex(i + stepSize * checkDir)
 
-                cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
+                cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
                 if cost < bestCost:
                     bestI = i
@@ -542,39 +573,51 @@ class OpticalEncoderDataVectorGenerator:
 
                     continue
 
-                i -= 2 * stepSize * checkDir
+                i = calcWrapAroundIndex(i - 2 * stepSize * checkDir)
 
-                cost, i = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
+                cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
                 if cost < bestCost:
                     bestI = i
                     bestCost = cost
 
-            bestI = int(bestI)
-
-            if abs(bestI - iAtLastOffsetUpdate) > (vecSize / 10):
-                iAtLastOffsetUpdate = bestI
-
-                a = aVec[bestI]
-                b = bVec[bestI]
-                currentOffset = (diagnosticDataA - a + diagnosticDataB - b) / 2
-
-                sensorValueOffset = 0.95 * sensorValueOffset + 0.05 * currentOffset
-
             lastMinCostIndexChange = bestI - lastMinCostIndex
             lastMinCostIndex = bestI
-            predictNextPos = bestI + lastMinCostIndexChange
-            while predictNextPos >= vecSize:
-                predictNextPos -= vecSize
-            while predictNextPos < 0:
-                predictNextPos += vecSize
+            predictNextPos = calcWrapAroundIndex(bestI + lastMinCostIndexChange)
 
             return (bestI, bestCost)
 
+        positions = []
+        minCosts = []
+        chA = []
+        chB = []
+        chADiffs = []
+        chBDiffs = []
+        for _, a, b in self.data:
+            pos, cost = calculatePosition(a, b, self.aVec, self.bVec)
+            positions.append(pos)
+            minCosts.append(cost / 16)
+            chA.append(self.aVec[pos])
+            chB.append(self.bVec[pos])
+            chADiffs.append(a - self.aVec[pos])
+            chBDiffs.append(b - self.bVec[pos])
+
+        time = self.data[:, 0]
+        velocities = [((p2 - p0 + vecSize//2) % vecSize - vecSize//2) / (t2 - t0)
+                for p2, p0, t2, t0
+                    in zip(positions[2:], positions[0:-2], time[2:], time[0:-2])]
+        velocities = [0] + velocities + [0]
+
+        return time, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs)
+
+    def showAdditionalDiagnosticPlots(self):
         fig = plt.figure(1)
         fig.suptitle('Merged sensor characteristic vectors')
-        plt.plot(self.mergedAVectors, 'r-')
-        plt.plot(self.mergedBVectors, 'g-')
+        x = np.arange(len(self.mergedAVectors)) * len(self.aVec) / len(self.mergedAVectors)
+        plt.plot(x, self.mergedAVectors, 'r+')
+        plt.plot(x, self.mergedBVectors, 'g+')
+        plt.plot(self.aVec, 'm-')
+        plt.plot(self.bVec, 'c-')
 
         fig = plt.figure(2)
         fig.suptitle('Partial sensor characteristic vectors')
@@ -585,50 +628,30 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(self.aVec, 'r-')
         plt.plot(self.bVec, 'g-')
 
-        positions = []
-        minCosts = []
-        diffs = []
-        chA = []
-        chB = []
-        chADiffs = []
-        chBDiffs = []
-        lastPos = None
-        for d in self.data:
-            pos, cost = calculatePosition(d[0], d[1], self.aVec, self.bVec)
-            positions.append(pos)
-            minCosts.append(cost)
-            chA.append(self.aVec[pos])
-            chB.append(self.bVec[pos])
-            chADiffs.append(d[0] - self.aVec[pos])
-            chBDiffs.append(d[1] - self.bVec[pos])
-            if lastPos is None:
-                lastPos = pos
-            diff = pos - lastPos
-            diffs.append(diff - int(round(diff / 2048)) * 2048)
-            lastPos = pos
+        time, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs) = self.getAdditionalDiagnostics()
 
         fig = plt.figure(3)
         fig.suptitle('Encoder position')
-        plt.plot(positions)
+        plt.plot(time, positions)
 
         fig = plt.figure(4)
         fig.suptitle('Min fitting cost')
-        plt.plot(minCosts)
+        plt.plot(time, minCosts)
 
         fig = plt.figure(5)
-        fig.suptitle('Encoder pfosition diff between samples')
-        plt.plot(diffs)
+        fig.suptitle('Encoder velocity')
+        plt.plot(time, velocities)
 
         fig = plt.figure(6)
         fig.suptitle('Min fitting cost over encoder position')
         plt.plot(positions, minCosts, ',')
 
         fig = plt.figure(7)
-        fig.suptitle('Position diff between samples over encoder position')
-        plt.plot(positions, diffs, ',')
+        fig.suptitle('Velocity samples over encoder position')
+        plt.plot(positions, velocities, '+', alpha=0.5)
 
-        a = self.data[:,0]
-        b = self.data[:,1]
+        a = self.data[:,1]
+        b = self.data[:,2]
         c = []
         for d in zip(a, b):
             c.append(math.sqrt((d[0]**2 + d[1]**2) / 2))
@@ -643,6 +666,11 @@ class OpticalEncoderDataVectorGenerator:
         fig.suptitle('Diff between real sensor values and expected values')
         plt.plot(chADiffs, 'r')
         plt.plot(chBDiffs, 'g')
+
+        fig = plt.figure(10)
+        fig.suptitle('Diff between real sensor values and expected values over encoder position')
+        plt.plot(positions, chADiffs, 'r+', alpha=0.5)
+        plt.plot(positions, chBDiffs, 'g+', alpha=0.5)
 
         plt.show()
 
@@ -777,7 +805,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal runThread
 
         try:
-            with createServoManager(nodeNr, port) as servoManager:
+            def initFun(servoArray):
+                servoArray[0].setControlSpeed(8, 8 * 4, 80 * 4 * 8, inertiaMarg=2.0)
+
+            with createServoManager(nodeNr, port, dt=0.0042) as servoManager:
                 t = 0.0
                 doneRunning = False
                 pwmDir = 1
@@ -803,7 +834,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             moveDir = 1
                             pwmDir *= -1
 
-                    servo.setOpenLoopControlSignal(pwm * pwmDir, True)
+                    if pwm != 0.0:
+                        servo.setOpenLoopControlSignal(pwm * pwmDir, True)
 
                 out = []
 
@@ -814,7 +846,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     t += dt
                     servo = servoManager.servoArray[0]
                     opticalEncoderData = servo.getOpticalEncoderChannelData()
-                    out.append([t,
+                    out.append([servo.getTime(),
                             opticalEncoderData.a,
                             opticalEncoderData.b,
                             opticalEncoderData.minCostIndex,
@@ -886,8 +918,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                         fig = plt.figure(6)
                         fig.suptitle('Sensor values over encoder position')
-                        plt.plot(data[:, 3], data[:, 1], 'r')
-                        plt.plot(data[:, 3], data[:, 2], 'g')
+                        plt.plot(data[:, 3], data[:, 1], 'r+')
+                        plt.plot(data[:, 3], data[:, 2], 'g+')
 
                         fig = plt.figure(7)
                         fig.suptitle('Output encoder position')
@@ -936,7 +968,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal runThread
 
         try:
-            with createServoManager(nodeNr, port) as servoManager:
+            with createServoManager(nodeNr, port, dt=0.0042) as servoManager:
 
                 def handleResults(opticalEncoderDataVectorGenerator):
                     dialog = Gtk.MessageDialog(
@@ -1049,9 +1081,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     if t > (runTime - 10) * 0.5 and moveDir == 0:
                         moveDir = 1
                         pwmDir *= -1
-                        dirChangeWait = 4.0
+                        dirChangeWait = 2.0
 
-                    servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
+                    if pwm != 0.0:
+                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
 
                 out = []
 
@@ -1078,7 +1111,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     servo = servoManager.servoArray[0]
                     opticalEncoderData = servo.getOpticalEncoderChannelData()
                     if t > 0.1 and dirChangeWait <= 0.0:
-                        out.append([t,
+                        out.append([servo.getTime(),
                                 opticalEncoderData.a,
                                 opticalEncoderData.b,
                                 opticalEncoderData.minCostIndex,
@@ -1135,7 +1168,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             configFileAsString = configFile.read()
 
                         opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                data[:, 1:3], configFileAsString, configClassName, constVelIndex=4000,
+                                data, configFileAsString, configClassName, constVelIndex=4000,
                                 segment=2 * 2048, noiseDepresMemLenght=8,
                                 shouldAbort=shouldAbort,
                                 updateProgress=updateProgress)

@@ -5,15 +5,19 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>
     EncoderHandlerInterface(unitsPerRev),
     aVec(aVec), bVec(bVec),
     sensor1(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
-    scaling(unitsPerRev * (1.0f / 4096.0f))
+    sensor1Sec(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2Sec(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
+    scaling(unitsPerRev * (1.0f / vecSize))
 {
+    sensor1Scaler.init(this->aVec);
+    sensor2Scaler.init(this->bVec);
 }
 
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
         int16_t sensor1Pin, int16_t sensor2Pin, float unitsPerRev) :
     EncoderHandlerInterface(unitsPerRev),
     sensor1(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
-    scaling(unitsPerRev * (1.0f / 4096.0f))
+    sensor1Sec(sensor1Pin, ADC_CTRLB_PRESCALER_DIV16_Val), sensor2Sec(sensor2Pin, ADC_CTRLB_PRESCALER_DIV16_Val),
+    scaling(unitsPerRev * (1.0f / vecSize))
 {
     constexpr size_t s = static_cast<int>(vecSize / 512);
     for (size_t i = 0; i != 512; ++i)
@@ -24,6 +28,9 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aV
             this->bVec[s * i + j] = bVec[i];
         }
     }
+
+    sensor1Scaler.init(this->aVec);
+    sensor2Scaler.init(this->bVec);
 }
 
 OpticalEncoderHandler::~OpticalEncoderHandler()
@@ -40,8 +47,18 @@ void OpticalEncoderHandler::init()
 
 void OpticalEncoderHandler::triggerSample()
 {
-    sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
-    sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
+    if (sampleSensor1First)
+    {
+        sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+        sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
+        sensor1Sec.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+    }
+    else
+    {
+        sensor2.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+        sensor1.triggerSample(ADC_AVGCTRL_SAMPLENUM_16_Val);
+        sensor2Sec.triggerSample(ADC_AVGCTRL_SAMPLENUM_8_Val);
+    }
 
     newData = true;
 }
@@ -50,14 +67,68 @@ float OpticalEncoderHandler::getValue()
 {
     if (newData)
     {
-        sensor1Value = sensor1.getValue() / 4;
-        sensor2Value = sensor2.getValue() / 4;
-
         newData = false;
-        updatePosition();
+
+        uint16_t sensor1Value;
+        uint16_t sensor2Value;
+
+        if (sampleSensor1First)
+        {
+            sensor1Value = sensor1.getValue();
+            sensor2Value = sensor2.getValue();
+            sensor1Value += sensor1Sec.getValue();
+        }
+        else
+        {
+            sensor2Value = sensor2.getValue();
+            sensor1Value = sensor1.getValue();
+            sensor2Value += sensor2Sec.getValue();
+        }
+        sampleSensor1First = !sampleSensor1First;
+
+        sensor1Value /= 4;
+        sensor2Value /= 4;
+
+        value = getValue(sensor1Value, sensor2Value);
     }
 
-    return (value + wrapAroundCorretion) * scaling;
+    return value;
+}
+
+float OpticalEncoderHandler::getValue(uint16_t sensor1Value, uint16_t sensor2Value)
+{
+    diagnosticData.a = sensor1Value;
+    diagnosticData.b = sensor2Value;
+    sensor1Value = sensor1Scaler.get(sensor1Value);
+    sensor2Value = sensor2Scaler.get(sensor2Value);
+
+    int32_t newPos;
+    uint32_t cost;
+    std::tie(newPos, cost) = calcPosition(sensor1Value, sensor2Value, predictNextPos);
+    predictNextPos = newPos;
+
+    sensor1Scaler.update(newPos, diagnosticData.a);
+    sensor2Scaler.update(newPos, diagnosticData.b);
+
+    diagnosticData.c = newPos;
+    cost = cost / 16;
+    if (cost > diagnosticData.d)
+    {
+        diagnosticData.d = cost;
+    }
+
+    if (newPos - pos > vecSize / 2)
+    {
+        wrapAroundCorretion -= vecSize;
+    }
+    else if (newPos - pos < -vecSize / 2)
+    {
+        wrapAroundCorretion += vecSize;
+    }
+
+    pos = newPos;
+
+    return (pos + wrapAroundCorretion) * scaling;
 }
 
 uint16_t OpticalEncoderHandler::getUnscaledRawValue()
@@ -72,135 +143,219 @@ EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData
     return out;
 }
 
-void OpticalEncoderHandler::updatePosition()
+std::tuple<int32_t, uint32_t> OpticalEncoderHandler::calcPosition(
+        uint16_t sensor1Value, uint16_t sensor2Value, int32_t predictNextPos)
 {
-    int16_t offset = sensorValueOffset / 16;
-    diagnosticData.a = sensor1Value;
-    diagnosticData.b = sensor2Value;
-    sensor1Value -= offset;
-    sensor2Value -= offset;
-
-    int stepSize = static_cast<int>(vecSize / 2.0f + 1);
-
-    int i = predictNextPos;
-    uint32_t cost = calcCost(i, sensor1Value, sensor2Value);
-
-    int bestI = i;
-    uint32_t bestCost = cost;
-
-    i += stepSize;
-    while (i < vecSize)
-    {
-        cost = calcCost(i, sensor1Value, sensor2Value);
-
-        if (cost < bestCost)
+    auto chooseOne = [](int ifTrue, int ifFalse, bool b)
         {
-            bestI = i;
-            bestCost = cost;
-        }
+            return ifTrue * b + ifFalse * !b;
+        };
 
-        i += stepSize;
+    auto calcWrapAroundIndex = [&](int i)
+        {
+            return i - (static_cast<int>(i / vecSize) - 1 * (i < 0)) * vecSize;
+        };
+
+    auto calcCost = [&](int i, uint16_t a, uint16_t b)
+        {
+            uint32_t tempA;
+            tempA = aVec[i] - a;
+            tempA = tempA * tempA;
+
+            uint32_t tempB;
+            tempB = bVec[i] - b;
+            tempB = tempB * tempB;
+
+            return tempA + tempB;
+        };
+
+    int stepSize = vecSize / 2;
+
+    int bestI = predictNextPos;
+    uint32_t bestCost = calcCost(bestI, sensor1Value, sensor2Value);
+
+    int i = bestI + stepSize;
+    uint32_t cost;
+    while (i < vecSize + bestI)
+    {
+        cost = calcCost(calcWrapAroundIndex(i), sensor1Value, sensor2Value);
+
+        bool temp = cost < bestCost;
+        bestCost = chooseOne(cost, bestCost, temp);
+        bestI = chooseOne(i, bestI, temp);
+
+        i = i + stepSize;
     }
 
-    int checkDir = 1;
+    bestI = calcWrapAroundIndex(bestI);
 
     while (stepSize != 1)
     {
-        i = bestI;
+        int newStepSize = stepSize / 2;
+        stepSize = chooseOne(1, newStepSize, newStepSize == 0);
 
-        stepSize = stepSize / 2;
-        if (stepSize == 0)
-        {
-            stepSize = 1;
-        }
+        int iPos = calcWrapAroundIndex(bestI + stepSize);
+        int costPos = calcCost(iPos, sensor1Value, sensor2Value);
 
-        i += stepSize * checkDir;
+        int iNeg = calcWrapAroundIndex(bestI - stepSize);
+        int costNeg = calcCost(iNeg, sensor1Value, sensor2Value);
 
-        cost = calcCost(i, sensor1Value, sensor2Value);
+        bool temp = costPos < costNeg;
+        iPos = chooseOne(iPos, iNeg, temp);
+        costPos = chooseOne(costPos, costNeg, temp);
 
-        if (cost < bestCost)
-        {
-            bestI = i;
-            bestCost = cost;
-
-            checkDir *= -1;
-
-            continue;
-        }
-
-        i -= 2 * stepSize * checkDir;
-
-        cost = calcCost(i, sensor1Value, sensor2Value);
-
-        if (cost < bestCost)
-        {
-            bestI = i;
-            bestCost = cost;
-        }
+        temp = costPos < bestCost;
+        bestCost = chooseOne(costPos, bestCost, temp);
+        bestI = chooseOne(iPos, bestI, temp);
     }
 
-    if (std::abs(bestI - iAtLastOffsetUpdate) > (vecSize / 10))
-    {
-        iAtLastOffsetUpdate = bestI;
-
-        const uint16_t& a = aVec[bestI];
-        const uint16_t& b = bVec[bestI];
-        int16_t currentOffset = (diagnosticData.a - a + diagnosticData.b - b) / 2;
-
-        sensorValueOffset = (15 * sensorValueOffset) / 16 + currentOffset;
-    }
-
-    int lastMinCostIndexChange = bestI - lastMinCostIndex;
-    lastMinCostIndex = bestI;
-    predictNextPos = bestI + lastMinCostIndexChange;
-    while (predictNextPos >= vecSize)
-    {
-        predictNextPos -= vecSize;
-    }
-    while (predictNextPos < 0)
-    {
-        predictNextPos += vecSize;
-    }
-
-    diagnosticData.c = bestI;
-    bestCost = bestCost / 16;
-    if (bestCost > diagnosticData.d)
-    {
-        diagnosticData.d = bestCost;
-    }
-
-    float newValue = bestI * (4096.0f / vecSize);
-
-    if (newValue - value > 4096 / 2)
-    {
-        wrapAroundCorretion -= 4096;
-    }
-    else if (newValue - value < -4096 / 2)
-    {
-        wrapAroundCorretion += 4096;
-    }
-
-    value = newValue;
+    return std::make_tuple(bestI, bestCost);
 }
 
-uint32_t OpticalEncoderHandler::calcCost(int& i, uint16_t a, uint16_t b)
+ValueScaler::ValueScaler(int32_t minOut, int32_t maxOut, int32_t minIn, int32_t maxIn)
 {
-    if (i >= vecSize)
+    init(minOut, maxOut, minIn, maxIn);
+}
+
+void ValueScaler::init(int32_t minOut, int32_t maxOut, int32_t minIn, int32_t maxIn)
+{
+    this->minOut = minOut;
+    this->maxOut = maxOut;
+    int32_t outMinMaxDiff = maxOut- minOut;
+    initInMinMaxDiff = maxIn - minIn;
+    outOverInitInDiff16FixPoint = (outMinMaxDiff * one16FixPoint) / initInMinMaxDiff;
+    oneOverInitInDiff30FixPoint = (one14FixPoint * one16FixPoint) / initInMinMaxDiff;
+    approxInputRangeUpdate(minIn, maxIn);
+}
+
+void ValueScaler::approxInputRangeUpdate(int32_t min, int32_t max)
+{
+    minIn = min;
+    maxIn = max;
+    int32_t valueMinMaxDiff = maxIn - minIn;
+    initInAndInDiffDiff = valueMinMaxDiff - initInMinMaxDiff;
+}
+
+int32_t ValueScaler::getOutput(int32_t input)
+{
+    //int32_t outMinMaxDiff = maxOut- minOut;
+    //int32_t valueMinMaxDiff = maxIn - minIn;
+    //return (outMinMaxDiff * (input - minIn)) / valueMinMaxDiff + minOut;
+    // out = (outMinMaxDiff / valueMinMaxDiff) * (input - minIn) + minOut = 
+    //     = outOverInitInDiff * (initInMinMaxDiff / valueMinMaxDiff) * (input - minIn) + minOut = 
+    //     = outOverInitInDiff * (initInMinMaxDiff / (initInMinMaxDiff + initInAndInDiffDiff)) * (input - minIn) + minOut
+    // taylor linearization of div =>
+    // (1 - (1/initInMinMaxDiff) * initInAndInDiffDiff) * (input - minIn)) + minOut
+    return ((((one16FixPoint - (oneOverInitInDiff30FixPoint * initInAndInDiffDiff) / one14FixPoint)
+            * (input - maxIn)) / one16FixPoint) * outOverInitInDiff16FixPoint) / one16FixPoint + maxOut;
+}
+
+void OpticalEncoderHandler::OpticalSensorValueScaler::init(const std::array<uint16_t, vecSize>& refVec)
+{
+    pointerToRefVec = &refVec;
+    minRef = (1<<16);
+    maxRef = 0;
+    for (int i = 0; i != vecSize; ++i)
     {
-        i -= vecSize;
+        const auto& v = refVec[i];
+        if (v <= minRef)
+        {
+            minRef = v;
+            iAtMinRef = i;
+        }
+        if (v >= maxRef)
+        {
+            maxRef = v;
+            iAtMaxRef = i;
+        }
     }
-    else if (i < 0)
+
+    minVal = minRef;
+    maxVal = maxRef;
+
+    valueScaler.init(minRef, maxRef, minVal, maxVal);
+    diffAtMinRefAverager.reset(minVal);
+    diffAtMaxRefAverager.reset(maxVal);
+
+    int32_t minSum = 0;
+    int32_t minSumNr = 0;
+    int32_t maxSum = 0;
+    int32_t maxSumNr = 0;
+    for (int i = 0; i != vecSize; ++i)
     {
-        i += vecSize;
+        const auto& v = refVec[i];
+        if (std::abs(calcIndexDiff(i, iAtMinRef)) < indexDelta)
+        {
+            minSum += minRef - v;
+            minSumNr += 1;
+        }
+        else if (std::abs(calcIndexDiff(i, iAtMaxRef)) < indexDelta)
+        {
+            maxSum += maxRef - v;
+            maxSumNr += 1;
+        }
+    }
+    minAvgCorr = ((minSum / minSumNr) * (maxVal - minVal)) / (maxRef - minRef);
+    maxAvgCorr = ((maxSum / maxSumNr) * (maxVal - minVal)) / (maxRef - minRef);
+}
+
+uint16_t OpticalEncoderHandler::OpticalSensorValueScaler::get(uint16_t value)
+{
+    return std::max(valueScaler.getOutput(value), (int32_t)0); 
+}
+
+
+void OpticalEncoderHandler::OpticalSensorValueScaler::update(int i, uint16_t value)
+{
+    int iDiffFromMin = calcIndexDiff(i, iAtMinRef);
+    if (std::abs(iDiffFromMin) < indexDelta)
+    {
+        int sign = 1 - 2 * (moveBeforeMinUpdate < 0);
+        if (abs(moveBeforeMinUpdate) > iDiffFromMin * sign + indexDelta)
+        {
+            moveBeforeMinUpdate -= sign * indexDelta / 16;
+            diffAtMinRefAverager.add(value + minAvgCorr);
+        } 
+    }
+    else
+    {
+        if (abs(moveBeforeMinUpdate) < indexDelta &&
+                (iDiffFromMin < 0) != (moveBeforeMinUpdate < 0))
+        {
+            minVal = diffAtMinRefAverager.get();
+        }
+        moveBeforeMinUpdate = indexDelta * 2 * (1 - 2 * (iDiffFromMin < 0));
+        diffAtMinRefAverager.reset(minVal);
     }
 
-    uint32_t tempA;
-    tempA = aVec[i] - a;
-    tempA = tempA * tempA;
+    int iDiffFromMax = calcIndexDiff(i, iAtMaxRef);
+    if (std::abs(iDiffFromMax) < indexDelta)
+    {
+        int sign = 1 - 2 * (moveBeforeMaxUpdate < 0);
+        if (abs(moveBeforeMaxUpdate) > iDiffFromMax * sign + indexDelta)
+        {
+            moveBeforeMaxUpdate -= sign * indexDelta / 16;
+            diffAtMaxRefAverager.add(value + maxAvgCorr);
+        } 
+    }
+    else
+    {
+        if (abs(moveBeforeMaxUpdate) < indexDelta &&
+                (iDiffFromMax < 0) != (moveBeforeMaxUpdate < 0))
+        {
+            maxVal = diffAtMaxRefAverager.get();
+        }
+        moveBeforeMaxUpdate = indexDelta * 2 * (1 - 2 * (iDiffFromMax < 0));
+        diffAtMaxRefAverager.reset(maxVal);
+    }
 
-    uint32_t tempB;
-    tempB = bVec[i] - b;
-    tempB = tempB * tempB;
+    valueScaler.approxInputRangeUpdate(minVal, maxVal);
+}
 
-    return tempA + tempB;
+int OpticalEncoderHandler::OpticalSensorValueScaler::calcIndexDiff(int i, int j)
+{
+    int diff = i - j;
+    diff = static_cast<int16_t>(static_cast<uint16_t>(diff) * wrapAroundBitShift)
+            / wrapAroundBitShift;
+    return diff;
 }

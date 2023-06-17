@@ -48,7 +48,73 @@ def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
 
     return servoManager
 
-def shrinkArray(a, size, median = False):
+def median(vec):
+    if len(vec) == 0:
+        return math.nan
+    sortedVec = sorted([v for v in vec])
+    i = len(vec)//2-1
+    if len(vec) % 2 == 1:
+        return sortedVec[i]
+    return sum(sortedVec[i:i+2])/2
+
+def meanIgnoringNan(x):
+    skipNan = [v for v in x if not math.isnan(v)]
+    return np.mean(skipNan)
+
+def calcSpikeResistantAvarage(vec, excluded=0.33):
+    if len(vec) == 0:
+        return math.nan
+    vec = sorted(vec)
+    excludeIndex = int(len(vec) * excluded)
+    if excludeIndex > 0:
+        vec = vec[excludeIndex - 1:-excludeIndex]
+    return sum(vec) / len(vec)
+
+def slidingAvarageFiltering(y, filterN):
+    y = list(y)
+
+    if filterN <= 1:
+        return y
+
+    filterN = max(1, filterN // 2)
+    return [meanIgnoringNan(
+            y[min(i-filterN, 0):0]
+            + y[max(i-filterN, 0):min(i+filterN+1, len(y))]
+            + y[0:max(0, i+filterN+1-len(y))]) for i in range(0, len(y))]
+
+
+def fftFilter(tt, yy, freqCut, minFreqCut=0, upSampleTt=None):
+    mean = meanIgnoringNan(yy)
+    yy = [mean if math.isnan(v) else v for v in yy]
+    tt = np.array(tt)
+    yy = np.array(yy)
+
+    l = len(tt)
+    ff = np.fft.fftfreq(l, (tt[1]-tt[0]))   # assume uniform spacing
+    fyy = np.fft.fft(yy)
+
+    for i, f in enumerate(ff):
+        if abs(f) > freqCut:
+            fyy[i] = 0.0
+        elif abs(f) < minFreqCut:
+            fyy[i] = 0.0
+
+    if upSampleTt is None:
+        return np.real(np.fft.ifft(fyy))
+
+    def symbolicRepOfTtToYy(tt):
+        #x[n] = 1/N * sum{k=0 to N-1} X[k] * exp(j * 2*pi * k * n / N)
+
+        yy = tt * 0
+        N = l
+        for k in range(0, len(ff)):
+            yy = yy + 1 / N * fyy[k] * np.exp(2j * math.pi * ff[k] * tt)
+
+        return yy
+
+    return np.real(symbolicRepOfTtToYy(upSampleTt))
+
+def shrinkArray(a, size, useMedian = False):
     if len(a) <= size:
         return a
 
@@ -63,12 +129,11 @@ def shrinkArray(a, size, median = False):
         if nextIndex > len(a):
             nextIndex = len(a)
 
-        sortedSubA = sorted(a[int(index): int(nextIndex)])
-        if median and len(sortedSubA) > 1:
-            i = int(len(sortedSubA) / 2 - 0.49)
-            sortedSubA = sortedSubA[i: -i]
-
-        newA.append(sum(sortedSubA) / len(sortedSubA))
+        subA = a[int(index): int(nextIndex)]
+        if useMedian:
+            newA.append(median(subA))
+        else:
+            newA.append(sum(subA) / len(subA))
         index = nextIndex
 
     return newA
