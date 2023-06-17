@@ -8,25 +8,12 @@
 #include "OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
 #include "clamp_cast.h"
+#include "SampleAveragingHandler.h"
 
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
 
 //#define SIMULATE
-
-template <typename T, int maxN>
-class SampleAveragingHandler
-{
-public:
-    void add(T v);
-    T get();
-
-private:
-    bool valueRead{false};
-    T sum{};
-    T halfSampleSum{};
-    int n{0};
-};
 
 class ReferenceInterpolator
 {
@@ -301,8 +288,8 @@ class DCServo
     int16_t current{0};
     int16_t pwmControlSignal{0};
     float kalmanControlSignal{0.0f};
-    SampleAveragingHandler<int32_t, 8> currentAveraging;
-    SampleAveragingHandler<int32_t, 8> controlSignalAveraging;
+    SampleAveragingHandler<int32_t, 32> currentAveraging;
+    SampleAveragingHandler<int32_t, 32> controlSignalAveraging;
 
     ReferenceInterpolator refInterpolator;
 
@@ -319,48 +306,5 @@ class DCServo
 
     std::vector<Thread*> threads;
 };
-
-template <typename T, int maxN>
-void SampleAveragingHandler<T, maxN>::add(T v)
-{
-    ThreadInterruptBlocker blocker;
-
-    if (valueRead)
-    {
-        valueRead = false;
-        n = 0;
-        sum = 0;
-        halfSampleSum = 0;
-    }
-
-    if (n >= maxN)
-    {
-        sum = halfSampleSum;
-        halfSampleSum = 0;
-        n = maxN / 2;
-    }
-
-    if (n >= maxN / 2)
-    {
-        halfSampleSum += v;
-    }
-
-    ++n;
-    sum += v;
-}
-
-template <typename T, int maxN>
-T SampleAveragingHandler<T, maxN>::get()
-{
-    T tempSum;
-    int tempN;
-    {
-        ThreadInterruptBlocker blocker;
-        tempSum = sum;
-        tempN = n;
-        valueRead = true;
-    }
-    return tempSum / tempN;
-}
 
 #endif
