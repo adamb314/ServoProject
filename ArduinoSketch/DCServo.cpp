@@ -366,7 +366,8 @@ void DCServo::controlLoop()
         if (backlashControlGainDelayCounter == 0)
         {
             backlashControlGainDelayCounter = backlashControlGainCycleDelay;
-            backlashControlGain = L[4] * (0.1f + 0.9f * std::max(0.0f, 1.0f - L[5] * std::abs(velRef)));
+            backlashControlGain = L[4] * (10 * 100 +
+                    90 * std::max((int32_t)0, 100 - static_cast<int32_t>(L[5]) * std::abs(static_cast<int32_t>(velRef))));
         }
         backlashControlGainDelayCounter--;
 
@@ -428,8 +429,8 @@ void DCServo::calculateAndUpdateLVector()
 
     std::tie(tempL[1], tempL[2], tempL[3]) = calculateVelContolParams(a, b, velControlPole, inertiaMarg);
 
-    tempL[4] = backlashControlSpeed * controlConfig->getCycleTime();
-    tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
+    tempL[4] = backlashControlSpeed * controlConfig->getCycleTime() / 100.0f / 100.0f;
+    tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) * 100.0f;
     tempL[6] = backlashSize;
 
     float velControlPoleAtInertiaMarg = 0.5f * (a - b * tempL[1] / inertiaMarg + 1.0f);
