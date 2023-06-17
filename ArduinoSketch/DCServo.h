@@ -140,26 +140,33 @@ public:
         int32_t out = u;
         constexpr int32_t eps = 1;
 
-        if (velRef > eps && vel >= -eps)
+        if (velRef > 0)
         {
-            fricCompDir = 1;
+            if (vel > 0)
+            {
+                fricCompDir = 1;
+            }
+            else if (vel < -eps)
+            {
+                fricCompDir = 0;
+            }
         }
-        else if (velRef < -eps && vel <= eps)
+        else if (velRef < 0)
         {
-            fricCompDir = -1;
-        }
-
-        if (fricCompDir == 1)
-        {
-            out += frictionComp;
-        }
-        else if (fricCompDir == -1)
-        {
-            out -= frictionComp;
+            if (vel < 0)
+            {
+                fricCompDir = -1;
+            }
+            else if (vel > eps)
+            {
+                fricCompDir = 0;
+            }
         }
 
         size_t i = (rawEncPos * vecSize) / 4096;
+
         out += posDepForceCompVec[i];
+        out += frictionComp * fricCompDir;
 
         return out;
     }
@@ -261,8 +268,6 @@ class DCServo
     float backlashControlGain{0.0f};
 
     float inertiaMarg{1.0f};
-    bool inertiaMargDisabled{false};
-    static constexpr float inertiaMargDisableRange{0.5f / 32};
 
     //L[0]: Proportional gain of position control loop
     //L[1]: Proportional gain of velocity control loop
@@ -271,10 +276,7 @@ class DCServo
     //L[4]: Backlash compensation integral action gain
     //L[5]: Backlash compensation velocity dependent gain
     //L[6]: Backlash size
-    //L[7]: inertiaMargDisabled proportional gain of velocity control loop
-    //L[8]: inertiaMargDisabled integral action gain of velocity control loop
-    //L[9]: inertiaMargDisabled integral anti windup gain of velocity control loop
-    Eigen::Matrix<float, 10, 1> L;
+    Eigen::Matrix<float, 7, 1> L;
 
     uint32_t loopTime{0};
     float rawMainPos{0.0f};

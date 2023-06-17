@@ -225,8 +225,8 @@ void DCServo::controlLoop()
 #else
             float limitedRefDiff = pwm - std::min(std::max(pwm, (int32_t)-1023), (int32_t)1023);
 #endif
-            Ivel += L[2 + inertiaMargDisabled * 6] * (vControlRef - x[1]);
-            Ivel -= L[3 + inertiaMargDisabled * 6] * (limitedRefDiff);
+            Ivel += L[2] * (vControlRef - x[1]);
+            Ivel -= L[3] * (limitedRefDiff);
         }
 
         std::tie(posRef, velRef, feedForwardU) = refInterpolator.get();
@@ -263,9 +263,7 @@ void DCServo::controlLoop()
             vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
 
-            inertiaMargDisabled = std::abs(posDiff) <= inertiaMargDisableRange;
-
-            controlSignal = clamp_cast<int16_t>(L[1 + inertiaMargDisabled * 6] * (vControlRef - x[1]) + Ivel);
+            controlSignal = clamp_cast<int16_t>(L[1] * (vControlRef - x[1]) + Ivel);
 
             if (internalFeedForwardEnabled)
             {
@@ -277,7 +275,7 @@ void DCServo::controlLoop()
             controlSignal += clamp_cast<int16_t>(feedForwardU);
 #ifndef SIMULATE
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
-            pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, vControlRef, x[1]);
+            pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);
             
             currentController->setReference(pwm);
 #else
@@ -296,7 +294,6 @@ void DCServo::controlLoop()
         else
         {
             Ivel = 0.0f;
-            inertiaMargDisabled = false;
             outputPosOffset = rawOutputPos - rawMainPos;
             backlashControlGainDelayCounter = 0;
 
@@ -324,7 +321,6 @@ void DCServo::controlLoop()
         refInterpolator.resetTiming();
         loadNewReference(rawOutputPos, 0.0f, 0.0f);
         Ivel = 0.0f;
-        inertiaMargDisabled = false;
         outputPosOffset = rawOutputPos - rawMainPos;
         backlashControlGainDelayCounter = 0.0f;
         controlSignal = 0.0f;
@@ -428,8 +424,6 @@ void DCServo::calculateAndUpdateLVector()
     tempL[4] = backlashControlSpeed * controlConfig->getCycleTime();
     tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) ;
     tempL[6] = backlashSize;
-
-    std::tie(tempL[7], tempL[8], tempL[9]) = calculateVelContolParams(a, b, velControlPole, 1.0);
 
     float velControlPoleAtInertiaMarg = 0.5f * (a - b * tempL[1] / inertiaMarg + 1.0f);
     uint16_t minFilterSpeed = std::round(-log(velControlPoleAtInertiaMarg) / dt * 8.0f);

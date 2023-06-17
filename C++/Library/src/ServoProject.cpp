@@ -439,7 +439,18 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     newPositionReference = true;
     newOpenLoopControlSignal = false;
     refPos = std::round((pos - offset) / scale * positionUpscaling);
+
+    int sign = 0;
+    if (vel > 0.0f)
+    {
+        sign = 1;
+    }
+    else if (vel < 0.0f)
+    {
+        sign = -1;
+    }
     refVel = std::round(vel / scale);
+    refVel = std::max(1, std::abs(refVel)) * sign;
 
     if (refVel > 4)
     {

@@ -644,6 +644,7 @@ class DCServoCommunicator:
         self.newOpenLoopControlSignal = False
         self.refPos = round((pos - self.offset) / self.scale * self.positionUpscaling)
         self.refVel = round(vel / self.scale)
+        self.refVel = max(1, abs(self.refVel)) * (1 if self.refVel > 0 else (-1 if self.refVel < 0 else 0))
 
         if self.refVel > 4:
             self.frictionCompensation = abs(self.frictionCompensation)
