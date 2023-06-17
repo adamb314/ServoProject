@@ -94,21 +94,21 @@ protected:
         char c;
         boost::asio::deadline_timer timer;
         bool read_error;
-     
-        // Called when an async read completes or has been cancelled
+
+           // Called when an async read completes or has been cancelled
         void read_complete(const boost::system::error_code& error,
                             size_t bytes_transferred);
-     
-        // Called when the timer's deadline expires.
+
+           // Called when the timer's deadline expires.
         void time_out(const boost::system::error_code& error);
-     
-    public:
-     
-        // Constructs a blocking reader, pass in an open serial_port and
+
+       public:
+
+           // Constructs a blocking reader, pass in an open serial_port and
         // a timeout in milliseconds.
         blocking_reader(boost::asio::serial_port& port, size_t timeout);
-     
-        // Reads a character or times out
+
+           // Reads a character or times out
         // returns false if the read times out
         bool read_char(char& val);
     };
@@ -187,7 +187,7 @@ class ContinuousValueUpCaster
 
 class DCServoCommunicator
 {
-  public:
+public:
     class OpticalEncoderChannelData
     {
     public:

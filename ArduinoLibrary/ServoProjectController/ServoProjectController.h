@@ -249,7 +249,7 @@ class ContinuousValueUpCaster
 
 class DCServoCommunicator
 {
-  public:
+public:
     class OpticalEncoderChannelData
     {
     public:
@@ -312,7 +312,7 @@ class DCServoCommunicator
 
     CommunicationError run();
 
-  private:
+private:
     void updateOffset();
 
     Communication* bus{nullptr};

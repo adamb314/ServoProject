@@ -670,7 +670,6 @@ void DCServoCommunicator::run()
     {
         if (activeCharReads[i])
         {
-
             if (isInitComplete())
             {
                 activeCharReads[i] = false;
