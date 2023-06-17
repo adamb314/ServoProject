@@ -75,6 +75,11 @@ public:
 
         float contineusA = (1.0f - A(1, 1)) / A(0, 1);
 
+        if (contineusA <= 0.01f)
+        {
+            return A(0, 1);
+        }
+
         return -log(A(1, 1)) / contineusA;
     }
 
