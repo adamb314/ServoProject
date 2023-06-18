@@ -51,8 +51,6 @@ public:
 
     virtual float getValue() override;
 
-    static int32_t calcWrapAroundIndex(int32_t i);
-
     SimulationHandler& simHandler;
     const float gearingInv;
 };

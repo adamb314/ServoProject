@@ -48,15 +48,14 @@ void SimulationHandler::update()
         }
 
         int16_t out = std::max(0, std::abs(in) - pwmOffset) * maxPwm / (maxPwm - pwmOffset);
-        int16_t sign = (1 - 2 * (in < 0));
-        return out * sign;
+        return out * adam_std::sign(in);
     };
 
     float uSim = pwmToTorque(pwm);
 
     uSim = pwmToStallCurrent * uSim + backEmfCurrent * xSim[1] * std::abs(uSim);
 
-    float uSimFric = uSim - friction * (1 - 2 * (xSim[1] < 0));
+    float uSimFric = uSim - friction * adam_std::sign(xSim[1]);
 
     float newVel = aSim(1, 1) * xSim[1] + bSim[1] * uSimFric;
 
@@ -99,7 +98,7 @@ float OpticalEncoderSim::getValue()
         newData = false;
 
         int32_t motorPos = static_cast<int32_t>(simHandler.getPosition() * gearingInv);
-        motorPos = calcWrapAroundIndex(motorPos);
+        motorPos = adam_std::wrapAround<vecSize>(motorPos);
 
         uint16_t sensor1Value = simHandler.aVec[motorPos];
         uint16_t sensor2Value = simHandler.bVec[motorPos];
@@ -108,11 +107,6 @@ float OpticalEncoderSim::getValue()
     }
 
     return value;
-}
-
-int32_t OpticalEncoderSim::calcWrapAroundIndex(int32_t i)
-{
-    return i - (static_cast<int32_t>(i / vecSize) - 1 * (i < 0)) * vecSize;
 }
 
 ResistiveEncoderSim::ResistiveEncoderSim(SimulationHandler& simHandler, int16_t pin, float unitsPerRev,

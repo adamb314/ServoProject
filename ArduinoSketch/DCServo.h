@@ -7,7 +7,7 @@
 #include "EncoderHandler.h"
 #include "OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
-#include "clamp_cast.h"
+#include "adam_stl.h"
 #include "SampleAveragingHandler.h"
 
 #ifndef DC_SERVO_H

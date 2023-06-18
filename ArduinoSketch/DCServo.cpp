@@ -143,7 +143,7 @@ float DCServo::getPosition()
 int16_t DCServo::getVelocity()
 {
     ThreadInterruptBlocker blocker;
-    return clamp_cast<int16_t>(x[1]);
+    return adam_std::clamp_cast<int16_t>(x[1]);
 }
 
 int16_t DCServo::getControlSignal()
@@ -165,7 +165,7 @@ int16_t DCServo::getPwmControlSignal()
 uint16_t DCServo::getLoopTime()
 {
     ThreadInterruptBlocker blocker;
-    auto out = clamp_cast<uint16_t>(loopTime);
+    auto out = adam_std::clamp_cast<uint16_t>(loopTime);
     loopTime = 0;
     return out;
 }
@@ -173,7 +173,7 @@ uint16_t DCServo::getLoopTime()
 uint16_t DCServo::getLoopNr()
 {
     ThreadInterruptBlocker blocker;
-    return static_cast<uint16_t>(loopNr);;
+    return static_cast<uint16_t>(loopNr);
 }
 
 float DCServo::getBacklashCompensation()
@@ -246,16 +246,16 @@ void DCServo::controlLoop()
             vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
 
-            controlSignal = clamp_cast<int16_t>(L[1] * (vControlRef - x[1]) + Ivel);
+            controlSignal = adam_std::clamp_cast<int16_t>(L[1] * (vControlRef - x[1]) + Ivel);
 
             if (internalFeedForwardEnabled)
             {
-                controlSignal += clamp_cast<int16_t>(controlConfig->calculateFeedForward(nextVelRef, velRef));
+                controlSignal += adam_std::clamp_cast<int16_t>(controlConfig->calculateFeedForward(nextVelRef, velRef));
             }
 
             kalmanControlSignal = controlSignal;
 
-            controlSignal += clamp_cast<int16_t>(feedForwardU);
+            controlSignal += adam_std::clamp_cast<int16_t>(feedForwardU);
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);

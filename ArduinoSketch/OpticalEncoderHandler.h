@@ -1,6 +1,7 @@
 #ifndef OPTICAL_ENCODER_HANDLER_H
 #define OPTICAL_ENCODER_HANDLER_H
 
+#include "adam_stl.h"
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
 #include "PwmHandler.h"
@@ -65,9 +66,6 @@ protected:
         void update(int i, uint16_t value);
 
     private:
-        int calcIndexDiff(int i, int j);
-
-        static constexpr uint16_t wrapAroundBitShift = (1 << 16) / vecSize;
         static constexpr int indexDelta = 128;
 
         const std::array<uint16_t, vecSize>* pointerToRefVec{nullptr};
