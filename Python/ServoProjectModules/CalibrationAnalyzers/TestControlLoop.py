@@ -192,6 +192,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
 
             with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
                 t = 0.0
+                pRef = 0.0
+                vRef = 0.0
                 doneRunning = False
 
                 servoManager.servoArray[0].getPosition(False)
@@ -199,13 +201,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                 moveHandler = SmoothMoveHandler(posOffset, 0.4)
 
                 def sendCommandHandlerFunction(dt, servoManager):
+                    nonlocal pRef
+                    nonlocal vRef
                     servo = servoManager.servoArray[0]
 
                     with threadMutex:
                         moveHandler.set(refPos + posOffset, refVel)
 
-                    p, v = moveHandler.getNextRef(dt)
-                    servo.setReference(p, v, 0)
+                    pRef, vRef = moveHandler.getNextRef(dt)
+                    servo.setReference(pRef, vRef, 0)
 
                 out = []
 
@@ -228,7 +232,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                     servo = servoManager.servoArray[0]
                     p = servo.getPosition(True)
                     v = servo.getVelocity()
-                    u = servo.getControlSignal()
+                    u = servo.getPwmControlSignal()
                     error = servo.getControlError(True)
                     motorError = servo.getControlError(False)
                     optData = servo.getOpticalEncoderChannelData()
@@ -238,7 +242,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                             u,
                             optData.minCostIndex,
                             optData.minCost,
-                            refPos + posOffset])
+                            refPos + posOffset,
+                            vRef])
 
                     GLib.idle_add(updateStatusLabel,
                             f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
