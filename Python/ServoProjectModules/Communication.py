@@ -380,8 +380,8 @@ class SimulateCommunication(SerialCommunication):
             posNoise = 0.0
             velNoise = 0.0
             if self.enableNoise:
-                posNoise = (2.0 * random.random() - 1.0) * abs(self.vel) * 0.016
-                velNoise = 0.04 * (2.0 * random.random() - 1.0)
+                posNoise = (2.0 * random.random() - 1.0) * abs(self.vel) * 0.001
+                velNoise = 0.03 * (2.0 * random.random() - 1.0)
             self.comDelayedPos.setRight(int(round(self.pos * 32 + posNoise)))
             self.comDelayedVel.setRight(toUnsignedInt16(round(self.vel * (1.0 + velNoise))))
             self.comDelayedForce.setRight(toUnsignedInt16(round(force)))
