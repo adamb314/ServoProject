@@ -3,6 +3,7 @@ Module for calibrating the output encoder
 '''
 # pylint: disable=duplicate-code
 
+import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 class OutputEncoderCalibrationGenerator:
@@ -223,6 +224,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     threadMutex = threading.Lock()
     testThread = None
 
+    changeTorqueDirTime = 6.0
+    runTime = 120.0 + changeTorqueDirTime
+
     def resetGuiAfterCalibration():
         controlSpeedScale[1].set_sensitive(True)
         inertiaMargScale[1].set_sensitive(True)
@@ -234,11 +238,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
 
     def updateRecordingProgressBar(fraction, pos):
+        timeBeforeDirChange = (runTime - changeTorqueDirTime) / 2
+        timeAfterDirChange = timeBeforeDirChange + changeTorqueDirTime
         stepsStr = []
         stepsStr.append('1) Move the servo-output-shaft over its range of motion.\n')
         stepsStr.append('2) Leave it somewhere in the middle.\n')
-        stepsStr.append('3) Apply constant torque in CW direction (60 sec).\n')
-        stepsStr.append('4) Change torque direction to CCW (60 sec).\n')
+        stepsStr.append(f'3) Apply constant torque in CW direction ({timeBeforeDirChange:.0f} sec).\n')
+        stepsStr.append(f'4) Change torque direction to CCW ({changeTorqueDirTime:.0f} sec).\n')
+        stepsStr.append(f'5) Apply constant torque in CCW direction ({timeBeforeDirChange:.0f} sec).\n')
         if fraction < 0:
             if fraction <= -1:
                 recordingProgressBar[1].set_text('Waiting for move to complete')
@@ -251,17 +258,23 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             fraction = -fraction
         else:
-            if fraction < 0.5:
-                fraction = fraction * 2.0
+            currentRunTime = fraction * runTime
+            if currentRunTime < timeBeforeDirChange:
+                fraction = currentRunTime / timeBeforeDirChange
                 recordingProgressBar[1].set_text('Recording with CW torque')
 
                 stepsStr[2] = '<b>' + stepsStr[2] + '</b>\n'
-
-            else:
-                fraction = (fraction - 0.5) * 2.0
-                recordingProgressBar[1].set_text('Recording with CCW torque')
+            elif currentRunTime < timeAfterDirChange:
+                fraction = (currentRunTime - timeBeforeDirChange) / changeTorqueDirTime
+                fraction = 1.0 - fraction
+                recordingProgressBar[1].set_text('Change to CCW torque')
 
                 stepsStr[3] = '<b>' + stepsStr[3] + '</b>\n'
+            else:
+                fraction = (currentRunTime - timeAfterDirChange) / (runTime - timeAfterDirChange)
+                recordingProgressBar[1].set_text('Recording with CCW torque')
+
+                stepsStr[4] = '<b>' + stepsStr[4] + '</b>\n'
 
         directionLabel.set_text(''.join(stepsStr) + '\nRaw encoder position is ' + str(int(pos)))
         directionLabel.set_use_markup(True)
@@ -383,7 +396,35 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 maxPos = None
                 direction = 1
 
-                runTime = 122.0
+                out = []
+
+                encPos = None
+                filteredVel = 0.0
+
+                if simulationConfig or port == '':
+                    servo = servoManager.servoArray[0]
+                    p = servo.getPosition(True)
+                    minPos = p - 1.5
+                    maxPos = p + 1.5
+                    out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+                    out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+
+                if os.path.isfile('outputEncoderDataToLoad.txt') and encPos is None:
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Found file: "outputEncoderDataToLoad.txt"!\n'
+                                'Should this file be loaded instead of\n'
+                                'running a new calibration?',
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
+
+                    if response == Gtk.ResponseType.YES:
+                        out = np.loadtxt('outputEncoderDataToLoad.txt')
+                        doneRunning = True
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     nonlocal t
@@ -397,9 +438,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     if t < 0:
                         servo.setOpenLoopControlSignal(0, True)
                     else:
-                        refVel = (maxPos - minPos) / (runTime - 2.0) * 6
+                        refVel = (maxPos - minPos) / (runTime - changeTorqueDirTime) * 6
 
-                        if abs(t - runTime / 2) < 1.0:
+                        if abs(t - runTime / 2) < changeTorqueDirTime / 2:
                             refVel = 0.0
 
                         refPos += direction * refVel * dt
@@ -412,19 +453,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             direction = 1
 
                         servo.setReference(refPos, direction * refVel, 0.0)
-
-                out = []
-
-                encPos = None
-                filteredVel = 0.0
-
-                if simulationConfig or port == '':
-                    servo = servoManager.servoArray[0]
-                    p = servo.getPosition(True)
-                    minPos = p - 1.5
-                    maxPos = p + 1.5
-                    out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
-                    out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
 
                 def readResultHandlerFunction(dt, servoManager):
                     # pylint: disable=too-many-locals, too-many-branches, too-many-statements
@@ -517,6 +545,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 if runThread is True:
                     data = np.array(out)
+                    np.savetxt('lastOutputEncoderData.txt', data)
                     GLib.idle_add(handleResults, data)
 
         except Exception as e:
