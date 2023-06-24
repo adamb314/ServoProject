@@ -1,6 +1,7 @@
 '''
 Module for communicating with ServoProject servos
 '''
+# pylint: disable=too-many-lines
 
 import threading
 import time
@@ -275,6 +276,7 @@ class ComDelayInt:
                 d[i] = d[i + 1]
 
 class SimulateCommunication(SerialCommunication):
+    # pylint: disable=too-many-instance-attributes
     class ServoSim:
         def __init__(self, nodeNr, enableNoise=True):
             self.nodeNr = nodeNr
@@ -589,7 +591,7 @@ class DCServoCommunicator:
                 if loopNrDiff == 0:
                     continue
 
-                listOfDt.append(localTimeDiff / loopNrDiff);
+                listOfDt.append(localTimeDiff / loopNrDiff)
 
             temp = sorted(listOfDt)[len(listOfDt)//4:-len(listOfDt)//4]
             if len(temp) == 0:
@@ -610,9 +612,9 @@ class DCServoCommunicator:
             localTimeDiff = localTime - self.initDataList[-1][0]
 
             nrOfLoops = ((loopNr - self.initDataList[-1][1]) % 256)
-            nrOfLoops += round((localTimeDiff / self.loopCycleTime - nrOfLoops) / 256) * 256;
+            nrOfLoops += round((localTimeDiff / self.loopCycleTime - nrOfLoops) / 256) * 256
 
-            self.lastRemoteTime += nrOfLoops * self.loopCycleTime;
+            self.lastRemoteTime += nrOfLoops * self.loopCycleTime
 
             self.initDataList[-1][0] = localTime
             self.initDataList[-1][1] = loopNr
