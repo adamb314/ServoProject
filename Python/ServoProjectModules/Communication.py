@@ -971,12 +971,13 @@ class ServoManager:
         self.shutdown()
 
     def run(self):
-        sleepUntilTimePoint = time.time()
+        sleepUntilTimePoint = time.monotonic()
 
         while not self.shuttingDown:
             try:
-                self.cycleSleepTime = sleepUntilTimePoint - time.time()
-                time.sleep(max(0, sleepUntilTimePoint - time.time()))
+                self.cycleSleepTime = sleepUntilTimePoint - time.monotonic()
+                while sleepUntilTimePoint > time.monotonic():
+                    time.sleep(self.cycleTime / 10)
                 sleepUntilTimePoint += self.cycleTime
 
                 with self.handlerFunctionMutex:
