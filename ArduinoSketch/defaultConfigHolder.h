@@ -110,6 +110,13 @@ public:
 
             return posDepForceCompVec;
         }
+
+        static std::array<int16_t, 512> getPosDepFrictionCompVec()
+        {
+            std::array<int16_t, 512> posDepFrictionCompVec{0};
+
+            return posDepFrictionCompVec;
+        }
     };
 };
 

@@ -93,16 +93,30 @@ public:
 class DefaultControlConfiguration : public ControlConfigurationInterface
 {
 public:
+    static constexpr int vecSize = 512;
+
     DefaultControlConfiguration(const Eigen::Matrix3f& A, const Eigen::Vector3f& B,
-        const float& maxVel, const float& frictionComp, const std::array<int16_t, 512>& posDepForceCompVec,
+        const float& maxVel, const float& avarageFriction,
+        const std::array<int16_t, vecSize>& posDepForceCompVec,
+        const std::array<int16_t, vecSize>& posDepFrictionCompVec,
         const EncoderHandlerInterface* encoder) :
             A(A),
             B(B),
             b1Inv{1.0f / B[1]},
             maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
-            frictionComp(std::round(frictionComp)),
-            posDepForceCompVec(posDepForceCompVec)
-    {}
+            posDepForceCompVec(posDepForceCompVec),
+            posDepFrictionCompVec(posDepFrictionCompVec)
+    {
+        auto isAllZero = [](decltype(posDepFrictionCompVec)& vec)
+            {
+                return std::all_of(vec.cbegin(), vec.cend(), [](int16_t i){return i == 0;});
+            };
+
+        if (isAllZero(posDepFrictionCompVec))
+        {
+            this->posDepFrictionCompVec.fill(static_cast<int16_t>(std::round(avarageFriction)));
+        }
+    }
 
     template<typename T>
     static std::unique_ptr<DefaultControlConfiguration> create(const EncoderHandlerInterface* encoder);
@@ -122,8 +136,6 @@ public:
         vel = std::min(maxVel, vel);
         vel = std::max(-maxVel, vel);
     }
-
-    static constexpr int vecSize = 512;
 
     virtual int32_t applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) override
     {
@@ -156,7 +168,7 @@ public:
         size_t i = (rawEncPos * vecSize) / 4096;
 
         out += posDepForceCompVec[i];
-        out += frictionComp * fricCompDir;
+        out += posDepFrictionCompVec[i] * fricCompDir;
 
         return out;
     }
@@ -170,9 +182,9 @@ private:
     Eigen::Matrix3f A;
     Eigen::Vector3f B;
     float b1Inv;
-    int16_t frictionComp;
     float maxVel;
     std::array<int16_t, vecSize> posDepForceCompVec;
+    std::array<int16_t, vecSize> posDepFrictionCompVec;
     int fricCompDir{0};
 };
 
@@ -185,6 +197,7 @@ std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create
             T::getMaxVelocity(),
             T::getFrictionComp(),
             T::getPosDepForceCompVec(),
+            T::getPosDepFrictionCompVec(),
             encoder);
 }
 
