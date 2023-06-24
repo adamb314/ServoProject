@@ -90,10 +90,15 @@ protected:
     std::tuple<int32_t, uint32_t> calcPosition(uint16_t sensor1Value, uint16_t sensor2Value,
             int32_t predictNextPos = 0);
 
+    void initWeights();
+
     DiagnosticData diagnosticData;
 
     std::array<uint16_t, vecSize> aVec;
     std::array<uint16_t, vecSize> bVec;
+
+    std::array<uint16_t, vecSize> aWeights;
+    std::array<uint16_t, vecSize> bWeights;
 
     AnalogSampler sensor1;
     AnalogSampler sensor1Sec;
