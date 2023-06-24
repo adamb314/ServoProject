@@ -23,7 +23,7 @@ def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
     if port != '':
         com = ServoComModule.SerialCommunication(port)
     else:
-        com = ServoComModule.SimulateCommunication(cycleTime=dt)
+        com = ServoComModule.SimulateCommunication()
 
     def createServoFunction():
         nonlocal nodeNr
@@ -180,7 +180,8 @@ def getConfigClassString(configFileAsString, configClassName):
     return temp.group(0)
 
 def setConfigClassString(configFileAsString, configClassName, classString):
-    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\}(;\n+SimulationHandler\s+'
+            + configClassName + r'::simHandler)?)')
     temp = classPattern.search(configFileAsString)
     if not temp:
         return ''
@@ -188,6 +189,14 @@ def setConfigClassString(configFileAsString, configClassName, classString):
     configFileAsString = re.sub(classPattern, classString, configFileAsString)
 
     return configFileAsString
+
+def isSimulationConfig(configClassString):
+    classPattern = re.compile(r'SimulationHandler\s+\w+::simHandler')
+    temp = classPattern.search(configClassString)
+    if not temp:
+        return False
+
+    return True
 
 def newConfigFileAsString(configClassString, nodeNr, configClassName):
     # pylint: disable=line-too-long
@@ -217,20 +226,19 @@ def newConfigFileAsString(configClassString, nodeNr, configClassName):
     out += '#endif\n'
     return out
 
-wrapAroundAndUnitPerRevPattern = re.compile(
-        r'(?P<beg>return\s+std::make_unique\s*<\s*)(?P<encoderType>\w*)'
-        r'(?P<mid>\s*>\s*\((\w+\s*,\s*))(?P<units>[^;]*)(?P<end>,\s*compVec\s*\)\s*;)')
+outputEncoderUnitPerRevPattern = re.compile(
+        r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*)'
+        r'(?P<encoderType>\w*)(?P<mid>\s*>\s*\(([^,]+,\s*){0,10})(?P<units>[^,]+)(?P<end>,\s*compVec\s*\)\s*;)')
 
 def getConfiguredOutputEncoderData(configClassString):
-    temp = wrapAroundAndUnitPerRevPattern.search(configClassString)
+    temp = outputEncoderUnitPerRevPattern.search(configClassString)
 
     magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
     unitsPerRev = 4096
     if not magneticEncoder:
-        unitsStr = wrapAroundAndUnitPerRevPattern.search(configClassString).group('units')
-
-        unitsStr = re.sub(r'f', '', unitsStr)
-        unitsPerRev = eval(unitsStr)  # pylint: disable=eval-used
+        unitsPerRevStr = temp.group('units')
+        unitsPerRevStr = re.sub(r'f', '', unitsPerRevStr)
+        unitsPerRev = eval(unitsPerRevStr)  # pylint: disable=eval-used
 
     return magneticEncoder, unitsPerRev
 
@@ -241,7 +249,7 @@ def setConfiguredOutputEncoderData(configClassString, magneticEncoder, unitsPerR
     if not magneticEncoder:
         unitsStr = f'4096.0f * {unitsPerRev / 4096 * 360 :0.1f}f / 360'
 
-    configClassString = re.sub(wrapAroundAndUnitPerRevPattern,
+    configClassString = re.sub(outputEncoderUnitPerRevPattern,
             r'\g<beg>' + encoderTypeStr +
             r'\g<mid>' + unitsStr + r'\g<end>', configClassString)
 

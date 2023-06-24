@@ -122,25 +122,7 @@ class OutputEncoderCalibrationGenerator:
 
     _compVecPattern = re.compile(
             r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+'
-            r'std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
-    _unitPerRevPattern = re.compile(
-            r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*'
-            r'(?P<encoderType>\w*)\s*>\s*\([^,]*,\s*)(?P<units>[^,]*)(?P<end>,\s*compVec\s*\)\s*;)')
-
-    @staticmethod
-    def getConfiguredOutputEncoderData(configFileAsString, configClassName):
-        configClassString = getConfigClassString(configFileAsString, configClassName)
-
-        temp = OutputEncoderCalibrationGenerator._unitPerRevPattern.search(configClassString)
-
-        magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
-        unitsPerRev = 4096
-        if not magneticEncoder:
-            unitsPerRevStr = temp.group('units')
-            unitsPerRevStr = re.sub(r'f', '', unitsPerRevStr)
-            unitsPerRev = eval(unitsPerRevStr)  # pylint: disable=eval-used
-
-        return magneticEncoder, unitsPerRev
+            r'std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]+)\s*\};')
 
     @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
@@ -197,7 +179,7 @@ class OutputEncoderCalibrationGenerator:
     def invertOutputEncoder(self, configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
-        temp = OutputEncoderCalibrationGenerator._unitPerRevPattern.search(configClassString)
+        temp = outputEncoderUnitPerRevPattern.search(configClassString)
 
         if temp is not None:
             unitsPerRevStr = temp.group('units')
@@ -206,8 +188,8 @@ class OutputEncoderCalibrationGenerator:
             while unitsPerRevStr.find('-(-(') == 0:
                 unitsPerRevStr = unitsPerRevStr[4:-2]
 
-            configClassString = re.sub(OutputEncoderCalibrationGenerator._unitPerRevPattern,
-                    r'\g<beg>' + unitsPerRevStr + r'\g<end>', configClassString)
+            configClassString = re.sub(outputEncoderUnitPerRevPattern,
+                    r'\g<beg>' + r'\g<encoderType>' + r'\g<mid>' + unitsPerRevStr + r'\g<end>', configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -289,8 +271,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with open(configFilePath, 'r', encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
 
-            magneticEncoder, unitsPerRev = OutputEncoderCalibrationGenerator.getConfiguredOutputEncoderData(
-                    configFileAsString, configClassName)
+            magneticEncoder, unitsPerRev = getConfiguredOutputEncoderData(
+                getConfigClassString(configFileAsString, configClassName))
             outputEncoderCalibrationGenerator = OutputEncoderCalibrationGenerator(data, magneticEncoder, unitsPerRev)
 
             if outputEncoderCalibrationGenerator.isInverted():
@@ -377,6 +359,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 response = dialog.run()
                 dialog.destroy()
 
+    simulationConfig = False
+
     def startCalibrationRun(nodeNr, port):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
@@ -434,7 +418,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 encPos = None
                 filteredVel = 0.0
 
-                if port == '':
+                if simulationConfig or port == '':
                     servo = servoManager.servoArray[0]
                     p = servo.getPosition(True)
                     minPos = p - 1.5
@@ -543,6 +527,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def onStartCalibration(widget):
         nonlocal testThread
         nonlocal runThread
+        nonlocal simulationConfig
 
         if widget.get_label() == 'Start calibration':
             with open(configFilePath, 'r', encoding='utf-8') as configFile:
@@ -573,6 +558,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         GuiFunctions.transferToTargetMessage(parent)
 
                     return
+
+                simulationConfig = isSimulationConfig(
+                        getConfigClassString(configFileAsString, configClassName))
 
             widget.set_label('Abort calibration')
 

@@ -131,21 +131,27 @@ def openCreateConfigDialog(parent, configs):
         configClassName = templateConfig[1]
         configClassString = getTemplateConfigClassString(configName, configClassName)
 
-        try:
-            gearingStr = Helper.getConfiguredGearRatio(configClassString)
-            gearingEntry[1].set_text(gearingStr)
-
-            magneticEncoder, unitsPerRev = Helper.getConfiguredOutputEncoderData(configClassString)
-            encoderTypeCombo[1].set_active(1 if magneticEncoder else 0)
-            potentiometerRangeSpinButton[1].set_value(round(unitsPerRev / 4096 * 360))
-
-            gearingEntry[0].show()
-            encoderTypeCombo[0].show()
-            potentiometerRangeSpinButton[0].show()
-        except Exception:
+        def hideEncoderSettings():
             gearingEntry[0].hide()
             encoderTypeCombo[0].hide()
             potentiometerRangeSpinButton[0].hide()
+
+        if Helper.isSimulationConfig(configClassString):
+            hideEncoderSettings()
+        else:
+            try:
+                gearingStr = Helper.getConfiguredGearRatio(configClassString)
+                gearingEntry[1].set_text(gearingStr)
+
+                magneticEncoder, unitsPerRev = Helper.getConfiguredOutputEncoderData(configClassString)
+                encoderTypeCombo[1].set_active(1 if magneticEncoder else 0)
+                potentiometerRangeSpinButton[1].set_value(round(unitsPerRev / 4096 * 360))
+
+                gearingEntry[0].show()
+                encoderTypeCombo[0].show()
+                potentiometerRangeSpinButton[0].show()
+            except Exception:
+                hideEncoderSettings()
 
     onTemplateConfigComboChange(None)
     templateConfigCombo[1].connect('changed', onTemplateConfigComboChange)
