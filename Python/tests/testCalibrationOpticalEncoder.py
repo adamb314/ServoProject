@@ -10,10 +10,9 @@ class Tester(TestCase):
         data = np.loadtxt('tests/dataFiles/optEncTestData.txt')
 
         opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                data, constVelIndex=4000,
-                segment=2 * 2048, noiseDepresMemLenght=2)
+                data, constVelIndex=4000)
 
-        time, positions, velocities, minCost, (chA, chB, chADiffs, chBDiffs) = (
+        _, _, _, minCost, _ = (
                 opticalEncoderDataVectorGenerator.getAdditionalDiagnostics())
 
         minCost.sort()

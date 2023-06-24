@@ -8,7 +8,6 @@ import time
 import math
 import random
 import re
-import numba
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
