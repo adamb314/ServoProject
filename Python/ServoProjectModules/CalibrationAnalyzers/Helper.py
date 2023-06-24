@@ -50,7 +50,7 @@ def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
 def median(vec):
     if len(vec) == 0:
         return math.nan
-    sortedVec = sorted([v for v in vec])
+    sortedVec = sorted(list(vec))
     i = len(vec)//2-1
     if len(vec) % 2 == 1:
         return sortedVec[i]
@@ -105,9 +105,8 @@ def fftFilter(tt, yy, freqCut, minFreqCut=0, upSampleTt=None):
         #x[n] = 1/N * sum{k=0 to N-1} X[k] * exp(j * 2*pi * k * n / N)
 
         yy = tt * 0
-        N = l
-        for k in range(0, len(ff)):
-            yy = yy + 1 / N * fyy[k] * np.exp(2j * math.pi * ff[k] * tt)
+        for f, fy in zip(ff, fyy):
+            yy = yy + 1 / l * fy * np.exp(2j * math.pi * f * tt)
 
         return yy
 
@@ -342,23 +341,15 @@ class PwmNonlinearityConfigHandler:
         out = ''
         out += indent + 'auto pwmHighFrqCompFun = [](uint16_t in)\n'
         out += indent + '{\n'
-        out += indent + '    constexpr static uint16_t maxPwm = 1023;\n'
 
         if self.pwmOffset is None:
             lookUpSize = len(self.pwmCompLookUp)
             out += indent + (f'    constexpr static std::array<uint16_t, {lookUpSize}> linearizeVec = '
                             + f'{intArrayToString(self.pwmCompLookUp)}\n')
             out += '\n'
-            out += indent + f'    int32_t t = in * {lookUpSize - 1};\n'
-            out += indent + f'    size_t index = std::min(static_cast<size_t>({lookUpSize - 2}),\n'
-            out += indent +  '                            static_cast<size_t>(t / maxPwm));\n'
-            out += indent +  '    t -= index * maxPwm;\n'
-            out += '\n'
-            out += indent +  '    const uint16_t& a = linearizeVec[index];\n'
-            out += indent +  '    const uint16_t& b = linearizeVec[index + 1];\n'
-            out += '\n'
-            out += indent +  '    return static_cast<uint16_t>((a * (maxPwm - t) + b * t + maxPwm / 2) / maxPwm);\n'
+            out += indent +  '    return DefaultConfigHolder::pwmHighFrqCompFun(linearizeVec, in);\n'
         else:
+            out += indent +  '    constexpr static uint16_t maxPwm = 1023;\n'
             out += indent + f'    constexpr static uint16_t pwmOffset = {int(round(self.pwmOffset))};\n'
             out += '\n'
             out += indent +  '    if (in == 0)\n'

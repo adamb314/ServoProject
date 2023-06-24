@@ -30,6 +30,22 @@ public:
         return std::make_unique<OpticalEncoderHandler>(aVec, bVec, A2, A3, 4096.0f);
     }
 
+    template<size_t vecSize>
+    static uint16_t pwmHighFrqCompFun(const std::array<uint16_t, vecSize>& linearizeVec, uint16_t in)
+    {
+        constexpr static uint16_t maxPwm = 1023;
+
+        int32_t t = in * (vecSize - 1);
+        size_t index = std::min(static_cast<size_t>(vecSize - 2),
+                                static_cast<size_t>(t / maxPwm));
+        t -= index * maxPwm;
+
+        const uint16_t& a = linearizeVec[index];
+        const uint16_t& b = linearizeVec[index + 1];
+
+        return static_cast<uint16_t>((a * (maxPwm - t) + b * t + maxPwm / 2) / maxPwm);
+    }
+
     class DefaultControlParameters
     {
       public:
@@ -105,8 +121,7 @@ std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlas
     auto outputEncoder = T::createOutputEncoderHandler();
     auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
     bool enableInternalFeedForward = T::ControlParameters::internalFeedForwardEnabled();
-    bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012f && !enableInternalFeedForward;
-    auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>(kalmanFilterApproximation);
+    auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>();
 
     auto dcServo = std::make_unique<DCServo>(
             std::move(currentController),
@@ -121,7 +136,10 @@ std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlas
         dcServo->setBacklashControlSpeed(backlashControlSpeed);
     }
 
-    dcServo->enableInternalFeedForward();
+    if (enableInternalFeedForward)
+    {
+        dcServo->enableInternalFeedForward();
+    }
 
     return dcServo;
 }
