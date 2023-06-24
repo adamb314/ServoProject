@@ -226,6 +226,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
+    inertiaMargScale = GuiFunctions.creatHScale(1.0, 1.0, 3.0, 0.1, getLowLev=True)
+    inertiaMargScale = GuiFunctions.addTopLabelTo('<b>Inertia margin</b>\n'
+            ' Higher value removes vibrations but increases noise feedback\n',
+            inertiaMargScale[0]), inertiaMargScale[1]
+    calibrationBox.pack_start(inertiaMargScale[0], False, False, 0)
+
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
 
     recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
@@ -237,6 +243,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     def resetGuiAfterCalibration():
         controlSpeedScale[1].set_sensitive(True)
+        inertiaMargScale[1].set_sensitive(True)
         startButton[1].set_label('Start calibration')
         startButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
@@ -376,9 +383,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
         try:
             controlSpeedScale[1].set_sensitive(False)
+            inertiaMargScale[1].set_sensitive(False)
             controlSpeed = controlSpeedScale[1].get_value()
+            inertiaMarg = inertiaMargScale[1].get_value()
             def initFun(servoArray):
-                servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+                servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed,
+                        inertiaMarg=inertiaMarg)
                 servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
             with createServoManager(nodeNr, port, dt=0.003, initFunction=initFun) as servoManager:

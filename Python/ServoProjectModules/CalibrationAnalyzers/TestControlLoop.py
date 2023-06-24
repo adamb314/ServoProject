@@ -27,9 +27,11 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
         filterSpeedScale = GuiFunctions.addTopLabelTo('<b>Filter speed</b>', filterSpeedScale[0]), filterSpeedScale[1]
         calibrationBox.pack_start(filterSpeedScale[0], False, False, 0)
 
-        inertiaMargScale = GuiFunctions.creatHScale(1.0, 1.0, 3.0, 0.1, getLowLev=True)
-        inertiaMargScale = GuiFunctions.addTopLabelTo('<b>Inertia margin</b>', inertiaMargScale[0]), inertiaMargScale[1]
-        calibrationBox.pack_start(inertiaMargScale[0], False, False, 0)
+    inertiaMargScale = GuiFunctions.creatHScale(1.0, 1.0, 3.0, 0.1, getLowLev=True)
+    inertiaMargScale = GuiFunctions.addTopLabelTo('<b>Inertia margin</b>\n'
+            ' Higher value removes vibrations but increases noise feedback\n',
+            inertiaMargScale[0]), inertiaMargScale[1]
+    calibrationBox.pack_start(inertiaMargScale[0], False, False, 0)
 
     backlashControlSpeedScale = GuiFunctions.creatHScale(2, 0, 50, 1, getLowLev=True)
     backlashControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Backlash control speed</b>\n'
@@ -116,7 +118,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
         if advancedMode is True:
             velControlSpeedScale[1].set_sensitive(True)
             filterSpeedScale[1].set_sensitive(True)
-            inertiaMargScale[1].set_sensitive(True)
+
+        inertiaMargScale[1].set_sensitive(True)
 
         backlashControlSpeedScale[1].set_sensitive(True)
         refPosScale[1].set_value(0.0)
@@ -174,13 +177,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
             controlSpeed = int(controlSpeedScale[1].get_value())
             velControlSpeed = controlSpeed * 4
             filterSpeed = controlSpeed * 32
-            inertiaMarg = 1.0
+            inertiaMarg = inertiaMargScale[1].get_value()
             if advancedMode is True:
                 velControlSpeed = int(round(velControlSpeedScale[1].get_value() / 4.0)) * 4
                 velControlSpeedScale[1].set_value(velControlSpeed)
                 filterSpeed = int(round(filterSpeedScale[1].get_value() / 32.0)) * 32
                 filterSpeedScale[1].set_value(filterSpeed)
-                inertiaMarg = inertiaMargScale[1].get_value()
             backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
             def initFun(servoArray):
@@ -278,7 +280,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
             if advancedMode is True:
                 velControlSpeedScale[1].set_sensitive(False)
                 filterSpeedScale[1].set_sensitive(False)
-                inertiaMargScale[1].set_sensitive(False)
+            inertiaMargScale[1].set_sensitive(False)
             backlashControlSpeedScale[1].set_sensitive(False)
 
             calibrationBox.show_all()
