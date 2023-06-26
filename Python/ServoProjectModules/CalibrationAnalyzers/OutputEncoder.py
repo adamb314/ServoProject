@@ -149,11 +149,42 @@ class OutputEncoderCalibrationGenerator:
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b,')
-        ax.plot(range(0, 4096 + 8, 8), self.meanList, 'g-+')
+        x = range(0, 4096 + 8, 8)
+        ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b+', alpha=0.25)
+        ax.plot(x, self.meanList, 'g-+')
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
+        zoomWindow = 256
+        defaultXLims = [-x[-1] * 0.02, x[-1] * 1.02]
+        xLims = defaultXLims
+        ax.set_xlim(xLims[0], xLims[1])
+
+        def onRelease(event):
+            nonlocal xLims
+
+            xLims = defaultXLims
+            ax.set_xlim(xLims[0], xLims[1])
+            canvas.draw()
+
+        def onMove(event):
+            nonlocal xLims
+
+            if event.button != 1:
+                onRelease(event)
+                return
+
+            x = event.xdata
+            if not x is None:
+                xt = (x - xLims[0]) / (xLims[1] - xLims[0])
+                x = defaultXLims[0] + xt * (defaultXLims[1] - defaultXLims[0])
+                xLims = [x - zoomWindow / 2, x + zoomWindow / 2]
+                ax.set_xlim(xLims[0], xLims[1])
+                canvas.draw()
+
+        canvas.mpl_connect('button_press_event', onMove)
+        canvas.mpl_connect('button_release_event', onRelease)
+        canvas.mpl_connect('motion_notify_event', onMove)
         box.add(canvas)
 
         box.show_all()
