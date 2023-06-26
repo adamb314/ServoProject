@@ -8,3 +8,5 @@ CadFiles/**/*.FCStd1
 PcbDesignes/**/*-cache*
 PcbDesignes/**/*.sch-bak
 .thankyou
+ArduinoSketch/last*.txt
+ArduinoSketch/*ToLoad.txt

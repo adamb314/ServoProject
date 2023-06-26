@@ -6,7 +6,7 @@ from unittest import TestCase
 from ServoProjectModules.CalibrationAnalyzers.SystemIdentification import * # pylint: disable=wildcard-import, unused-wildcard-import
 
 class Tester(TestCase):
-    def testSmoothMoveHandler(self):
+    def test(self):
         data = np.loadtxt('tests/dataFiles/sysTestDataSimOnArduino.txt')
         systemIdentifier = SystemIdentificationObject(data)
         simulationError = systemIdentifier.simError[:]
