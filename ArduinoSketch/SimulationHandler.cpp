@@ -2,25 +2,29 @@
 
 SimulationHandler::SimulationHandler()
 {
-    xSim << 0.0f,
-        0.0f,
-        0.0f;
-
-    aSim << 1.0f, 0.0005963881634343555f, 1.6030177484362372e-05f,
+    Eigen::Matrix3f a;
+    a << 1.0f, 0.0005963881634343555f, 1.6030177484362372e-05f,
         0.0f, 0.9879847514731415f, 0.05332648997363798f,
         0.0f, 0.0f, 1.0f;
 
-    bSim << 1.6030177484362372e-05f,
+    Eigen::Vector3f b;
+    b << 1.6030177484362372e-05f,
         0.05332648997363798f,
         0.0f;
 
-    uSimFricInvC = -aSim(1, 1) / bSim[1];
+    a01 = a(0, 1) * fixedPoint * fixedPoint;
+    a11 = a(1, 1) * fixedPoint;
+    b0 = b[0] * fixedPoint * fixedPoint;
+    b1 = b[1] * fixedPoint;
+
+    pos = 0;
+    vel = 0;
 }
 
 float SimulationHandler::getPosition()
 {
     update();
-    return xSim[0];
+    return pos * (1.0f / fixedPoint);
 }
 
 void SimulationHandler::setPwm(int16_t pwm)
@@ -51,23 +55,25 @@ void SimulationHandler::update()
         return out * adam_std::sign(in);
     };
 
-    float uSim = pwmToTorque(pwm);
+    int32_t uSim = pwmToTorque(pwm);
 
-    uSim = pwmToStallCurrent * uSim + backEmfCurrent * xSim[1] * std::abs(uSim);
+    uSim = uSim + ((backEmfCurrent * vel) / fixedPoint * std::abs(uSim)) / (fixedPoint * fixedPoint);
 
-    float uSimFric = uSim - friction * adam_std::sign(xSim[1]);
+    int32_t uSimFric = uSim - friction * adam_std::sign(vel);
 
-    float newVel = aSim(1, 1) * xSim[1] + bSim[1] * uSimFric;
+    int32_t newVel = (a11 * vel) / fixedPoint + b1 * uSimFric;
 
-    if ((uSim == 0.0f || (uSim < 0.0f) != (uSimFric < 0.0f)) &&
-            (newVel < 0.0f) != (xSim[1] < 0.0f))
+    if ((uSim == 0 || (uSim < 0) != (uSimFric < 0)) &&
+            (newVel < 0) != (vel < 0))
     {
-        uSimFric = xSim[1] * uSimFricInvC;
-        newVel = 0.0f;
+        newVel = 0;
+    }
+    else
+    {
+        pos += ((a01 * vel) / fixedPoint + b0 * uSimFric) / fixedPoint;
     }
 
-    xSim[0] += aSim(0, 1) * xSim[1] + bSim[0] * uSimFric;
-    xSim[1] = newVel;
+    vel = newVel;
 }
 
 constexpr std::array<uint16_t, 2048> SimulationHandler::aVec;
