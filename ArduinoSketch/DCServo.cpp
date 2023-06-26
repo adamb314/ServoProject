@@ -54,6 +54,8 @@ void DCServo::init()
 
     kalmanFilter->reset(x);
 
+    outputEncoderFilter.set(rawOutputPos);
+
     loadNewReference(rawOutputPos, 0, 0);
 
     threads.push_back(createThread(1, cycleTime, 0,
@@ -318,7 +320,8 @@ void DCServo::controlLoop()
 
     if (outputEncoderHandler)
     {
-        rawOutputPos = outputEncoderHandler->getValue();
+        outputEncoderFilter.update(outputEncoderHandler->getValue(), rawMainPos);
+        rawOutputPos = outputEncoderFilter.get();
     }
     else
     {
@@ -394,17 +397,26 @@ void DCServo::calculateAndUpdateLVector()
 
     std::tie(tempL[1], tempL[2], tempL[3]) = calculateVelContolParams(a, b, velControlPole, inertiaMarg);
 
-    tempL[4] = backlashControlSpeed * controlConfig->getCycleTime() / 100.0f / 100.0f;
+    float backlashControlPole = backlashControlSpeed * controlConfig->getCycleTime();
+    tempL[4] = backlashControlPole / 100.0f / 100.0f;
     tempL[5] = backlashControlSpeedVelGain * (1.0f / 255) * (1.0f / 10) * 100.0f;
     tempL[6] = backlashSize;
 
     float velControlPoleAtInertiaMarg = 0.5f * (a - b * tempL[1] / inertiaMarg + 1.0f);
-    uint16_t minFilterSpeed = std::round(-log(velControlPoleAtInertiaMarg) / dt * 8.0f);
+    uint16_t minFilterSpeed = std::round(-log(velControlPoleAtInertiaMarg) / dt * filterSpeed / velControlSpeed);
     auto K = kalmanFilter->calculateNewKVector(std::max(filterSpeed, minFilterSpeed));
 
     ThreadInterruptBlocker blocker;
     L = tempL;
     kalmanFilter->setNewKVector(K);
+    if (backlashControlPole != 0.0f)
+    {
+        outputEncoderFilter.setFilterConst(1.0f - backlashControlPole * 8);
+    }
+    else
+    {
+        outputEncoderFilter.setFilterConst(0.0f);
+    }
 }
 
 ReferenceInterpolator::ReferenceInterpolator()
@@ -564,4 +576,41 @@ void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
     invertedLoadInterval = 1.0f / loadTimeInterval;
     dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
     getTStepSize = getTimeInterval * invertedLoadInterval;
+}
+
+ComplementaryFilter::ComplementaryFilter(float x0)
+{
+    set(x0);
+}
+
+void ComplementaryFilter::update(float lowFrqIn, float highFrqIn)
+{
+    int32_t lowFrqInFixed = (lowFrqIn - outWrapAround) * fixedPoint;
+    int32_t highFrqInFixed = highFrqIn * fixedPoint;
+
+    int32_t highFrqDiffFixed = adam_std::wrapAroundDist<wrapAroundSize * fixedPoint>(
+                highFrqInFixed - lastHighFrqInFixed);
+    outFixed = (aFixed * (outFixed + highFrqDiffFixed) +
+            (fixedPoint - aFixed) * lowFrqInFixed) / fixedPoint;
+    lastHighFrqInFixed = highFrqInFixed;
+
+    int32_t outFixedWraped = adam_std::wrapAround<wrapAroundSize * fixedPoint>(outFixed);
+    outWrapAround += (outFixed - outFixedWraped) / (wrapAroundSize * fixedPoint) * wrapAroundSize;
+    outFixed = outFixedWraped;
+}
+
+float ComplementaryFilter::get()
+{
+    return outFixed * (1.0f / fixedPoint) + outWrapAround;
+}
+
+void ComplementaryFilter::set(float x0)
+{
+    outFixed = x0 * fixedPoint;
+}
+
+void ComplementaryFilter::setFilterConst(float a)
+{
+    aFixed = a * fixedPoint;
+    aFixed = std::min(std::max(aFixed, (int32_t)0), (int32_t)fixedPoint - 1);
 }

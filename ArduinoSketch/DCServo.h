@@ -59,6 +59,28 @@ class ReferenceInterpolator
     float getTStepSize{getTimeInterval * invertedLoadInterval};
 };
 
+class ComplementaryFilter
+{
+public:
+    static constexpr int32_t wrapAroundSize = 4096;
+    static constexpr int32_t fixedPoint = 512;
+    ComplementaryFilter(float x0 = 0.0f);
+
+    void update(float lowFrqIn, float highFrqIn);
+
+    float get();
+
+    void set(float x0);
+
+    void setFilterConst(float a);
+
+private:
+    int32_t aFixed{0};
+    int32_t lastHighFrqInFixed;
+    int32_t outFixed;
+    int32_t outWrapAround{0};
+};
+
 class ControlConfigurationInterface
 {
 public:
@@ -304,6 +326,8 @@ class DCServo
     SampleAveragingHandler<int32_t, 32> controlSignalAveraging;
 
     ReferenceInterpolator refInterpolator;
+
+    ComplementaryFilter outputEncoderFilter;
 
     float Ivel{0.0f};
     float vControlRef{0.0f};
