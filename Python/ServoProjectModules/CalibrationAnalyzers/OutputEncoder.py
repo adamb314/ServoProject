@@ -38,7 +38,7 @@ class OutputEncoderCalibrationGenerator:
                 if lastPos == pos:
                     inSequence.append(d[2])
                 elif len(inSequence) > 0:
-                    posList[pos].append([sum(inSequence), len(inSequence)])
+                    posList[lastPos].append([sum(inSequence), len(inSequence)])
                     inSequence = []
                 lastPos = pos
 
