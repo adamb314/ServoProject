@@ -18,6 +18,7 @@ import ServoProjectModules.Communication as ServoComModule
 from ServoProjectModules.Communication import pi
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
+from ServoProjectModules.GuiHelper import ControlParameters
 
 def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
     if port != '':

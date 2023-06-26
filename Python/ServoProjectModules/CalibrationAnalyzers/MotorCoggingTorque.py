@@ -206,17 +206,28 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
 
-    controlSpeedScale = GuiFunctions.creatHScale(14, 0, 100, 1, getLowLev=True)
+    contorlParameters = ControlParameters(14, 14 * 4, 14 * 32, 1.0)
+
+    controlSpeedScale = GuiFunctions.creatHScale(contorlParameters.getMainSpeed(), 0, 100, 1, getLowLev=True)
     controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>\n'
             ' Higher value results in tighter control but increases noise feedback\n'
             '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
-    inertiaMargScale = GuiFunctions.creatHScale(1.0, 1.0, 3.0, 0.1, getLowLev=True)
-    inertiaMargScale = GuiFunctions.addTopLabelTo('<b>Inertia margin</b>\n'
-            ' Higher value removes vibrations but increases noise feedback\n',
-            inertiaMargScale[0]), inertiaMargScale[1]
-    calibrationBox.pack_start(inertiaMargScale[0], False, False, 0)
+    advancedParametersButton = GuiFunctions.createButton('Set advanced parameters', getLowLev=True)
+    calibrationBox.pack_start(advancedParametersButton[0], False, False, 0)
+
+    def onControlSpeedScaleChange(widget):
+        contorlParameters.setMainSpeed(controlSpeedScale[1].get_value())
+
+    controlSpeedScale[1].connect('value-changed', onControlSpeedScaleChange)
+
+    def onAdvancedParamClicked(widget):
+        nonlocal contorlParameters
+        contorlParameters = GuiFunctions.openAdvancedParametersDialog(parent, contorlParameters)
+        controlSpeedScale[1].set_value(contorlParameters.getMainSpeed())
+
+    advancedParametersButton[1].connect('clicked', onAdvancedParamClicked)
 
     resetCalibrationButton = GuiFunctions.createButton('Reset calibration', getLowLev=True)
 
@@ -256,7 +267,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         startButton[1].set_label('Start')
         startButton[1].set_sensitive(True)
         controlSpeedScale[1].set_sensitive(True)
-        inertiaMargScale[1].set_sensitive(True)
+        advancedParametersButton[1].set_sensitive(True)
         resetCalibrationButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
 
@@ -339,12 +350,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         nonlocal lastRefP
 
         try:
-            controlSpeed = int(controlSpeedScale[1].get_value())
-            inertiaMarg = inertiaMargScale[1].get_value()
-
             def initFun(servoArray):
-                servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 4 * 8 * controlSpeed,
-                        inertiaMarg=inertiaMarg)
+                controlSpeed, velControlSpeed, filterSpeed, inertiaMarg = contorlParameters.getValues()
+                servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed, inertiaMarg)
                 servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
             with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
@@ -500,7 +508,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             widget.set_label('Abort')
 
             controlSpeedScale[1].set_sensitive(False)
-            inertiaMargScale[1].set_sensitive(False)
+            advancedParametersButton[1].set_sensitive(False)
             resetCalibrationButton[1].set_sensitive(False)
 
             calibrationBox.show_all()

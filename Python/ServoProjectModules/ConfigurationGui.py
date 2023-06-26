@@ -499,7 +499,6 @@ class GuiWindow(Gtk.Window):
                             'Motor cogging torque',
                             'Output encoder calibration',
                             'Test control loop',
-                            'Test control loop (Advanced)',
                             'Pwm nonlinearity (legacy)']
 
                 def getNodeNrFromCombo(nodeNrCombo):
@@ -563,17 +562,12 @@ class GuiWindow(Gtk.Window):
                         calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun,
                                                                             configFilePath, configClassName)
 
-                    elif calibrationType in ('Test control loop', 'Test control loop (Advanced)'):
-                        advancedMode = False
-                        if calibrationType == 'Test control loop (Advanced)':
-                            advancedMode = True
-
+                    elif calibrationType in ('Test control loop'):
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
                         calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun,
-                                                                        configFilePath, configClassName,
-                                                                        advancedMode=advancedMode)
+                                                                        configFilePath, configClassName)
 
                     if calibrationBox is not None:
                         box1.pack_start(calibrationBox, False, False, 0)
