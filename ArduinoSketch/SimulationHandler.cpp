@@ -137,7 +137,8 @@ float ResistiveEncoderSim::getValue()
     if (newData)
     {
         newData = false;
-        uint16_t sensorValue = static_cast<uint16_t>(simHandler.getPosition() * scalingInv + (1 << 15)) / 16;
+        uint16_t sensorValue = static_cast<uint16_t>(simHandler.getPosition() * scalingInv + (1 << 15)) /
+                (16 / superSampling);
 
         value = ResistiveEncoderHandler::getValue(sensorValue);
     }
