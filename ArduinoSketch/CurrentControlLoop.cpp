@@ -150,9 +150,8 @@ CurrentControlModel::CurrentControlModel(std::unique_ptr<PwmHandler> pwmInstance
 
 CurrentControlModel::CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent,
         std::unique_ptr<PwmHandler> pwmInstance) :
-    pwmToStallCurrent{pwmToStallCurrent},
-    backEmfCurrent{backEmfCurrent},
-    backEmfCompDisabled{false},
+    pwmToStallCurrentF{pwmToStallCurrent * fixedPoint},
+    backEmfCurrentFF{backEmfCurrent * fixedPoint * fixedPoint},
     pwmInstance(std::move(pwmInstance))
 {
 }
@@ -187,7 +186,7 @@ void CurrentControlModel::activateBrake()
 
 void CurrentControlModel::applyChanges()
 {
-    float backEmfKoeff = backEmfCurrent * vel;
+    int32_t backEmfKoeffF = (backEmfCurrentFF * vel) / fixedPoint;
 
     if (pwmOverride)
     {
@@ -200,46 +199,27 @@ void CurrentControlModel::applyChanges()
         {
             limitedU = pwmInstance->setOutput(u);
         }
-        if (backEmfCompDisabled)
-        {
-            y = limitedU;
-        }
-        else
-        {
-            y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
-        }
+        y = (pwmToStallCurrentF * limitedU + backEmfKoeffF * abs(limitedU)) / fixedPoint;
         filteredY = y;
         filteredPwm = limitedU;
         return;
     }
 
-    if (backEmfCompDisabled)
+    //ref = (pwmToStallCurrent * u + backEmfKoeff * abs(u) =>
+    int32_t oneOverBackEnfF;
+    if (ref >= 0)
     {
-        u = ref;
+        oneOverBackEnfF = (fixedPoint * fixedPoint) / (pwmToStallCurrentF + backEmfKoeffF);
     }
     else
     {
-        //ref = (pwmToStallCurrent * u + backEmfKoeff * abs(u);
-        if (ref >= 0)
-        {
-            u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent + backEmfKoeff);
-        }
-        else
-        {
-            u = ref / std::max(pwmToStallCurrent * 0.001f, pwmToStallCurrent - backEmfKoeff);
-        }
+        oneOverBackEnfF = (fixedPoint * fixedPoint) / (pwmToStallCurrentF - backEmfKoeffF);
     }
+    u = (ref * oneOverBackEnfF) / fixedPoint;
 
     limitedU = pwmInstance->setOutput(u);
 
-    if (backEmfCompDisabled)
-    {
-        y = limitedU;
-    }
-    else
-    {
-        y = pwmToStallCurrent * limitedU + backEmfKoeff * abs(limitedU);
-    }
+    y = (pwmToStallCurrentF * limitedU + backEmfKoeffF * abs(limitedU)) / fixedPoint;
 
     filteredY = y;
     filteredPwm = limitedU;

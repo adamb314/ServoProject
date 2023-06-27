@@ -102,9 +102,9 @@ public:
     int32_t getCurrent() override;
 
 private:
-    const float pwmToStallCurrent{1.0f};
-    const float backEmfCurrent{0.0f};
-    const bool backEmfCompDisabled{true};
+    constexpr static int32_t fixedPoint = 512;
+    const int32_t pwmToStallCurrentF{fixedPoint};
+    const int32_t backEmfCurrentFF{0};
 
     std::unique_ptr<PwmHandler> pwmInstance;
     bool pwmOverride{true};
