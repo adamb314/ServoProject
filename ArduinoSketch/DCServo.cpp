@@ -420,7 +420,7 @@ void DCServo::calculateAndUpdateLVector()
     kalmanFilter->setNewKVector(K);
     if (backlashControlPole != 0.0f)
     {
-        outputEncoderFilter.setFilterConst(1.0f - backlashControlPole * 8);
+        outputEncoderFilter.setFilterConst(1.0f - backlashControlPole * 1);
     }
     else
     {
