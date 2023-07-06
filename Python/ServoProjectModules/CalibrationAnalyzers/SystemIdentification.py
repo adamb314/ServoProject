@@ -675,6 +675,9 @@ def getModelDtFromConfigFileString(configFileAsString, configClassName):
 
         contineusA = (1.0 - a11) / a01
 
+        if contineusA <= 0.01:
+            return a01
+
         dt = -math.log(a11) / contineusA
         return dt
 
