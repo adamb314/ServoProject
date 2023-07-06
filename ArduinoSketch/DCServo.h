@@ -87,7 +87,7 @@ public:
     virtual const Eigen::Matrix3f& getA() = 0;
     virtual const Eigen::Vector3f& getB() = 0;
     virtual void limitVelocity(float& vel) = 0;
-    virtual int32_t applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) = 0;
+    virtual std::tuple<int32_t, bool> applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) = 0;
     virtual float calculateFeedForward(float v1, float v0) = 0;
 
     virtual float getCycleTime()
@@ -159,14 +159,14 @@ public:
         vel = std::max(-maxVel, vel);
     }
 
-    virtual int32_t applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) override
+    virtual std::tuple<int32_t, bool> applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) override
     {
         int32_t out = u;
         constexpr int32_t eps = 1;
 
         if (velRef > 0)
         {
-            if (vel > 0)
+            if (vel >= 0)
             {
                 fricCompDir = 1;
             }
@@ -177,7 +177,7 @@ public:
         }
         else if (velRef < 0)
         {
-            if (vel < 0)
+            if (vel <= 0)
             {
                 fricCompDir = -1;
             }
@@ -189,10 +189,12 @@ public:
 
         size_t i = (rawEncPos * vecSize) / 4096;
 
+        bool brake = std::abs(u) < (posDepFrictionCompVec[i] * 3) / 4 && fricCompDir == 0;
+
         out += posDepForceCompVec[i];
         out += posDepFrictionCompVec[i] * fricCompDir;
 
-        return out;
+        return std::make_tuple(out, brake);
     }
 
     virtual float calculateFeedForward(float v1, float v0)

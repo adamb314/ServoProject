@@ -260,9 +260,17 @@ void DCServo::controlLoop()
             controlSignal += adam_std::clamp_cast<int16_t>(feedForwardU);
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
-            pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);
+            bool brake;
+            std::tie(pwm, brake) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, vControlRef, x[1]);
             
-            currentController->setReference(pwm);
+            if (brake)
+            {
+                currentController->activateBrake();
+            }
+            else
+            {
+                currentController->setReference(pwm);
+            }
 
             currentController->updateVelocity(x[1]);
             currentController->applyChanges();
@@ -289,7 +297,8 @@ void DCServo::controlLoop()
                 controlSignal = feedForwardU;
                 kalmanControlSignal = controlSignal;
                 uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
-                pwm = controlConfig->applyForceCompensations(controlSignal, rawEncPos, 0.0f, x[1]);
+                bool temp;
+                std::tie(pwm, temp) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, 0.0f, x[1]);
                 currentController->setReference(pwm);
             }
             currentController->applyChanges();
