@@ -41,6 +41,12 @@ public:
             constexpr static std::array<int16_t, 512> vec = {0};
             return vec;
         }
+
+        static std::array<int16_t, 512> getPosDepFrictionCompVec()
+        {
+            constexpr static std::array<int16_t, 512> vec = {0};
+            return vec;
+        }
     };
 
     class ControlParameters : public DefaultControlParametersWithPositionCompensation
