@@ -1,17 +1,23 @@
 #include "PwmHandler.h"
 
 HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
-    timer(TCC0),
-    invert(invert),
-    linearizeFunction(linearizeFunction),
-    freqDiv(static_cast<uint16_t>(F_CPU / 1024.0f / frq + 0.5f))
+    HBridgeHighResPin11And12Pwm(TCC0, invert, false, linearizeFunction, frq)
 {
     connectOutput();
 }
 
-HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, bool dualSlope,
+        LinearizeFunctionType linearizeFunction, uint16_t frq) :
+    HBridgeHighResPin11And12Pwm(TCC0, invert, dualSlope, linearizeFunction, frq)
+{
+    connectOutput();
+}
+
+HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(Tcc* timer, bool invert, bool dualSlope, 
+        LinearizeFunctionType linearizeFunction, uint16_t frq) :
     timer(timer),
     invert(invert),
+    dualSlope(dualSlope),
     linearizeFunction(linearizeFunction),
     freqDiv(static_cast<uint16_t>(F_CPU / 1024.0f / frq + 0.5f))
 {
@@ -23,6 +29,7 @@ HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(HBridgeHighResPin11And1
     pin12WriteValue(in.pin12WriteValue),
     outputConnected(in.outputConnected),
     invert(in.invert),
+    dualSlope(in.dualSlope),
     linearizeFunction(in.linearizeFunction)
 {
     in.outputConnected = false;
@@ -54,24 +61,30 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
     if (output >= 0)
     {
         pin11WriteValue = 0;
-        pin12WriteValue = freqDiv * linearizeFunction(output);
+        auto temp = linearizeFunction(output);
+        pin12WriteValue = freqDiv * temp + ((freqDiv - 1) * temp + 512) / 1024;
     }
     else
     {
-        pin11WriteValue = freqDiv * linearizeFunction(-output);
+        auto temp = linearizeFunction(-output);
+        pin11WriteValue = freqDiv * temp + ((freqDiv - 1) * temp + 512) / 1024;
         pin12WriteValue = 0;
     }
 
     if (outputConnected)
     {
-        timer->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
-                             TCC_CTRLBCLR_LUPD;
+        while (timer->SYNCBUSY.bit.CTRLB == 1)
+        {
+        }
+        timer->CTRLBSET.reg = TCC_CTRLBCLR_LUPD;
+        while (timer->SYNCBUSY.bit.CTRLB == 1)
+        {
+        }
 
         timer->CCB[0].bit.CCB = pin11WriteValue;
         timer->CCB[1].bit.CCB = pin12WriteValue;
 
-        timer->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
-                             TCC_CTRLBCLR_LUPD;
+        timer->CTRLBCLR.reg = TCC_CTRLBCLR_LUPD;
     }
 
     if (invert)
@@ -84,19 +97,23 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
 
 void HBridgeHighResPin11And12Pwm::activateBrake()
 {
-    pin11WriteValue = freqDiv * 1023;
-    pin12WriteValue = freqDiv * 1023;
+    pin11WriteValue = freqDiv * 1024 - 1;
+    pin12WriteValue = freqDiv * 1024 - 1;
 
     if (outputConnected)
     {
-        timer->CTRLBSET.reg = TCC_CTRLBCLR_RESETVALUE |
-                             TCC_CTRLBCLR_LUPD;
+        while (timer->SYNCBUSY.bit.CTRLB == 1)
+        {
+        }
+        timer->CTRLBSET.reg = TCC_CTRLBCLR_LUPD;
+        while (timer->SYNCBUSY.bit.CTRLB == 1)
+        {
+        }
 
         timer->CCB[0].bit.CCB = pin11WriteValue;
         timer->CCB[1].bit.CCB = pin12WriteValue;
 
-        timer->CTRLBCLR.reg = TCC_CTRLBCLR_RESETVALUE |
-                             TCC_CTRLBCLR_LUPD;
+        timer->CTRLBCLR.reg = TCC_CTRLBCLR_LUPD;
     }
 
     return;
@@ -109,9 +126,15 @@ void HBridgeHighResPin11And12Pwm::disconnectOutput()
         return;
     }
 
+    while (timer->SYNCBUSY.bit.ENABLE == 1)
+    {
+    }
+
     timer->CTRLA.bit.ENABLE = false;
 
-    // sync
+    while (timer->SYNCBUSY.bit.ENABLE == 1)
+    {
+    }
 
     timer->CC[0].bit.CC = 0;
     timer->CC[1].bit.CC = 0;
@@ -186,8 +209,16 @@ bool HBridgeHighResPin11And12Pwm::willSwitchWithIn(int16_t period) const
     minPeriodCount += timer->COUNT.bit.COUNT;
     maxPeriodCount += timer->COUNT.bit.COUNT;
 
-    bool switchInPeriod = maxPeriodCount > freqDiv * 1024 || minPeriodCount < switchTransientTime;
-    switchInPeriod |= maxPeriodCount > maxCC && minPeriodCount < maxCC + switchTransientTime;
+    bool switchInPeriod = minPeriodCount < maxCC + switchTransientTime;
+    if (dualSlope)
+    {
+        switchInPeriod &= maxPeriodCount + switchTransientTime > maxCC;
+    }
+    else
+    {
+        switchInPeriod &= maxPeriodCount > maxCC;
+        switchInPeriod |= maxPeriodCount > freqDiv * 1024 || minPeriodCount < switchTransientTime;
+    }
 
     return switchInPeriod;
 }
@@ -201,7 +232,6 @@ void HBridgeHighResPin11And12Pwm::configTimer()
     while (GCLK->STATUS.bit.SYNCBUSY == 1)
     {
     }
-
 
     timer->CTRLA.bit.ENABLE = false;
 
@@ -225,8 +255,17 @@ void HBridgeHighResPin11And12Pwm::configTimer()
     timer->DBGCTRL.reg = TCC_DBGCTRL_RESETVALUE |
                         TCC_DBGCTRL_DBGRUN;
 
-    timer->WAVE.reg = TCC_WAVE_RESETVALUE |
-                     TCC_WAVE_WAVEGEN_NPWM;
+    auto temp = TCC_WAVE_RESETVALUE;
+    if (dualSlope)
+    {
+        temp |= TCC_WAVE_WAVEGEN_DSBOTH | TCC_WAVE_POL(0xf);
+
+    }
+    else
+    {
+        temp |= TCC_WAVE_WAVEGEN_NPWM;
+    }
+    timer->WAVE.reg = temp;
 
     timer->PATT.reg = TCC_PATT_RESETVALUE;
 
@@ -248,7 +287,14 @@ void HBridgeHighResPin11And12Pwm::configTimer()
 }
 
 HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
-    HBridgeHighResPin11And12Pwm(TCC1, invert, linearizeFunction, frq)
+    HBridgeHighResPin11And12Pwm(TCC1, invert, false, linearizeFunction, frq)
+{
+    connectOutput();
+}
+
+HBridgeHighResPin3And4Pwm::HBridgeHighResPin3And4Pwm(bool invert, bool dualSlope,
+        LinearizeFunctionType linearizeFunction, uint16_t frq) :
+    HBridgeHighResPin11And12Pwm(TCC0, invert, dualSlope, linearizeFunction, frq)
 {
     connectOutput();
 }
