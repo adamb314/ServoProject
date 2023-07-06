@@ -464,8 +464,8 @@ class PiecewiseLinearFunction:
 
         return (y1 - y0) * t + y0
 
-    def getX(self, y):
-        if not self.monotoneFunction:
+    def getX(self, y, takeLowest=False):
+        if not self.monotoneFunction and not takeLowest:
             raise Exception('not a monotone function')
         return PiecewiseLinearFunction._calcInterpolation(self.yList, self.xList, y)
 

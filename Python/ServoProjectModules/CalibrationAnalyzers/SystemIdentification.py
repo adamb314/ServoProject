@@ -150,7 +150,7 @@ def calcParamsAndPwmLists(pwmData, velData, dStep, calcPhiAndY, *, nrOfPwmAmpsTo
 
     for d in zip(phiCovList, yPhiCovList, tempPwmList, nrOfSumList):
         try:
-            if d[3] < 100:
+            if d[3] < 50:
                 continue
             params = np.linalg.solve(d[0], d[1])
             pwmList.append(d[2])
@@ -225,10 +225,10 @@ class SystemIdentificationObject:
             aList = [d[0, 0] for d in paramsList[::-1]]
             bList = [d[1, 0] for d in paramsList[::-1]]
 
-            bList = [discToContB(a, b, dt) for a, b in zip(aList, bList)]
-            aList = [discToContA(a, dt) for a in aList]
+            bContList = [discToContB(a, b, dt) for a, b in zip(aList, bList)]
+            aContList = [discToContA(a, dt) for a in aList]
 
-            return (pwmList, aList, bList)
+            return (pwmList, aContList, bContList, aList, bList)
 
         tempListForSorting = []
         self.dtError = []
@@ -246,7 +246,8 @@ class SystemIdentificationObject:
             self.dtError += list(dtError)
             self.pwmChangeDelay = findPwmChangeDelay(d[:, 2])
 
-            pwmList, aList, bList = extractParametersVsPwm(self.dt, dStep, self.pwmData, self.velData)
+            pwmList, aList, bList, self.aDiscList, self.bDiscList = extractParametersVsPwm(
+                    self.dt, dStep, self.pwmData, self.velData)
 
             tempListForSorting += list(zip(pwmList, aList, bList))
 
@@ -264,22 +265,17 @@ class SystemIdentificationObject:
 
             def getErrorAndParamsForFrictionComp(uFric):
                 def getPwmCompPolynome(pwm, comp, degree):
-                    interpolSample = 10
+                    interpolSample = 1
                     extrapolate = 100
 
-                    kMedian = median([(y1 - y0) / (x1 - x0) for y1, y0, x1, x0 in
-                            zip(comp[1:], comp[0:-1], pwm[1:], pwm[0:-1])])
-
                     linearInterpol = PiecewiseLinearFunction(pwm, comp)
-                    pwmInter = list(np.arange(pwm[0], pwm[-1] + interpolSample, interpolSample))
+                    pwmInter = np.arange(0, (pwm[-1] - pwm[0]) // interpolSample)
+                    pwmInter = (pwm[-1] - pwm[0]) / (pwmInter[-1] - pwmInter[0]) * pwmInter + pwm[0]
+                    pwmInter = list(pwmInter)
                     compInter = [linearInterpol.getY(v) for v in pwmInter]
 
-                    warnings.simplefilter('ignore', np.RankWarning)
-
-                    p = np.polyfit(pwmInter, compInter, degree)
-
-                    xn = np.polyval(p, pwm[-1])
-                    k = kMedian
+                    xn = comp[-1]
+                    k = (comp[-1] - comp[0]) / (pwm[-1] - pwm[0])
                     k = max(k, xn / pwm[-1])
 
                     xPad = np.arange(pwm[-1] + interpolSample, 1023 + extrapolate, interpolSample)
@@ -292,11 +288,14 @@ class SystemIdentificationObject:
                     pwmExt = list(xPad0) + pwmInter + list(xPad)
                     compExt = list(compPad0) + compInter + list(compPad)
 
-                    return fitPolynome(pwmExt, compExt, degree)
+                    warnings.simplefilter('ignore', np.RankWarning)
+
+                    return fitPolynome(pwmExt, compExt, degree), (
+                            (pwm, comp), (pwmInter, compInter), (pwmExt, compExt))
 
                 pwmCompList = [u * b + uFric for u, b in zip(pwmList, bList)]
-                p = getPwmCompPolynome(pwmList, pwmCompList, 16)
-                contineusB = renderPolynome(1023, p) / 1023
+                p, pwmCompDiagData = getPwmCompPolynome(pwmList, pwmCompList, 32)
+                contineusB = max(renderPolynome(np.arange(0, 1024, 1), p)) / 1023
 
                 p = p / contineusB
                 friction = uFric / contineusB
@@ -307,13 +306,18 @@ class SystemIdentificationObject:
                 linearPwmList = [pwmCompFun.getY(x) for x in pwmList]
 
                 p = np.polyfit(linearPwmList, aList, 1)
+
                 contineusA = p[1]
                 emf = p[0]
+                if emf < 0:
+                    emf = 0
+                    contineusA = median(aList)
 
                 modelParameters = (contineusA, contineusB, friction, emf, pwmCompModel)
-                _, _, _, errorSum = self.calcSimResults(testData[0], modelParameters)
+                _, _, _, errorSum = self.calcSimResults(testData[0], modelParameters,
+                        pwmList=pwmList, aList=aList)
 
-                return errorSum, modelParameters
+                return errorSum, modelParameters, pwmCompDiagData
 
             uFric0 = 0
             uFric1 = bList[-1] * pwmList[0]
@@ -322,20 +326,20 @@ class SystemIdentificationObject:
             for i in range(1, max(2, nrOfFricOptStep+1)):
                 updateProgress(i / (nrOfFricOptStep+1))
 
-                e0, modelParameters = getErrorAndParamsForFrictionComp(uFric0)
+                e0, modelParameters, pwmCompDiagData = getErrorAndParamsForFrictionComp(uFric0)
 
                 if nrOfFricOptStep == 0:
-                    return modelParameters
+                    return modelParameters, pwmCompDiagData
 
-                e1, _ = getErrorAndParamsForFrictionComp(uFric1)
+                e1, _, _ = getErrorAndParamsForFrictionComp(uFric1)
 
                 if shouldAbort():
-                    return modelParameters
+                    return modelParameters, pwmCompDiagData
 
                 uFric = -e0 / (e1 - e0) * (uFric1 - uFric0) + uFric0
                 uFric = max(0.0, uFric)
 
-                e, modelParameters = getErrorAndParamsForFrictionComp(uFric)
+                e, modelParameters, pwmCompDiagData = getErrorAndParamsForFrictionComp(uFric)
 
                 if int(round(modelParameters[2])) == int(round(lastFriction)) or uFric == 0.0:
                     break
@@ -348,9 +352,9 @@ class SystemIdentificationObject:
 
             updateProgress(1.0)
 
-            return modelParameters
+            return modelParameters, pwmCompDiagData
 
-        self.servoModelParameters = calcModelParameters(pwmList, aList, bList, nrOfFricOptStep=10)
+        self.servoModelParameters, self.pwmCompDiagData = calcModelParameters(pwmList, aList, bList, nrOfFricOptStep=10)
 
         self.pwmList = pwmList
         self.aList = aList
@@ -384,7 +388,7 @@ class SystemIdentificationObject:
         y = renderPolynome(x, p)
 
         fun = PiecewiseLinearFunction(x, y)
-        xAtZero = max(0.01, fun.getX(0))
+        xAtZero = max(0.01, fun.getX(0, takeLowest=True))
 
         x = np.arange(xAtZero, 1024, (1024 - xAtZero) / len(x))
         y = renderPolynome(x, p)
@@ -416,7 +420,7 @@ class SystemIdentificationObject:
         pwmCompFun = SystemIdentificationObject.getPwmLinearizer(pwmCompModel)
 
         pwmList = [i * 1023 / 255 for i in range(0, 256)]
-        linearPwmList = [max(0, pwmCompFun.getX(v)) for v in pwmList]
+        linearPwmList = [max(0, pwmCompFun.getX(v, takeLowest=True)) for v in pwmList]
         linearPwmList[0] = 0
 
         return (aMat[1, 1], bMat[1, 0], self.servoModelParameters[2], (pwmList, linearPwmList))
@@ -430,8 +434,8 @@ class SystemIdentificationObject:
         return currentModelParams
 
     @staticmethod
-    def calcSimResults(data, modelParameters):
-        # pylint: disable=too-many-locals
+    def calcSimResults(data, modelParameters, *, pwmList=None, aList=None):
+        # pylint: disable=too-many-locals, too-many-statements
 
         contineusA, contineusB, friction, emf, pwmCompModel = modelParameters
         pwmCompFun = SystemIdentificationObject.getPwmLinearizer(pwmCompModel)
@@ -441,7 +445,13 @@ class SystemIdentificationObject:
 
         realTime = data[2:, 3]
         realPos = data[2:, 1]
-        linearPwmData = [pwmCompFun.getY(pwm) for pwm in data[2:, 2]]
+        pwmData = data[2:, 2]
+
+        linearPwmData = [pwmCompFun.getY(pwm) for pwm in pwmData]
+
+        aDict ={round(pwmCompFun.getY(abs(p))): contineusA + emf * pwmCompFun.getY(abs(p)) for p in pwmData}
+        if pwmList is not None:
+            aDict = {round(pwmCompFun.getY(abs(p))): v for p, v in zip(pwmList, aList)}
 
         realVel = calcVelFromPos(realPos, realTime, 1)
 
@@ -451,7 +461,7 @@ class SystemIdentificationObject:
         lastSimPos = simPos[0]
 
         for i, linearPwm in enumerate(linearPwmData[0:-3]):
-            aTemp = contineusA + emf * abs(linearPwm)
+            aTemp = aDict[round(abs(linearPwm))]
             adTemp = math.exp(dt * -aTemp)
             bdTemp = contineusB * (1.0 - adTemp) / aTemp
 
@@ -465,7 +475,7 @@ class SystemIdentificationObject:
                 if sign(newVel) != sign(lastSimVel):
                     subSetp = 10
                     for _ in range(0, subSetp):
-                        aTemp = contineusA + emf * abs(linearPwm)
+                        aTemp = aDict[round(abs(linearPwm))]
                         adTemp = math.exp((dt / subSetp) * -aTemp)
                         bdTemp = contineusB * (1.0 - adTemp) / aTemp
 
@@ -521,12 +531,25 @@ class SystemIdentificationObject:
         if len(fig.get_axes()) == 0:
             plt.plot([0, 1023], [0, 0], 'k:', alpha=0.4)
             plt.plot([0, 1023], [0, 1023], 'k:', alpha=0.4)
-        p = getPolynomeFrom(self.servoModelParameters[4])
-        x = np.arange(0.0, 1024.0, 1)
-        plt.plot(x, renderPolynome(x, p), '--', color=color, alpha=0.4)
+
+        linearCompList = [i * 1023 / 255 for i in range(0, 256)]
+        pwmFromLinComp = [max(0, pwmCompFun.getX(v, takeLowest=True)) for v in linearCompList]
+        pwmFromLinComp[0] = 0
+        plt.plot(pwmFromLinComp, linearCompList, '--', color=color)
         plt.plot(self.pwmList, self.pwmCompList, '+', color=color)
         plt.xlim(-20, 1043)
         plt.ylim(-20, 1043)
+
+        fig = plt.figure(9)
+        plt.plot(self.pwmCompDiagData[0][0], self.pwmCompDiagData[0][1], '+', color='r')
+        plt.plot(self.pwmCompDiagData[1][0], self.pwmCompDiagData[1][1], '+', color='g')
+        plt.plot(self.pwmCompDiagData[2][0], self.pwmCompDiagData[2][1], '+', color='b')
+
+        fig = plt.figure(7)
+        plt.plot(self.aDiscList, '+', color=color)
+
+        fig = plt.figure(8)
+        plt.plot(self.bDiscList, '+', color=color)
 
         fig = plt.figure(4)
         fig.suptitle('Cycle time error [s]')
