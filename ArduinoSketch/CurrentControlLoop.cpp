@@ -150,8 +150,8 @@ CurrentControlModel::CurrentControlModel(std::unique_ptr<PwmHandler> pwmInstance
 
 CurrentControlModel::CurrentControlModel(float pwmToStallCurrent, float backEmfCurrent,
         std::unique_ptr<PwmHandler> pwmInstance) :
-    pwmToStallCurrentF{pwmToStallCurrent * fixedPoint},
-    backEmfCurrentFF{backEmfCurrent * fixedPoint * fixedPoint},
+    pwmToStallCurrentF{static_cast<int32_t>(pwmToStallCurrent * fixedPoint)},
+    backEmfCurrentFF{static_cast<int32_t>(backEmfCurrent * fixedPoint * fixedPoint)},
     pwmInstance(std::move(pwmInstance))
 {
 }
