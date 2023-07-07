@@ -1,4 +1,5 @@
 (sym_lib_table
-  (lib (name SAMD)(type Legacy)(uri ${KIPRJMOD}/MCU_Microchip_SAMD/MCU_Microchip_SAMD.lib)(options "")(descr ""))
-  (lib (name combined-rescue)(type Legacy)(uri ${KIPRJMOD}/combined-rescue.lib)(options "")(descr ""))
+  (version 7)
+  (lib (name "SAMD")(type "KiCad")(uri "${KIPRJMOD}/MCU_Microchip_SAMD/MCU_Microchip_SAMD.kicad_sym")(options "")(descr ""))
+  (lib (name "combined-rescue")(type "KiCad")(uri "${KIPRJMOD}/combined-rescue.kicad_sym")(options "")(descr ""))
 )
