@@ -459,7 +459,7 @@ notes-rgx=
 [EXCEPTIONS]
 
 # Exceptions that will emit a warning when caught.
-overgeneral-exceptions=BaseException
+overgeneral-exceptions=builtins.BaseException
 
 
 [REFACTORING]
