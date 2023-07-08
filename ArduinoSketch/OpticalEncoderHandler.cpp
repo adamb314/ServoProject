@@ -168,6 +168,19 @@ EncoderHandlerInterface::DiagnosticData OpticalEncoderHandler::getDiagnosticData
     return out;
 }
 
+void OpticalEncoderHandler::configurePullUpDown(int16_t portGroup, int16_t n, bool pullHigh)
+{
+    PORT->Group[portGroup].PINCFG[n].bit.PULLEN = 1;
+    if (pullHigh)
+    {
+        PORT->Group[portGroup].OUTSET.reg = (1ul << n);
+    }
+    else
+    {
+        PORT->Group[portGroup].OUTCLR.reg = (1ul << n);
+    }
+}
+
 std::tuple<int32_t, uint32_t> OpticalEncoderHandler::calcPosition(
         uint16_t sensor1Value, uint16_t sensor2Value, int32_t predictNextPos)
 {

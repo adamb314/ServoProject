@@ -55,6 +55,8 @@ public:
 
     virtual DiagnosticData getDiagnosticData() override;
 
+    static void configurePullUpDown(int16_t portGroup, int16_t n, bool pullHigh = true);
+
 protected:
     class OpticalSensorValueScaler
     {
