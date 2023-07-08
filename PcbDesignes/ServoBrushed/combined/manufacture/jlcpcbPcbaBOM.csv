@@ -1,13 +1,13 @@
-Comment,Designator,Footprint,LCSC
-10uF,"C1,C3",Capacitor_SMD:C_0402_1005Metric,C15525
-1uF,"C2,C4,C5",Capacitor_SMD:C_0402_1005Metric,C52923
-LED,D1,LED_SMD:LED_0805_2012Metric_Castellated,C84256
-D,"D2,D3",Diode_SMD:D_SOD-123F,C64898
-120,"R1,R2",Resistor_SMD:R_0402_1005Metric,C25079
-8.2k,"R3,R5",Resistor_SMD:R_0402_1005Metric,C25924
-100k,R4,Resistor_SMD:R_0402_1005Metric,C25741
-2.2k,R6,Resistor_SMD:R_0402_1005Metric,C25924
-AP2112K-3.3,U3,Package_TO_SOT_SMD:SOT-23-5,C51118
-ATSAMD21G18A-A,U4,Package_QFP:TQFP-48_7x7mm_P0.5mm,C78624
-TB6612FNG,U5,Package_SO:SSOP-24_5.3x8.2mm_P0.65mm,C88224
-USB_B_Micro,USB1,Connector_USB:USB_Micro-B_Amphenol_10118194_Horizontal,C132563
+"Comment","Designator","Footprint","LCSC Part #"
+"10uF","C1 C3","","C15525"
+"1uF","C4 C5","","C52923"
+"LED","D1","","C84256"
+"D","D2 D3","","C64898"
+"120","R1 R2","","C25079"
+"8.2k","R3 R5","","C25924"
+"100k","R4","","C25741"
+"2.2k","R6","","C25924"
+"AP2112K-3.3","U3","","C51118"
+"ATSAMD21G18A-A","U4","","C78624"
+"TB6612FNG","U5","","C88224"
+"USB_B_Micro","USB1","","C132563"
