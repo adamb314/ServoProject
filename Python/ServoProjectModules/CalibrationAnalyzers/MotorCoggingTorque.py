@@ -7,14 +7,22 @@ import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 class CoggingTorqueCalibrationGenerator:
-    def __init__(self, data):
+    _posForcePattern = re.compile(
+            r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*'
+            r'<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
+    _posFricPattern = re.compile(
+            r'(?P<beg>.*getPosDepFrictionCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*'
+            r'<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
+
+
+    def __init__(self, data, configFileAsString='', configClassName='', *, posRes=32):
         # pylint: disable=too-many-locals, too-many-statements
         self.data = data
 
         self.positions = np.array(data[:, 6])
         self.forces = np.array(data[:,5])
 
-        self.posRes = 32
+        self.posRes = int(round(posRes))
 
         samplesList = []
         for i in range (0, 2048//self.posRes):
@@ -51,10 +59,10 @@ class CoggingTorqueCalibrationGenerator:
         ff = np.fft.fftfreq(len(x), (x[1]-x[0]))
 
         y = np.array([calcSpikeResistantAvarage(l, excluded=0.25) for _, (l, _) in coggingData])
-        self.lowCoggingFiltered = fftFilter(x, y, ff[17], upSampleTt=outputX) + lowAvg
+        self.lowCoggingFiltered = fftFilter(x, y, max(ff), upSampleTt=outputX) + lowAvg
 
         y = np.array([calcSpikeResistantAvarage(l, excluded=0.25) for _, (_, l) in coggingData])
-        self.highCoggingFiltered = fftFilter(x, y, ff[17], upSampleTt=outputX) + highAvg
+        self.highCoggingFiltered = fftFilter(x, y, max(ff), upSampleTt=outputX) + highAvg
 
         self.cogging = (self.lowCoggingFiltered + self.highCoggingFiltered) / 2
 
@@ -64,14 +72,30 @@ class CoggingTorqueCalibrationGenerator:
 
         y = np.array([calcSpikeResistantAvarage(list(ls) + list(hs), excluded=0.25)
                 for ls, hs in zip(self.lowFriction, self.highFriction)])
-        self.friction = fftFilter(x, y, ff[11], upSampleTt=outputX)
+        self.friction = fftFilter(x, y, max(ff), upSampleTt=outputX)
 
-    _posForcePattern = re.compile(
-            r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*'
-            r'<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
-    _posFricPattern = re.compile(
-            r'(?P<beg>.*getPosDepFrictionCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*'
-            r'<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
+        self.oldCogging = None
+        self.oldFriction = None
+
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        if configClassString != '':
+            temp1 = CoggingTorqueCalibrationGenerator._posForcePattern.search(configClassString)
+            temp2 = CoggingTorqueCalibrationGenerator._posFricPattern.search(configClassString)
+
+            if temp1 is not None and temp2 is not None:
+                oldCoggingStr = temp1.group('vec')
+                oldFrictionStr = temp2.group('vec')
+                oldCoggingStr = '[' + oldCoggingStr + ']'
+                oldFrictionStr = '[' + oldFrictionStr + ']'
+
+                self.oldCogging = np.array(eval(oldCoggingStr))  # pylint: disable=eval-used
+                self.oldFriction = np.array(eval(oldFrictionStr))  # pylint: disable=eval-used
+
+                if len(self.oldCogging) <= 1:
+                    self.oldCogging = None
+                if len(self.oldFriction) <= 1:
+                    self.oldFriction = None
 
     @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
@@ -113,8 +137,9 @@ class CoggingTorqueCalibrationGenerator:
         plt.plot(t, data[:, 2])
 
         fig = plt.figure(3)
-        fig.suptitle('Error at output')
-        plt.plot(t, data[:, 3])
+        fig.suptitle('Motor pos diff over motor position')
+        plt.plot(self.positions[0:-1],
+                [(d1 - d0 + 1024)%2048-1024 for d1, d0 in zip(self.positions[1:], self.positions[0:-1])], '+')
 
         fig = plt.figure(4)
         fig.suptitle('Error at motor')
@@ -138,6 +163,8 @@ class CoggingTorqueCalibrationGenerator:
         x = np.arange(0, 2048, 4)
         plt.plot(x, self.lowCoggingFiltered, 'b')
         plt.plot(x, self.highCoggingFiltered, 'r')
+        if self.oldCogging is not None:
+            plt.plot(x, self.oldCogging, 'c')
         plt.plot(x, self.cogging, 'g')
 
         fig = plt.figure(7)
@@ -149,6 +176,8 @@ class CoggingTorqueCalibrationGenerator:
             plt.plot([p]*len(hs), hs, 'r+', alpha=0.2)
 
         x = np.arange(0, 2048, 4)
+        if self.oldFriction is not None:
+            plt.plot(x, self.oldFriction, 'c')
         plt.plot(x, self.friction, 'g')
 
         plt.show()
@@ -167,6 +196,9 @@ class CoggingTorqueCalibrationGenerator:
             ax.plot([p]*len(hs), hs, 'r+', alpha=0.2)
 
         x = np.arange(0, 2048, 4)
+        if self.oldCogging is not None and self.oldFriction is not None:
+            ax.plot(x, self.oldCogging - self.oldFriction, 'c+')
+            ax.plot(x, self.oldCogging + self.oldFriction, 'c+')
         ax.plot(x, self.cogging - self.friction, 'g')
         ax.plot(x, self.cogging + self.friction, 'g')
 
@@ -251,6 +283,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     resetCalibrationButton[1].connect('clicked', onResetCalibration)
 
+    calibrationLevelOptions = ('Standard (~3 min)', 'Fine (~5 min)', 'Ultra (~11 min)')
+    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0], 
+            calibrationLevelOptions, getLowLev=True)
+    calibrationLevelComboBox = (GuiFunctions.addTopLabelTo('<b>Position resolution</b>', calibrationLevelComboBox[0]),
+                            calibrationLevelComboBox[1])
+    calibrationBox.pack_start(calibrationLevelComboBox[0], False, False, 0)
+
     startButton = GuiFunctions.createButton('Start', getLowLev=True)
 
     recordingProgressBar = GuiFunctions.creatProgressBar(label='Recording', getLowLev=True)
@@ -274,7 +313,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
 
     def handleResults(data):
-        coggingTorqueCalibrationGenerator = CoggingTorqueCalibrationGenerator(data)
+        configFileAsString = ''
+        with open(configFilePath, "r", encoding='utf-8') as configFile:
+            configFileAsString = configFile.read()
+
+        posRes = 32 / (2**calibrationLevelComboBox[1].get_active())
+
+        coggingTorqueCalibrationGenerator = CoggingTorqueCalibrationGenerator(data,
+                configFileAsString, configClassName, posRes=posRes)
 
         dialog = Gtk.MessageDialog(
                 transient_for=parent,
@@ -291,10 +337,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
         if response == Gtk.ResponseType.YES:
             coggingTorqueCalibrationGenerator.showAdditionalDiagnosticPlots()
-
-        with open(configFilePath, "r", encoding='utf-8') as configFile:
-            configFileAsString = configFile.read()
-
 
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
@@ -364,8 +406,10 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 moveHandler = SmoothMoveHandler(refP, 0.4)
                 refV = 0.0
 
+                calibrationLevelMultiplier = 2**calibrationLevelComboBox[1].get_active()
+
                 maxVel = 0.2
-                maxRecordVel = 0.01
+                maxRecordVel = 0.01 / calibrationLevelMultiplier
                 maxDist = 0.25
 
                 if posOffset is None:
