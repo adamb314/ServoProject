@@ -12,6 +12,9 @@
 class CurrentController
 {
 public:
+    CurrentController(std::unique_ptr<PwmHandler> pwmInstance):
+            pwmInstance(std::move(pwmInstance)) {};
+
     virtual void setReference(int32_t ref) = 0;
 
     virtual void updateVelocity(float vel) {};
@@ -20,6 +23,11 @@ public:
 
     virtual void activateBrake() = 0;
 
+    virtual void addDamping(bool b = true)
+    {
+        pwmInstance->addDamping(b);
+    };
+
     virtual void applyChanges() = 0;
 
     virtual int32_t getLimitedRef() = 0;
@@ -27,6 +35,9 @@ public:
     virtual int32_t getFilteredPwm() = 0;
 
     virtual int32_t getCurrent() = 0;
+
+protected:
+    std::unique_ptr<PwmHandler> pwmInstance;
 };
 
 class CurrentControlLoop : public CurrentController
@@ -54,7 +65,6 @@ public:
 private:
     void run();
 
-    std::unique_ptr<PwmHandler> pwmInstance;
     CurrentSampler* currentSampler;
 
     bool newPwmOverrideValue;
@@ -106,7 +116,6 @@ private:
     const int32_t pwmToStallCurrentF{fixedPoint};
     const int32_t backEmfCurrentFF{0};
 
-    std::unique_ptr<PwmHandler> pwmInstance;
     bool pwmOverride{true};
     bool brake{true};
     int32_t ref{0};

@@ -170,7 +170,7 @@ public:
             {
                 fricCompDir = 1;
             }
-            else if (vel < -eps)
+            else if (vel < 0)
             {
                 fricCompDir = 0;
             }
@@ -181,18 +181,22 @@ public:
             {
                 fricCompDir = -1;
             }
-            else if (vel > eps)
+            else if (vel > 0)
             {
                 fricCompDir = 0;
             }
         }
+        else
+        {
+            fricCompDir = 0;
+        }
 
         size_t i = (rawEncPos * vecSize) / 4096;
 
-        bool brake = std::abs(u) < (posDepFrictionCompVec[i] * 3) / 4 && fricCompDir == 0;
-
         out += posDepForceCompVec[i];
         out += posDepFrictionCompVec[i] * fricCompDir;
+
+        bool brake = fricCompDir == 0;
 
         return std::make_tuple(out, brake);
     }

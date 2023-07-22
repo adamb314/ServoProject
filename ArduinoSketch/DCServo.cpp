@@ -261,16 +261,11 @@ void DCServo::controlLoop()
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             bool brake;
-            std::tie(pwm, brake) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, vControlRef, x[1]);
-            
-            if (brake)
-            {
-                currentController->activateBrake();
-            }
-            else
-            {
-                currentController->setReference(pwm);
-            }
+            std::tie(pwm, brake) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);
+            brake |= std::abs(velRef) <= 1;
+            brake &= std::abs(velRef) <= 4;
+            currentController->addDamping(brake);
+            currentController->setReference(pwm);
 
             currentController->updateVelocity(x[1]);
             currentController->applyChanges();
@@ -291,6 +286,7 @@ void DCServo::controlLoop()
                 controlSignal = 0.0f;
                 kalmanControlSignal = controlSignal;
                 currentController->overidePwmDuty(feedForwardU);
+                currentController->addDamping(false);
             }
             else
             {
@@ -299,6 +295,7 @@ void DCServo::controlLoop()
                 uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
                 bool temp;
                 std::tie(pwm, temp) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, 0.0f, x[1]);
+                currentController->addDamping(false);
                 currentController->setReference(pwm);
             }
             currentController->applyChanges();
@@ -315,6 +312,7 @@ void DCServo::controlLoop()
         backlashControlGainDelayCounter = 0.0f;
         controlSignal = 0.0f;
         kalmanControlSignal = controlSignal;
+        currentController->addDamping(false);
         currentController->activateBrake();
         currentController->applyChanges();
         current = currentController->getCurrent();

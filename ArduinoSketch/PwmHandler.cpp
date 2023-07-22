@@ -62,13 +62,28 @@ int HBridgeHighResPin11And12Pwm::setOutput(int output)
     {
         pin11WriteValue = 0;
         auto temp = linearizeFunction(output);
+        if (damping)
+        {
+            temp = output;
+        }
         pin12WriteValue = freqDiv * temp + ((freqDiv - 1) * temp + 512) / 1024;
     }
     else
     {
         auto temp = linearizeFunction(-output);
+        if (damping)
+        {
+            temp = -output;
+        }
         pin11WriteValue = freqDiv * temp + ((freqDiv - 1) * temp + 512) / 1024;
         pin12WriteValue = 0;
+    }
+
+    if (damping)
+    {
+        uint16_t temp = freqDiv * 1024 - 1 - pin11WriteValue;
+        pin11WriteValue = freqDiv * 1024 - 1 - pin12WriteValue;
+        pin12WriteValue = temp;
     }
 
     if (outputConnected)
@@ -372,12 +387,29 @@ int HBridge2WirePwm::setOutput(int output)
     if (output >= 0)
     {
         pin1WriteValue = 0;
-        pin2WriteValue = linearizeFunction(output) / 4;
+        auto temp = linearizeFunction(output) / 4;
+        if (damping)
+        {
+            temp = output / 4;
+        }
+        pin2WriteValue = temp;
     }
     else
     {
-        pin1WriteValue = linearizeFunction(-output) / 4;
+        auto temp = linearizeFunction(-output) / 4;
+        if (damping)
+        {
+            temp = -output / 4;
+        }
+        pin1WriteValue = temp;
         pin2WriteValue = 0;
+    }
+
+    if (damping)
+    {
+        uint16_t temp = 255 - pin1WriteValue;
+        pin1WriteValue = 255 - pin2WriteValue;
+        pin2WriteValue = temp;
     }
 
     if (outputConnected)

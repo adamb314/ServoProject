@@ -2,7 +2,7 @@
 
 CurrentControlLoop::CurrentControlLoop(uint32_t period, int16_t currentSensorPin,
         std::unique_ptr<PwmHandler> pwmInstance) :
-    pwmInstance(std::move(pwmInstance)),
+    CurrentController(std::move(pwmInstance)),
     currentSampler(new CurrentSampler(currentSensorPin)),
     newPwmOverrideValue(true),
     newBrakeValue(true),
@@ -144,7 +144,7 @@ void CurrentControlLoop::run()
 }
 
 CurrentControlModel::CurrentControlModel(std::unique_ptr<PwmHandler> pwmInstance) :
-    pwmInstance(std::move(pwmInstance))
+    CurrentController(std::move(pwmInstance))
 {
 }
 
@@ -152,7 +152,7 @@ CurrentControlModel::CurrentControlModel(float pwmToStallCurrent, float backEmfC
         std::unique_ptr<PwmHandler> pwmInstance) :
     pwmToStallCurrentF{static_cast<int32_t>(pwmToStallCurrent * fixedPoint)},
     backEmfCurrentFF{static_cast<int32_t>(backEmfCurrent * fixedPoint * fixedPoint)},
-    pwmInstance(std::move(pwmInstance))
+    CurrentController(std::move(pwmInstance))
 {
 }
 

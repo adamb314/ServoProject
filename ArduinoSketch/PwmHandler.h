@@ -68,8 +68,15 @@ public:
     ~PwmHandler() {};
     virtual int setOutput(int output) = 0;
     virtual void activateBrake() = 0;
+    virtual void addDamping(bool b = true)
+    {
+        damping = b;
+    };
+
     virtual void disconnectOutput() = 0;
     virtual void connectOutput() = 0;
+protected:
+    bool damping{false};
 };
 
 class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSynchronizer::Switcher
