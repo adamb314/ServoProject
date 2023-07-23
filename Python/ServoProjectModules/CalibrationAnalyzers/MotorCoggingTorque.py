@@ -7,6 +7,7 @@ import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 class CoggingTorqueCalibrationGenerator:
+    # pylint: disable=too-many-instance-attributes
     _posForcePattern = re.compile(
             r'(?P<beg>.*getPosDepForceCompVec\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+std\s*::\s*array\s*'
             r'<\s*int16_t\s*,\s*512\s*>\s+vec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
@@ -284,7 +285,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     resetCalibrationButton[1].connect('clicked', onResetCalibration)
 
     calibrationLevelOptions = ('Standard (~3 min)', 'Fine (~5 min)', 'Ultra (~11 min)')
-    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0], 
+    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0],
             calibrationLevelOptions, getLowLev=True)
     calibrationLevelComboBox = (GuiFunctions.addTopLabelTo('<b>Position resolution</b>', calibrationLevelComboBox[0]),
                             calibrationLevelComboBox[1])

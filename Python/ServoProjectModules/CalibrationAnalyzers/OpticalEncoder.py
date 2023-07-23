@@ -538,7 +538,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.pack_start(testButton[0], False, False, 0)
 
     calibrationLevelOptions = ('Standard (~2 min)', 'Fine (~4 min)', 'Ultra (~8 min)')
-    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0], calibrationLevelOptions, getLowLev=True)
+    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0],
+            calibrationLevelOptions, getLowLev=True)
     calibrationLevelComboBox = (GuiFunctions.addTopLabelTo('<b>Position resolution</b>', calibrationLevelComboBox[0]),
                             calibrationLevelComboBox[1])
     calibrationBox.pack_start(calibrationLevelComboBox[0], False, False, 0)

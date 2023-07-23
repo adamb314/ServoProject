@@ -611,7 +611,7 @@ class DCServoCommunicator:
 
             localTimeDiff = localTime - self.initDataList[-1][0]
 
-            nrOfLoops = ((loopNr - self.initDataList[-1][1]) % 256)
+            nrOfLoops = (loopNr - self.initDataList[-1][1]) % 256
             nrOfLoops += round((localTimeDiff / self.loopCycleTime - nrOfLoops) / 256) * 256
 
             self.lastRemoteTime += nrOfLoops * self.loopCycleTime
