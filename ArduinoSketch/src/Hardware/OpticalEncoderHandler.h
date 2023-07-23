@@ -1,12 +1,12 @@
 #ifndef OPTICAL_ENCODER_HANDLER_H
 #define OPTICAL_ENCODER_HANDLER_H
 
-#include "adam_stl.h"
+#include "../adam_stl.h"
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
 #include "PwmHandler.h"
 #include <array>
-#include "SampleAveragingHandler.h"
+#include "../SampleAveragingHandler.h"
 
 class ValueScaler
 {

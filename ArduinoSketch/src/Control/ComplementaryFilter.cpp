@@ -1,5 +1,5 @@
 #include "ComplementaryFilter.h"
-#include "adam_stl.h"
+#include "../adam_stl.h"
 
 ComplementaryFilter::ComplementaryFilter(float x0)
 {

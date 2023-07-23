@@ -1,15 +1,15 @@
 #include <Arduino.h>
-#include "ArduinoC++BugFixes.h"
-#include "ThreadHandler.h"
+#include "../ArduinoC++BugFixes.h"
+#include "../Hardware/ThreadHandler.h"
 
 #include <ArduinoEigenDense.h>
 #include "CurrentControlLoop.h"
-#include "EncoderHandler.h"
-#include "OpticalEncoderHandler.h"
+#include "../Hardware/EncoderHandler.h"
+#include "../Hardware/OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
 #include "ComplementaryFilter.h"
-#include "adam_stl.h"
-#include "SampleAveragingHandler.h"
+#include "../adam_stl.h"
+#include "../SampleAveragingHandler.h"
 #include "ReferenceInterpolator.h"
 
 #ifndef DC_SERVO_H
@@ -63,19 +63,6 @@ private:
     std::array<int16_t, vecSize> posDepFrictionCompVec;
     int fricCompDir{0};
 };
-
-template<typename T>
-std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create(const EncoderHandlerInterface* encoder)
-{
-    return std::make_unique<DefaultControlConfiguration>(
-            T::getAMatrix(),
-            T::getBVector(),
-            T::getMaxVelocity(),
-            T::getFrictionComp(),
-            T::getPosDepForceCompVec(),
-            T::getPosDepFrictionCompVec(),
-            encoder);
-}
 
 class DCServo
 {
@@ -196,5 +183,49 @@ class DCServo
 
     std::vector<Thread*> threads;
 };
+
+template<typename T>
+std::unique_ptr<DefaultControlConfiguration> DefaultControlConfiguration::create(const EncoderHandlerInterface* encoder)
+{
+    return std::make_unique<DefaultControlConfiguration>(
+            T::getAMatrix(),
+            T::getBVector(),
+            T::getMaxVelocity(),
+            T::getFrictionComp(),
+            T::getPosDepForceCompVec(),
+            T::getPosDepFrictionCompVec(),
+            encoder);
+}
+
+template<typename T>
+std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlashControlSpeed = 0)
+{
+    auto currentController = T::createCurrentController();
+    auto mainEncoder = T::createMainEncoderHandler();
+    auto outputEncoder = T::createOutputEncoderHandler();
+    auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
+    bool enableInternalFeedForward = T::ControlParameters::internalFeedForwardEnabled();
+    auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>();
+
+    auto dcServo = std::make_unique<DCServo>(
+            std::move(currentController),
+            std::move(mainEncoder),
+            std::move(outputEncoder),
+            std::move(kalmanFilter),
+            std::move(controlConfig));
+
+    if (controlSpeed != 0)
+    {
+        dcServo->setControlSpeed(controlSpeed);
+        dcServo->setBacklashControlSpeed(backlashControlSpeed);
+    }
+
+    if (enableInternalFeedForward)
+    {
+        dcServo->enableInternalFeedForward();
+    }
+
+    return dcServo;
+}
 
 #endif

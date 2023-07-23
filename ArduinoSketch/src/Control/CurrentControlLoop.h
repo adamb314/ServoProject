@@ -1,10 +1,10 @@
 #ifndef CURRENT_CONTROL_LOOP_H
 #define CURRENT_CONTROL_LOOP_H
 
-#include "ArduinoC++BugFixes.h"
-#include "ThreadHandler.h"
-#include "CurrentSampler.h"
-#include "PwmHandler.h"
+#include "../ArduinoC++BugFixes.h"
+#include "../Hardware/ThreadHandler.h"
+#include "../Hardware/CurrentSampler.h"
+#include "../Hardware/PwmHandler.h"
 #include <ArduinoEigenDense.h>
 #include <vector>
 #include <algorithm>

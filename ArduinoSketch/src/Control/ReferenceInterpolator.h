@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "ArduinoC++BugFixes.h"
+#include "../ArduinoC++BugFixes.h"
 #include <algorithm>
 
 #ifndef REFERENCE_INTERPOLATOR_H

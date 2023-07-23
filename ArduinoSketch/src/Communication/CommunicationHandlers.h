@@ -1,8 +1,8 @@
-#include "ArduinoC++BugFixes.h"
-#include "ThreadHandler.h"
+#include "../ArduinoC++BugFixes.h"
+#include "../Hardware/ThreadHandler.h"
 #include "StatusLightHandler.h"
 #include "Communication.h"
-#include "DCServo.h"
+#include "../Control/DCServo.h"
 #include <Servo.h>
 
 #ifndef COMMUNICATION_HANDLERS_H

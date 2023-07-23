@@ -2,7 +2,7 @@
 #define ENCODER_HANDLER_H
 
 #include <SPI.h>
-#include "ArduinoC++BugFixes.h"
+#include "../ArduinoC++BugFixes.h"
 #include <array>
 
 class EncoderHandlerInterface

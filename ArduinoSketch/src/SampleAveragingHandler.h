@@ -1,4 +1,4 @@
-#include "ThreadHandler.h"
+#include "Hardware/ThreadHandler.h"
 
 #ifndef SAMPLE_AVERAGING_HANDLER_H
 #define SAMPLE_AVERAGING_HANDLER_H

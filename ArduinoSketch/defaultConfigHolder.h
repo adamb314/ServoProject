@@ -1,11 +1,11 @@
 #include <ArduinoEigenDense.h>
-#include "EncoderHandler.h"
-#include "CurrentControlLoop.h"
-#include "OpticalEncoderHandler.h"
-#include "ResistiveEncoderHandler.h"
-#include "SimulationHandler.h"
-#include "ArduinoC++BugFixes.h"
-#include "CommunicationHandlers.h"
+#include "src/Hardware/EncoderHandler.h"
+#include "src/Control/CurrentControlLoop.h"
+#include "src/Hardware/OpticalEncoderHandler.h"
+#include "src/Hardware/ResistiveEncoderHandler.h"
+#include "src/Hardware/SimulationHandler.h"
+#include "src/ArduinoC++BugFixes.h"
+#include "src/Communication/CommunicationHandlers.h"
 
 #ifndef DEFAULT_CONFIG_HOLDER_H
 #define DEFAULT_CONFIG_HOLDER_H
@@ -119,36 +119,5 @@ public:
         }
     };
 };
-
-template<typename T>
-std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlashControlSpeed = 0)
-{
-    auto currentController = T::createCurrentController();
-    auto mainEncoder = T::createMainEncoderHandler();
-    auto outputEncoder = T::createOutputEncoderHandler();
-    auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
-    bool enableInternalFeedForward = T::ControlParameters::internalFeedForwardEnabled();
-    auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>();
-
-    auto dcServo = std::make_unique<DCServo>(
-            std::move(currentController),
-            std::move(mainEncoder),
-            std::move(outputEncoder),
-            std::move(kalmanFilter),
-            std::move(controlConfig));
-
-    if (controlSpeed != 0)
-    {
-        dcServo->setControlSpeed(controlSpeed);
-        dcServo->setBacklashControlSpeed(backlashControlSpeed);
-    }
-
-    if (enableInternalFeedForward)
-    {
-        dcServo->enableInternalFeedForward();
-    }
-
-    return dcServo;
-}
 
 #endif

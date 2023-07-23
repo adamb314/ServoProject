@@ -2,7 +2,7 @@
 #define CURRENT_SAMPLER_H
 
 #include <Arduino.h>
-#include "ArduinoC++BugFixes.h"
+#include "../ArduinoC++BugFixes.h"
 
 #include "AdcHandler.h"
 

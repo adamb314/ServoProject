@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <Adafruit_DotStar.h>
-#include "ArduinoC++BugFixes.h"
+#include "../ArduinoC++BugFixes.h"
 #include <vector>
-#include "ThreadHandler.h"
+#include "../Hardware/ThreadHandler.h"
 
 #ifndef STATUS_LIGHT_HANDLER_H
 #define STATUS_LIGHT_HANDLER_H
