@@ -261,7 +261,7 @@ class OpticalEncoderDataVectorGenerator:
         maxBIndex = bVec.index(max(bVec))
 
         dirSign = sign((maxBIndex - minAIndex + vecSize/2) % vecSize - vecSize/2)
-        sinSquers = [(math.sin((i - dirSign*256)/1024*math.pi))**2
+        sinSquers = [(math.sin(dirSign * (i - minAIndex)/1024*math.pi))**2
                     for i in range(0, vecSize)]
 
         minWeight = 0.2
@@ -326,7 +326,7 @@ class OpticalEncoderDataVectorGenerator:
             if stepSize == 0:
                 stepSize = 1
 
-            enableWeights = stepSize < vecSize//16
+            enableWeights = stepSize < vecSize//32
 
             i = calcWrapAroundIndex(i + stepSize * checkDir)
 
