@@ -451,7 +451,7 @@ class SystemIdentificationObject:
 
         aDict ={round(pwmCompFun.getY(abs(p))): contineusA + emf * pwmCompFun.getY(abs(p)) for p in pwmData}
         if pwmList is not None:
-            aDict = {round(pwmCompFun.getY(abs(p))): v for p, v in zip(pwmList, aList)}
+            aDict.update({round(pwmCompFun.getY(abs(p))): v for p, v in zip(pwmList, aList)})
 
         realVel = calcVelFromPos(realPos, realTime, 1)
 
