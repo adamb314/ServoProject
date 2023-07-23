@@ -6,6 +6,16 @@ Module for calibrating the optical encoder
 import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
+def wrapAroundSegment(data, i, window):
+    l = len(data)
+    segStart = int(round(i - window / 2))
+    segEnd = int(round(i + window / 2 + 1))
+    seg = list(data[min(l, segStart+l):])
+    seg += list(data[max(0, segStart):min(l, segEnd)])
+    seg += list(data[0:max(0, segEnd-l)])
+
+    return seg
+
 class OpticalEncoderDataVectorGenerator:
     # pylint: disable=too-many-instance-attributes
     _aVecPattern = re.compile(
@@ -146,9 +156,9 @@ class OpticalEncoderDataVectorGenerator:
 
         outputSize = 2048
         step = len(self.fullLengthAVector) / outputSize
-        self.aVec = [np.mean(self.fullLengthAVector[int(round(i * step)):int(round((i+1) * step))])
+        self.aVec = [np.mean(wrapAroundSegment(self.fullLengthAVector, i*step, step))
                 for i in range(0, outputSize)]
-        self.bVec = [np.mean(self.fullLengthBVector[int(round(i * step)):int(round((i+1) * step))])
+        self.bVec = [np.mean(wrapAroundSegment(self.fullLengthBVector, i*step, step))
                 for i in range(0, outputSize)]
 
         self.oldAVec = None
@@ -206,92 +216,37 @@ class OpticalEncoderDataVectorGenerator:
 
     def genVec(self, data):
         # pylint: disable=too-many-locals, too-many-statements
-        sortedDataByA = sorted(data, key=lambda d: d[1])
+        dataSumDiff = [(d[0], d[1]-d[2], d[1]+d[2]) for d in data]
+        sortedDataByA = sorted(dataSumDiff, key=lambda d: d[1])
 
-        dataMinMaxB = sortedDataByA[len(sortedDataByA)//4:-len(sortedDataByA)//4]
+        cutI = int(round(len(sortedDataByA)/4))
+        dataMinMaxB = sortedDataByA[cutI:-cutI]
         meanB = sum((b for _, _, b in dataMinMaxB)) / len(dataMinMaxB)
         dataMinB = [d for d in dataMinMaxB if d[2] < meanB]
         dataMaxB = [d for d in dataMinMaxB if d[2] >= meanB]
 
-        dataMinMaxA = sortedDataByA[0:len(sortedDataByA)//4] + sortedDataByA[-len(sortedDataByA)//4:]
+        dataMinMaxA = sortedDataByA[0:cutI] + sortedDataByA[-cutI:]
         dataMinMaxA = sorted(dataMinMaxA, key=lambda d: d[2])
         meanA = sum((a for _, a, _ in dataMinMaxA)) / len(dataMinMaxA)
         dataMinA = [d for d in dataMinMaxA if d[1] < meanA]
         dataMaxA = [d for d in dataMinMaxA if d[1] >= meanA]
 
         subDataLengths = []
-        data = dataMinA
-        subDataLengths.append(len(data))
-        data += dataMaxB
-        subDataLengths.append(len(data))
-        data += dataMaxA[::-1]
-        subDataLengths.append(len(data))
-        data += dataMinB[::-1]
-        subDataLengths.append(len(data))
+        dataSumDiff = dataMinA
+        subDataLengths.append(len(dataSumDiff))
+        dataSumDiff += dataMaxB
+        subDataLengths.append(len(dataSumDiff))
+        dataSumDiff += dataMaxA[::-1]
+        subDataLengths.append(len(dataSumDiff))
+        dataSumDiff += dataMinB[::-1]
+        subDataLengths.append(len(dataSumDiff))
 
-        def unsplitData(data, nrOfSeg, hStep=0):
-            def unsplitVec(vec):
-                l = len(vec)
-                k = l//2
-                m0 = calcSpikeResistantAvarage(vec[0:k], excluded=0.2)
-                m1 = calcSpikeResistantAvarage(vec[-k:], excluded=0.2)
+        data = [(d[0], (d[2]+d[1])/2, (d[2]-d[1])/2) for d in dataSumDiff]
 
-                trend = [(m1-m0)*(i-k/2)/(l-k)+m0 for i in range(0, l)]
-                vec = [v - t for v, t in zip(vec, trend)]
-
-                sortedVec = sorted(vec)
-                m = np.mean(sortedVec)
-                low = [v for v in sortedVec if v < m]
-                high = [v for v in sortedVec if v > m]
-                mL = np.mean(low)
-                mH = np.mean(high)
-                meanSplit = (mH - mL) / 2
-
-                return [v - meanSplit + t if v > m else v + meanSplit + t for v, t in zip(vec, trend)]
-
-            out = data[:]
-            for i in range(0, nrOfSeg):
-                step = (len(data) + hStep) / nrOfSeg
-
-                segStart = int(round(i * step))
-                segEnd = int(round((i+1) * step))
-                seg = data[segStart:min(len(data), segEnd)]
-                seg += data[0:max(0, segEnd - len(data))]
-
-                aVec = [a for _, a, _ in seg]
-                bVec = [b for _, _, b in seg]
-
-                i = segStart
-                if hStep == 0 or (i - hStep < subDataLengths[0] or
-                        (i + hStep >= subDataLengths[1] and i - hStep < subDataLengths[2])):
-                    aVec = unsplitVec(aVec)
-                if hStep == 0 or ((i + hStep >= subDataLengths[0] and i - hStep < subDataLengths[1]) or
-                        (i + hStep >= subDataLengths[2] and i - hStep < subDataLengths[3])):
-                    bVec = unsplitVec(bVec)
-
-                newSeg = [(t, a, b) for (t, _, _) , a, b in zip(seg, aVec, bVec)]
-
-                out[segStart:min(len(data), segEnd)] = newSeg[0:min(len(data), segEnd)-segStart]
-                if segEnd > len(data):
-                    out[0:segEnd - len(data)] = newSeg[len(data)-segStart:]
-
-            return out
-
-        data = unsplitData(data, 128)
-
-        def smoothSensorData(data, avaragingWindow):
-            out = []
-            for i, d in enumerate(data):
-                l = len(data)
-                start = (i - avaragingWindow//2)%l
-                end = (i + avaragingWindow//2)%l
-                a = (data[end][1] + d[1] + data[start][1]) / 3
-                b = (data[end][2] + d[2] + data[start][2]) / 3
-                out.append((0, a, b))
-
-            return out
-
-        data = smoothSensorData(data, len(data)//512)
+        l = len(data)
+        data = data[-l//8:] + data[0:-l//8]
+        #data = data[l//8:] + data[0:l//8]
+        #data = data[::-1]
 
         aVec = [a for _, a, _ in data]
         bVec = [b for _, _, b in data]
