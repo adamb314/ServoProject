@@ -21,10 +21,29 @@ The main benefit of this approach is that it also takes the velocity and torque 
 
 When dealing with cheap gearboxes, backlash is always a problem. The hacked servos in this project uses two encoders to compensate for backlash. One AS5048a magnetic encoder or a potentiometer on the output shaft and one custom optical encoder inside the DC-motor. The benefit of having the extra encoder inside the motor is getting higher resolution and a main control loop which is backlash free. If one would only use the AS5048a for controlling, the backlash would enter the control loop as a time delay. This limits the control loop performance.
 
-The backlash compensation is done by moving the main control loops reference-position so that the output encoder reaches the correct position.
+The backlash compensation is done by moving the motor position control loops reference-position so that the output encoder reaches the correct position.
+
+## The complete control loop
+
+The following diagram shows the full control loop design used in this project:
+
+![fullLoop](readmeResources/FullControlLoop.png)
+
+It consists of three cascade control levels:
+1) Backlash control loop
+2) Motor position control loop
+3) Motor velocity control loop
+
+Apart from these three feedback loops there are four model/open-loop based compensation steps based on:
+1) Velocity based motor current model (see CurrentControlModel class in `ArduinoSketch/src/Control/CurrentControlLoop.cpp`)
+2) PWM duty cycle based motor current model (lookup table based, see `ArduinoSketch/src/Hardware/PwmHandler.cpp`)
+3) Motor position based force compensation (see `ArduinoSketch/src/Control/DCServo.cpp` function `applyForceCompensations`)
+4) Output encoder nonlinearity model
+
+For the exact implementation see the `controlLoop()` function in `ArduinoSketch/src/Control/DCServo.cpp`.
 
 ## Calculating the control parameters
-This project uses pole placement to calculate the control parameters for the cascade controller. To get the equations for the poles we need to find the closed transfer functions for the velocity and position control loops.
+This project uses pole placement to calculate the control parameters for the cascade controllers. To get the equations for the poles we need to find the closed transfer functions for the velocity and position control loops.
 
 ### Transfer function of open system to closed system
 Given the discrete transfer function for the open system:
