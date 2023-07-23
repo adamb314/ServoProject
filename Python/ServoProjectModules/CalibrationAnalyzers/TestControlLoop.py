@@ -134,6 +134,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             fig.suptitle('Control signal over motor position')
             plt.plot(np.array(data[:, 6]), data[:, 5], 'g+')
 
+            fig = plt.figure(7)
+            fig.suptitle('Motor pos diff over motor position')
+            motorPos = data[:, 6]
+            plt.plot(motorPos[0:-1],
+                [(d1 - d0 + 1024)%2048-1024 for d1, d0 in zip(motorPos[1:], motorPos[0:-1])], '+')
+
             plt.show()
 
     def startTestRun(nodeNr, port):
