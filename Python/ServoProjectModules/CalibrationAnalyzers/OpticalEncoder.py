@@ -536,6 +536,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
     calibrationBox.pack_start(testButton[0], False, False, 0)
+
+    calibrationLevelOptions = ('Standard (~2 min)', 'Fine (~4 min)', 'Ultra (~8 min)')
+    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0], calibrationLevelOptions, getLowLev=True)
+    calibrationLevelComboBox = (GuiFunctions.addTopLabelTo('<b>Position resolution</b>', calibrationLevelComboBox[0]),
+                            calibrationLevelComboBox[1])
+    calibrationBox.pack_start(calibrationLevelComboBox[0], False, False, 0)
+
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
     calibrationBox.pack_start(startButton[0], False, False, 0)
 
@@ -818,7 +825,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 pwmDir = 1
                 moveDir = 0
 
-                runTime = 110.0
+                runTime = 120.0 * 2**calibrationLevelComboBox[1].get_active()
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     nonlocal dirChangeWait
