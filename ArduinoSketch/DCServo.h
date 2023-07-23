@@ -7,79 +7,13 @@
 #include "EncoderHandler.h"
 #include "OpticalEncoderHandler.h"
 #include "KalmanFilter.h"
+#include "ComplementaryFilter.h"
 #include "adam_stl.h"
 #include "SampleAveragingHandler.h"
+#include "ReferenceInterpolator.h"
 
 #ifndef DC_SERVO_H
 #define DC_SERVO_H
-
-class ReferenceInterpolator
-{
- public:
-    ReferenceInterpolator();
-
-    void loadNew(float position, float velocity, float feedForward);
-
-    void updateTiming();
-
-    void resetTiming();
-
-    void calculateNext();
-
-    std::tuple<float, float, float> get();
-
-    float getPositionInterpolationDist();
-
-    void setGetTimeInterval(const uint16_t& interval);
-
-    void setLoadTimeInterval(const uint16_t& interval);
-
-    int16_t midPointTimeOffset{0};
- private:
-    void stepAndUpdateInter();
-
-    float pos[3]{0};
-    float vel[3]{0};
-    float feed[3]{0};
-
-    float interPos;
-    float interVel;
-    float interFeed;
-
-    uint16_t lastUpdateTimingTimestamp{0};
-    uint16_t lastGetTimestamp{0};
-
-    bool timingInvalid{true};
-    bool refInvalid{true};
-    uint16_t loadTimeInterval{12000};
-    float invertedLoadInterval{1.0f / loadTimeInterval};
-    float dtDiv2{loadTimeInterval * 0.000001f * 0.5f};
-    uint16_t getTimeInterval{1200};
-    float invertedGetInterval{1.0f / getTimeInterval};
-    float getTStepSize{getTimeInterval * invertedLoadInterval};
-};
-
-class ComplementaryFilter
-{
-public:
-    static constexpr int32_t wrapAroundSize = 4096;
-    static constexpr int32_t fixedPoint = 512;
-    ComplementaryFilter(float x0 = 0.0f);
-
-    void update(float lowFrqIn, float highFrqIn);
-
-    float get();
-
-    void set(float x0);
-
-    void setFilterConst(float a);
-
-private:
-    int32_t aFixed{0};
-    int32_t lastHighFrqInFixed;
-    int32_t outFixed;
-    int32_t outWrapAround{0};
-};
 
 class ControlConfigurationInterface
 {
@@ -90,26 +24,9 @@ public:
     virtual std::tuple<int32_t, bool> applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) = 0;
     virtual float calculateFeedForward(float v1, float v0) = 0;
 
-    virtual float getCycleTime()
-    {
-        auto A = getA();
-        auto B = getB();
+    virtual float getCycleTime();
 
-        float contineusA = (1.0f - A(1, 1)) / A(0, 1);
-
-        if (contineusA <= 0.01f)
-        {
-            return A(0, 1);
-        }
-
-        return -log(A(1, 1)) / contineusA;
-    }
-
-    virtual uint32_t getCycleTimeUs()
-    {
-        float dt = round(getCycleTime() / 0.0002f) * 0.0002f;
-        return static_cast<uint32_t>(dt * 1000000ul);
-    }
+    virtual uint32_t getCycleTimeUs();
 };
 
 class DefaultControlConfiguration : public ControlConfigurationInterface
@@ -121,90 +38,21 @@ public:
         const float& maxVel, const float& avarageFriction,
         const std::array<int16_t, vecSize>& posDepForceCompVec,
         const std::array<int16_t, vecSize>& posDepFrictionCompVec,
-        const EncoderHandlerInterface* encoder) :
-            A(A),
-            B(B),
-            b1Inv{1.0f / B[1]},
-            maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
-            posDepForceCompVec(posDepForceCompVec),
-            posDepFrictionCompVec(posDepFrictionCompVec)
-    {
-        auto isAllZero = [](decltype(posDepFrictionCompVec)& vec)
-            {
-                return std::all_of(vec.cbegin(), vec.cend(), [](int16_t i){return i == 0;});
-            };
-
-        if (isAllZero(posDepFrictionCompVec))
-        {
-            this->posDepFrictionCompVec.fill(static_cast<int16_t>(std::round(avarageFriction)));
-        }
-    }
+        const EncoderHandlerInterface* encoder);
 
     template<typename T>
     static std::unique_ptr<DefaultControlConfiguration> create(const EncoderHandlerInterface* encoder);
 
-    virtual const Eigen::Matrix3f& getA() override
-    {
-        return A;
-    }
+    virtual const Eigen::Matrix3f& getA() override;
 
-    virtual const Eigen::Vector3f& getB() override
-    {
-        return B;
-    }
+    virtual const Eigen::Vector3f& getB() override;
 
-    virtual void limitVelocity(float& vel) override
-    {
-        vel = std::min(maxVel, vel);
-        vel = std::max(-maxVel, vel);
-    }
+    virtual void limitVelocity(float& vel) override;
 
-    virtual std::tuple<int32_t, bool> applyForceCompensations(int32_t u, uint16_t rawEncPos, float velRef, float vel) override
-    {
-        int32_t out = u;
-        constexpr int32_t eps = 1;
+    virtual std::tuple<int32_t, bool> applyForceCompensations(
+        int32_t u, uint16_t rawEncPos, float velRef, float vel) override;
 
-        if (velRef > 0)
-        {
-            if (vel >= 0)
-            {
-                fricCompDir = 1;
-            }
-            else if (vel < 0)
-            {
-                fricCompDir = 0;
-            }
-        }
-        else if (velRef < 0)
-        {
-            if (vel <= 0)
-            {
-                fricCompDir = -1;
-            }
-            else if (vel > 0)
-            {
-                fricCompDir = 0;
-            }
-        }
-        else
-        {
-            fricCompDir = 0;
-        }
-
-        size_t i = (rawEncPos * vecSize) / 4096;
-
-        out += posDepForceCompVec[i];
-        out += posDepFrictionCompVec[i] * fricCompDir;
-
-        bool brake = fricCompDir == 0;
-
-        return std::make_tuple(out, brake);
-    }
-
-    virtual float calculateFeedForward(float v1, float v0)
-    {
-        return b1Inv * (v1 - A(1, 1) * v0);
-    }
+    virtual float calculateFeedForward(float v1, float v0);
 
 private:
     Eigen::Matrix3f A;

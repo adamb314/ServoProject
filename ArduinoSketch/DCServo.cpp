@@ -426,198 +426,110 @@ void DCServo::calculateAndUpdateLVector()
     }
 }
 
-ReferenceInterpolator::ReferenceInterpolator()
+float ControlConfigurationInterface::getCycleTime()
 {
+    auto A = getA();
+    auto B = getB();
+
+    float contineusA = (1.0f - A(1, 1)) / A(0, 1);
+
+    if (contineusA <= 0.01f)
+    {
+        return A(0, 1);
+    }
+
+    return -log(A(1, 1)) / contineusA;
 }
 
-void ReferenceInterpolator::loadNew(float position, float velocity, float feedForward)
+uint32_t ControlConfigurationInterface::getCycleTimeUs()
 {
-    if (refInvalid)
-    {
-        if (!timingInvalid)
+    float dt = round(getCycleTime() / 0.0002f) * 0.0002f;
+    return static_cast<uint32_t>(dt * 1000000ul);
+}
+
+DefaultControlConfiguration::DefaultControlConfiguration(const Eigen::Matrix3f& A, const Eigen::Vector3f& B,
+            const float& maxVel, const float& avarageFriction,
+            const std::array<int16_t, vecSize>& posDepForceCompVec,
+            const std::array<int16_t, vecSize>& posDepFrictionCompVec,
+            const EncoderHandlerInterface* encoder) :
+        A(A),
+        B(B),
+        b1Inv{1.0f / B[1]},
+        maxVel(std::min(maxVel, encoder->unitsPerRev * (1.0f / A(0, 1) / 2.0f * 0.8f))),
+        posDepForceCompVec(posDepForceCompVec),
+        posDepFrictionCompVec(posDepFrictionCompVec)
+{
+    auto isAllZero = [](decltype(posDepFrictionCompVec)& vec)
         {
-            refInvalid = false;
-        }
+            return std::all_of(vec.cbegin(), vec.cend(), [](int16_t i){return i == 0;});
+        };
 
-        pos[2] = position;
-        vel[2] = velocity;
-        feed[2] = feedForward;
-
-        pos[1] = pos[2];
-        vel[1] = vel[2];
-        feed[1] = feed[2];
-
-        pos[0] = pos[1];
-        vel[0] = vel[1];
-        feed[0] = feed[1];
-    }
-    else
+    if (isAllZero(posDepFrictionCompVec))
     {
-        if (midPointTimeOffset > -loadTimeInterval)
+        this->posDepFrictionCompVec.fill(static_cast<int16_t>(std::round(avarageFriction)));
+    }
+}
+
+const Eigen::Matrix3f& DefaultControlConfiguration::getA()
+{
+    return A;
+}
+
+const Eigen::Vector3f& DefaultControlConfiguration::getB()
+{
+    return B;
+}
+
+void DefaultControlConfiguration::limitVelocity(float& vel)
+{
+    vel = std::min(maxVel, vel);
+    vel = std::max(-maxVel, vel);
+}
+
+std::tuple<int32_t, bool> DefaultControlConfiguration::applyForceCompensations(
+        int32_t u, uint16_t rawEncPos, float velRef, float vel)
+{
+    int32_t out = u;
+    constexpr int32_t eps = 1;
+
+    if (velRef > 0)
+    {
+        if (vel >= 0)
         {
-            midPointTimeOffset -= loadTimeInterval;
+            fricCompDir = 1;
         }
-
-        pos[0] = pos[1];
-        vel[0] = vel[1];
-        feed[0] = feed[1];
-
-        pos[1] = pos[2];
-        vel[1] = vel[2];
-        feed[1] = feed[2];
-
-        pos[2] = position;
-        vel[2] = velocity;
-        feed[2] = feedForward;
+        else if (vel < 0)
+        {
+            fricCompDir = 0;
+        }
     }
-}
-
-void ReferenceInterpolator::updateTiming()
-{
-    uint16_t timestamp = micros();
-    if (timingInvalid)
+    else if (velRef < 0)
     {
-        midPointTimeOffset = 2 * getTimeInterval;
-
-        timingInvalid = false;
+        if (vel <= 0)
+        {
+            fricCompDir = -1;
+        }
+        else if (vel > 0)
+        {
+            fricCompDir = 0;
+        }
     }
     else
     {
-        uint16_t updatePeriod = timestamp - lastUpdateTimingTimestamp;
-        uint16_t timeSinceLastGet = timestamp - lastGetTimestamp;
-
-        int16_t timingError = 2 * getTimeInterval - (midPointTimeOffset + timeSinceLastGet);
-        int16_t periodError = updatePeriod - loadTimeInterval;
-
-        midPointTimeOffset += timingError / 8;
-        loadTimeInterval += periodError / 16;
-
-        dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
-        invertedLoadInterval = 1.0f / loadTimeInterval;
-        getTStepSize = getTimeInterval * invertedLoadInterval;
+        fricCompDir = 0;
     }
 
-    lastUpdateTimingTimestamp = timestamp;
+    size_t i = (rawEncPos * vecSize) / 4096;
+
+    out += posDepForceCompVec[i];
+    out += posDepFrictionCompVec[i] * fricCompDir;
+
+    bool brake = fricCompDir == 0;
+
+    return std::make_tuple(out, brake);
 }
 
-void ReferenceInterpolator::resetTiming()
+float DefaultControlConfiguration::calculateFeedForward(float v1, float v0)
 {
-    timingInvalid = true;
-    refInvalid = true;
-
-    stepAndUpdateInter();
-}
-
-void ReferenceInterpolator::calculateNext()
-{
-    lastGetTimestamp = micros();
-
-    stepAndUpdateInter();
-}
-
-void ReferenceInterpolator::stepAndUpdateInter()
-{
-    if (refInvalid)
-    {
-        interPos = pos[2];
-        interVel = vel[2];
-        interFeed = feed[2];
-
-        return;
-    }
-
-    if (midPointTimeOffset < 2 * loadTimeInterval)
-    {
-        midPointTimeOffset += getTimeInterval;
-    }
-
-    float t = midPointTimeOffset * invertedLoadInterval;
-    t = std::min(t, 1.2f);
-    t = std::max(t, -1.0f);
-
-    if (t < 0.0f)
-    {
-        t += 1.0f;
-
-        float s = midPointTimeOffset * invertedGetInterval + 1.0f;
-        s = std::max(s, 0.0f);
-
-        interFeed = feed[0] * (1.0f - s) + feed[1] * s;
-        float velDiff = vel[1] - vel[0];
-        interVel = vel[0] + t * velDiff;
-        interPos = pos[0] + t * (pos[1] - pos[0] + dtDiv2 * (t * velDiff - velDiff));
-    }
-    else
-    {
-        interFeed = feed[1];
-        float velDiff = vel[2] - vel[1];
-        interVel = vel[1] + t * velDiff;
-        interPos = pos[1] + t * (pos[2] - pos[1] + dtDiv2 * (t * velDiff - velDiff));
-    }
-}
-
-std::tuple<float, float, float> ReferenceInterpolator::get()
-{
-    return std::make_tuple(interPos, interVel, interFeed);
-}
-
-float ReferenceInterpolator::getPositionInterpolationDist()
-{
-    return interPos - pos[1];
-}
-
-void ReferenceInterpolator::setGetTimeInterval(const uint16_t& interval)
-{
-    resetTiming();
-
-    getTimeInterval = interval;
-    invertedGetInterval = 1.0f / getTimeInterval;
-    getTStepSize = getTimeInterval * invertedLoadInterval;
-}
-
-void ReferenceInterpolator::setLoadTimeInterval(const uint16_t& interval)
-{
-    resetTiming();
-
-    loadTimeInterval = interval;
-    invertedLoadInterval = 1.0f / loadTimeInterval;
-    dtDiv2 = loadTimeInterval * 0.000001f * 0.5f;
-    getTStepSize = getTimeInterval * invertedLoadInterval;
-}
-
-ComplementaryFilter::ComplementaryFilter(float x0)
-{
-    set(x0);
-}
-
-void ComplementaryFilter::update(float lowFrqIn, float highFrqIn)
-{
-    int32_t lowFrqInFixed = (lowFrqIn - outWrapAround) * fixedPoint;
-    int32_t highFrqInFixed = highFrqIn * fixedPoint;
-
-    int32_t highFrqDiffFixed = adam_std::wrapAroundDist<wrapAroundSize * fixedPoint>(
-                highFrqInFixed - lastHighFrqInFixed);
-    outFixed = (aFixed * (outFixed + highFrqDiffFixed) +
-            (fixedPoint - aFixed) * lowFrqInFixed) / fixedPoint;
-    lastHighFrqInFixed = highFrqInFixed;
-
-    int32_t outFixedWraped = adam_std::wrapAround<wrapAroundSize * fixedPoint>(outFixed);
-    outWrapAround += (outFixed - outFixedWraped) / (wrapAroundSize * fixedPoint) * wrapAroundSize;
-    outFixed = outFixedWraped;
-}
-
-float ComplementaryFilter::get()
-{
-    return outFixed * (1.0f / fixedPoint) + outWrapAround;
-}
-
-void ComplementaryFilter::set(float x0)
-{
-    outFixed = x0 * fixedPoint;
-}
-
-void ComplementaryFilter::setFilterConst(float a)
-{
-    aFixed = a * fixedPoint;
-    aFixed = std::min(std::max(aFixed, (int32_t)0), (int32_t)fixedPoint - 1);
+    return b1Inv * (v1 - A(1, 1) * v0);
 }
