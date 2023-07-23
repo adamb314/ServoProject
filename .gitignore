@@ -3,6 +3,7 @@
 ArduinoSketch/enableAutoUpload
 ..*
 *.sublime-workspace
+*.sublime-project
 ArduinoSketch/config/*
 CadFiles/**/*.FCStd1
 PcbDesignes/**/*-cache*
