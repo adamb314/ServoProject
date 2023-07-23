@@ -390,6 +390,11 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(self.aVec, 'm-')
         plt.plot(self.bVec, 'c-')
 
+
+        fig = plt.figure(2)
+        plt.plot([d1 - d0 for d1, d0 in zip(self.fullLengthAVector[1:], self.fullLengthAVector[0:-1])], 'r+')
+        plt.plot([d1 - d0 for d1, d0 in zip(self.fullLengthBVector[1:], self.fullLengthBVector[0:-1])], 'g+')
+
         t, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs) = self.getAdditionalDiagnostics()
 
         fig = plt.figure(3)
