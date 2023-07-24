@@ -42,6 +42,30 @@ Apart from these three feedback loops there are four model/open-loop based compe
 
 For the exact implementation see the `controlLoop()` function in `ArduinoSketch/src/Control/DCServo.cpp`.
 
+## System identification
+
+To be able to calculate the parameters of the control loops we need to have a mathematical model of the servo. This is handled by the python module `SystemIdentification.py`. First step is to record the position-time-series of the motor for a sequence of PWM values with random sign. The sequence starts with the highest PWM value, in the test range, and moves down towards the lowest, in discrete steps. Next the velocity is calculated from the position-time-series. For each part, with the same absolute PWM value, the velocity change will follow this equation:
+
+$$ v_{k+1} = a v_k + b u_k - c_f sign(v_k) $$
+
+where $u_k$ is $\pm$ the PWM value and $c_f$ is the friction constant. By only considering the parts where
+
+$$ sign(v_k) = sign(u_k) $$
+
+we can bake in $c_f$ into $b$ resulting in:
+
+$$ v_{k+1} = a v_k + b^{'} u_k $$
+
+The parameters $a$ and $b^{'}$ are then estimated with the least squares method. After that their continuous time equivalent values $a_{cont}$ and $b_{cont}$ are calculated.
+
+How $b_{cont}$ varies over the PWM range is then used to calculate the PWM nonlinearity and the linear trend of $a_{cont}$ is used to calculate the $c_{EMF}$ value of the motor.
+
+After this we add friction to the model and simulate the response. The final friction $c_{fric}$ is calculated by minimizing the error between the model and the real system.
+
+The final model looks like this:
+
+$$ \frac{dv}{dt} = a_{cont} v(t) + b_{cont} pwmNonlin(u(t)) + c_{fric} sign(v(t)) + c_{EMF} abs(pwmNonlin(u(t))) v(t) $$
+
 ## Calculating the control parameters
 This project uses pole placement to calculate the control parameters for the cascade controllers. To get the equations for the poles we need to find the closed transfer functions for the velocity and position control loops.
 
