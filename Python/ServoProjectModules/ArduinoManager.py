@@ -53,10 +53,10 @@ def getListOfLatestGitHubReleasAssets(url):
 
     print('Looking up latest version of "arduino-cli"...')
     r = requests.get(url=f'{url}releases/latest', headers={'Accept': 'application/json'}, allow_redirects=True,
-            timeout=8)
+            timeout=5)
 
     versionInfo = r.json()
-    r = requests.get(url=f'{url}releases/tag/{versionInfo["tag_name"]}', allow_redirects=True, timeout=8)
+    r = requests.get(url=f'{url}releases/tag/{versionInfo["tag_name"]}', allow_redirects=True, timeout=5)
     if not r.ok:
         return [], ''
 
@@ -93,7 +93,7 @@ def removeAllInOtherFiles(path, keepFilename):
 def downloadArduinoCli(path, url, version):
     filename = ''
     try:
-        r = requests.get(url=url, timeout=8)
+        r = requests.get(url=url, timeout=5)
         if r.ok:
             arduinoCliBinData = None
 

@@ -5,32 +5,39 @@ Module for calibrating pwm nonlinearity
 
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
-def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *, advancedMode=False):
+def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     # pylint: disable=too-many-locals, too-many-statements
     calibrationBox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
 
-    controlSpeedScale = GuiFunctions.creatHScale(14, 0, 100, 1, getLowLev=True)
+    contorlParameters = ControlParameters(14, 14 * 4, 14 * 32, 1.0)
+
+    controlSpeedScale = GuiFunctions.creatHScale(contorlParameters.getMainSpeed(), 0, 100, 1, getLowLev=True)
     controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>\n'
             ' Higher value results in tighter control but increases noise feedback\n'
             '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
 
-    if advancedMode is True:
-        velControlSpeedScale = GuiFunctions.creatHScale(14 * 4, 0, 100 * 4, 4, getLowLev=True)
-        velControlSpeedScale = (GuiFunctions.addTopLabelTo('<b>Velocity control speed</b>', velControlSpeedScale[0]),
-                                velControlSpeedScale[1])
-        calibrationBox.pack_start(velControlSpeedScale[0], False, False, 0)
-
-        filterSpeedScale = GuiFunctions.creatHScale(14 * 32, 0, 100 * 32, 32, getLowLev=True)
-        filterSpeedScale = GuiFunctions.addTopLabelTo('<b>Filter speed</b>', filterSpeedScale[0]), filterSpeedScale[1]
-        calibrationBox.pack_start(filterSpeedScale[0], False, False, 0)
+    advancedParametersButton = GuiFunctions.createButton('Set advanced parameters', getLowLev=True)
+    calibrationBox.pack_start(advancedParametersButton[0], False, False, 0)
 
     backlashControlSpeedScale = GuiFunctions.creatHScale(2, 0, 50, 1, getLowLev=True)
     backlashControlSpeedScale = GuiFunctions.addTopLabelTo('<b>Backlash control speed</b>\n'
         ' Lower than \'Control speed\' to avoid resonance', backlashControlSpeedScale[0]), backlashControlSpeedScale[1]
     calibrationBox.pack_start(backlashControlSpeedScale[0], False, False, 0)
+
+    def onControlSpeedScaleChange(widget):
+        contorlParameters.setMainSpeed(controlSpeedScale[1].get_value())
+
+    controlSpeedScale[1].connect('value-changed', onControlSpeedScaleChange)
+
+    def onAdvancedParamClicked(widget):
+        nonlocal contorlParameters
+        contorlParameters = GuiFunctions.openAdvancedParametersDialog(parent, contorlParameters)
+        controlSpeedScale[1].set_value(contorlParameters.getMainSpeed())
+
+    advancedParametersButton[1].connect('clicked', onAdvancedParamClicked)
 
     refVel = 20.0
     refPos = 0.0
@@ -79,9 +86,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
         startButton[1].set_label('Start test')
         startButton[1].set_sensitive(True)
         controlSpeedScale[1].set_sensitive(True)
-        if advancedMode is True:
-            velControlSpeedScale[1].set_sensitive(True)
-            filterSpeedScale[1].set_sensitive(True)
+        advancedParametersButton[1].set_sensitive(True)
 
         backlashControlSpeedScale[1].set_sensitive(True)
         refPosScale[1].set_value(0.0)
@@ -129,6 +134,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
             fig.suptitle('Control signal over motor position')
             plt.plot(np.array(data[:, 6]), data[:, 5], 'g+')
 
+            fig = plt.figure(7)
+            fig.suptitle('Motor pos diff over motor position')
+            motorPos = data[:, 6]
+            plt.plot(motorPos[0:-1],
+                [(d1 - d0 + 1024)%2048-1024 for d1, d0 in zip(motorPos[1:], motorPos[0:-1])], '+')
+
             plt.show()
 
     def startTestRun(nodeNr, port):
@@ -136,23 +147,18 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
         nonlocal runThread
 
         try:
-            controlSpeed = int(controlSpeedScale[1].get_value())
-            velControlSpeed = controlSpeed * 4
-            filterSpeed = controlSpeed * 32
-            if advancedMode is True:
-                velControlSpeed = int(round(velControlSpeedScale[1].get_value() / 4.0)) * 4
-                velControlSpeedScale[1].set_value(velControlSpeed)
-                filterSpeed = int(round(filterSpeedScale[1].get_value() / 32.0)) * 32
-                filterSpeedScale[1].set_value(filterSpeed)
             backlashControlSpeed = int(backlashControlSpeedScale[1].get_value())
 
             def initFun(servoArray):
+                controlSpeed, velControlSpeed, filterSpeed, inertiaMarg = contorlParameters.getValues()
                 servoArray[0].setOffsetAndScaling(360.0 / 4096.0, 0.0, 0)
-                servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed)
+                servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed, inertiaMarg)
                 servoArray[0].setBacklashControlSpeed(backlashControlSpeed, 180.0, 0.0)
 
             with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
                 t = 0.0
+                pRef = 0.0
+                vRef = 0.0
                 doneRunning = False
 
                 servoManager.servoArray[0].getPosition(False)
@@ -160,13 +166,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                 moveHandler = SmoothMoveHandler(posOffset, 0.4)
 
                 def sendCommandHandlerFunction(dt, servoManager):
+                    nonlocal pRef
+                    nonlocal vRef
                     servo = servoManager.servoArray[0]
 
                     with threadMutex:
                         moveHandler.set(refPos + posOffset, refVel)
 
-                    p, v = moveHandler.getNextRef(dt)
-                    servo.setReference(p, v, 0)
+                    pRef, vRef = moveHandler.getNextRef(dt)
+                    servo.setReference(pRef, vRef, 0)
 
                 out = []
 
@@ -189,7 +197,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                     servo = servoManager.servoArray[0]
                     p = servo.getPosition(True)
                     v = servo.getVelocity()
-                    u = servo.getControlSignal()
+                    u = servo.getPwmControlSignal()
                     error = servo.getControlError(True)
                     motorError = servo.getControlError(False)
                     optData = servo.getOpticalEncoderChannelData()
@@ -199,7 +207,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                             u,
                             optData.minCostIndex,
                             optData.minCost,
-                            refPos + posOffset])
+                            refPos + posOffset,
+                            vRef])
 
                     GLib.idle_add(updateStatusLabel,
                             f'Position: {p - posOffset:0.4f} (start offset: {posOffset:0.2f})\n'
@@ -220,6 +229,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
                 servoManager.shutdown()
 
                 data = np.array(out)
+                np.savetxt('lastTestControlLoop.txt', data)
                 GLib.idle_add(plotData, data)
 
         except Exception as e:
@@ -237,9 +247,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName, *,
             widget.set_label('Stop test')
 
             controlSpeedScale[1].set_sensitive(False)
-            if advancedMode is True:
-                velControlSpeedScale[1].set_sensitive(False)
-                filterSpeedScale[1].set_sensitive(False)
+            advancedParametersButton[1].set_sensitive(False)
             backlashControlSpeedScale[1].set_sensitive(False)
 
             calibrationBox.show_all()

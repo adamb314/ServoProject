@@ -1,10 +1,11 @@
 #include <ArduinoEigenDense.h>
-#include "EncoderHandler.h"
-#include "CurrentControlLoop.h"
-#include "OpticalEncoderHandler.h"
-#include "ResistiveEncoderHandler.h"
-#include "ArduinoC++BugFixes.h"
-#include "CommunicationHandlers.h"
+#include "src/Hardware/EncoderHandler.h"
+#include "src/Control/CurrentControlLoop.h"
+#include "src/Hardware/OpticalEncoderHandler.h"
+#include "src/Hardware/ResistiveEncoderHandler.h"
+#include "src/Hardware/SimulationHandler.h"
+#include "src/ArduinoC++BugFixes.h"
+#include "src/Communication/CommunicationHandlers.h"
 
 #ifndef DEFAULT_CONFIG_HOLDER_H
 #define DEFAULT_CONFIG_HOLDER_H
@@ -27,6 +28,22 @@ public:
         std::array<uint16_t, 2048> aVec = {};
         std::array<uint16_t, 2048> bVec = {};
         return std::make_unique<OpticalEncoderHandler>(aVec, bVec, A2, A3, 4096.0f);
+    }
+
+    template<size_t vecSize>
+    static uint16_t pwmHighFrqCompFun(const std::array<uint16_t, vecSize>& linearizeVec, uint16_t in)
+    {
+        constexpr static uint16_t maxPwm = 1023;
+
+        int32_t t = in * (vecSize - 1);
+        size_t index = std::min(static_cast<size_t>(vecSize - 2),
+                                static_cast<size_t>(t / maxPwm));
+        t -= index * maxPwm;
+
+        const uint16_t& a = linearizeVec[index];
+        const uint16_t& b = linearizeVec[index + 1];
+
+        return static_cast<uint16_t>((a * (maxPwm - t) + b * t + maxPwm / 2) / maxPwm);
     }
 
     class DefaultControlParameters
@@ -72,6 +89,11 @@ public:
             return B;
         }
 
+        static bool internalFeedForwardEnabled()
+        {
+            return false;
+        }
+
         static float getMaxVelocity()
         {
             return std::numeric_limits<float>::max();
@@ -88,33 +110,14 @@ public:
 
             return posDepForceCompVec;
         }
+
+        static std::array<int16_t, 512> getPosDepFrictionCompVec()
+        {
+            std::array<int16_t, 512> posDepFrictionCompVec{0};
+
+            return posDepFrictionCompVec;
+        }
     };
 };
-
-template<typename T>
-std::unique_ptr<DCServo> createDCServo(uint8_t controlSpeed = 0, uint8_t backlashControlSpeed = 0)
-{
-    auto currentController = T::createCurrentController();
-    auto mainEncoder = T::createMainEncoderHandler();
-    auto outputEncoder = T::createOutputEncoderHandler();
-    auto controlConfig = DefaultControlConfiguration::create<typename T::ControlParameters>(mainEncoder.get());
-    bool kalmanFilterApproximation = controlConfig->getCycleTime() < 0.0012f;
-    auto kalmanFilter = KalmanFilter::create<typename T::ControlParameters>(kalmanFilterApproximation);
-
-    auto dcServo = std::make_unique<DCServo>(
-            std::move(currentController),
-            std::move(mainEncoder),
-            std::move(outputEncoder),
-            std::move(kalmanFilter),
-            std::move(controlConfig));
-
-    if (controlSpeed != 0)
-    {
-        dcServo->setControlSpeed(controlSpeed);
-        dcServo->setBacklashControlSpeed(backlashControlSpeed);
-    }
-
-    return dcServo;
-}
 
 #endif

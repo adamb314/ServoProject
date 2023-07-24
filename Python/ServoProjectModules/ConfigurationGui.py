@@ -131,21 +131,27 @@ def openCreateConfigDialog(parent, configs):
         configClassName = templateConfig[1]
         configClassString = getTemplateConfigClassString(configName, configClassName)
 
-        try:
-            gearingStr = Helper.getConfiguredGearRatio(configClassString)
-            gearingEntry[1].set_text(gearingStr)
-
-            magneticEncoder, unitsPerRev = Helper.getConfiguredOutputEncoderData(configClassString)
-            encoderTypeCombo[1].set_active(1 if magneticEncoder else 0)
-            potentiometerRangeSpinButton[1].set_value(round(unitsPerRev / 4096 * 360))
-
-            gearingEntry[0].show()
-            encoderTypeCombo[0].show()
-            potentiometerRangeSpinButton[0].show()
-        except Exception:
+        def hideEncoderSettings():
             gearingEntry[0].hide()
             encoderTypeCombo[0].hide()
             potentiometerRangeSpinButton[0].hide()
+
+        if Helper.isSimulationConfig(configClassString):
+            hideEncoderSettings()
+        else:
+            try:
+                gearingStr = Helper.getConfiguredGearRatio(configClassString)
+                gearingEntry[1].set_text(gearingStr)
+
+                magneticEncoder, unitsPerRev = Helper.getConfiguredOutputEncoderData(configClassString)
+                encoderTypeCombo[1].set_active(1 if magneticEncoder else 0)
+                potentiometerRangeSpinButton[1].set_value(round(unitsPerRev / 4096 * 360))
+
+                gearingEntry[0].show()
+                encoderTypeCombo[0].show()
+                potentiometerRangeSpinButton[0].show()
+            except Exception:
+                hideEncoderSettings()
 
     onTemplateConfigComboChange(None)
     templateConfigCombo[1].connect('changed', onTemplateConfigComboChange)
@@ -265,7 +271,7 @@ class GuiWindow(Gtk.Window):
             for c in self.getConfigurations():
                 configs.append(c)
             configs.sort()
-            configs = [c for c in configs if c != 'default.h']
+            configs = [c for c in configs if c not in ('default.h', 'defaultSim.h')]
 
             currentItem = GuiFunctions.getActiveComboBoxItem(activeConfigCombo[1])
             GuiFunctions.setComboBoxItems(activeConfigCombo[1], currentItem, configs)
@@ -488,13 +494,12 @@ class GuiWindow(Gtk.Window):
                         box1.pack_start(activeNodeNrCombo[0], False, False, 0)
 
                     supportedCalibrationOptions = ['',
-                            'Pwm nonlinearity',
                             'Optical encoder',
-                            'System identification',
+                            'Pwm and system identification',
                             'Motor cogging torque',
                             'Output encoder calibration',
                             'Test control loop',
-                            'Test control loop (Advanced)']
+                            'Pwm nonlinearity (legacy)']
 
                 def getNodeNrFromCombo(nodeNrCombo):
                     nodeNr = nodeNrCombo.get_model()[nodeNrCombo.get_active()][0]
@@ -522,7 +527,7 @@ class GuiWindow(Gtk.Window):
                     if calibrationType == '':
                         calibrationBox = None
 
-                    elif calibrationType == 'Pwm nonlinearity':
+                    elif calibrationType == 'Pwm nonlinearity (legacy)':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
@@ -536,7 +541,7 @@ class GuiWindow(Gtk.Window):
                         calibrationBox = OpticalEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun,
                                                                                 configFilePath, configClassName)
 
-                    elif calibrationType == 'System identification':
+                    elif calibrationType == 'Pwm and system identification':
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
@@ -557,17 +562,12 @@ class GuiWindow(Gtk.Window):
                         calibrationBox = OutputEncoderAnalyzer.createGuiBox(self, nodeNr, getPortFun,
                                                                             configFilePath, configClassName)
 
-                    elif calibrationType in ('Test control loop', 'Test control loop (Advanced)'):
-                        advancedMode = False
-                        if calibrationType == 'Test control loop (Advanced)':
-                            advancedMode = True
-
+                    elif calibrationType in ('Test control loop'):
                         nodeNr = getNodeNrFromCombo(activeNodeNrCombo[1])
                         getPortFun = getComPortFromCombo
                         configClassName = getConfigClassNameFromCombo(activeNodeNrCombo[1])
                         calibrationBox = TestControlLoopAnalyzer.createGuiBox(self, nodeNr, getPortFun,
-                                                                        configFilePath, configClassName,
-                                                                        advancedMode=advancedMode)
+                                                                        configFilePath, configClassName)
 
                     if calibrationBox is not None:
                         box1.pack_start(calibrationBox, False, False, 0)

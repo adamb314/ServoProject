@@ -3,6 +3,7 @@ Module for calibrating the output encoder
 '''
 # pylint: disable=duplicate-code
 
+import os
 from ServoProjectModules.CalibrationAnalyzers.Helper import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 class OutputEncoderCalibrationGenerator:
@@ -37,7 +38,7 @@ class OutputEncoderCalibrationGenerator:
                 if lastPos == pos:
                     inSequence.append(d[2])
                 elif len(inSequence) > 0:
-                    posList[pos].append([sum(inSequence), len(inSequence)])
+                    posList[lastPos].append([sum(inSequence), len(inSequence)])
                     inSequence = []
                 lastPos = pos
 
@@ -122,25 +123,7 @@ class OutputEncoderCalibrationGenerator:
 
     _compVecPattern = re.compile(
             r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+'
-            r'std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]*)\s*\};')
-    _unitPerRevPattern = re.compile(
-            r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*'
-            r'(?P<encoderType>\w*)\s*>\s*\([^,]*,\s*)(?P<units>[^,]*)(?P<end>,\s*compVec\s*\)\s*;)')
-
-    @staticmethod
-    def getConfiguredOutputEncoderData(configFileAsString, configClassName):
-        configClassString = getConfigClassString(configFileAsString, configClassName)
-
-        temp = OutputEncoderCalibrationGenerator._unitPerRevPattern.search(configClassString)
-
-        magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
-        unitsPerRev = 4096
-        if not magneticEncoder:
-            unitsPerRevStr = temp.group('units')
-            unitsPerRevStr = re.sub(r'f', '', unitsPerRevStr)
-            unitsPerRev = eval(unitsPerRevStr)  # pylint: disable=eval-used
-
-        return magneticEncoder, unitsPerRev
+            r'std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]+)\s*\};')
 
     @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
@@ -166,11 +149,42 @@ class OutputEncoderCalibrationGenerator:
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b,')
-        ax.plot(range(0, 4096 + 8, 8), self.meanList, 'g-+')
+        x = range(0, 4096 + 8, 8)
+        ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b+', alpha=0.25)
+        ax.plot(x, self.meanList, 'g-+')
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
+        zoomWindow = 256
+        defaultXLims = [-x[-1] * 0.02, x[-1] * 1.02]
+        xLims = defaultXLims
+        ax.set_xlim(xLims[0], xLims[1])
+
+        def onRelease(event):
+            nonlocal xLims
+
+            xLims = defaultXLims
+            ax.set_xlim(xLims[0], xLims[1])
+            canvas.draw()
+
+        def onMove(event):
+            nonlocal xLims
+
+            if event.button != 1:
+                onRelease(event)
+                return
+
+            x = event.xdata
+            if not x is None:
+                xt = (x - xLims[0]) / (xLims[1] - xLims[0])
+                x = defaultXLims[0] + xt * (defaultXLims[1] - defaultXLims[0])
+                xLims = [x - zoomWindow / 2, x + zoomWindow / 2]
+                ax.set_xlim(xLims[0], xLims[1])
+                canvas.draw()
+
+        canvas.mpl_connect('button_press_event', onMove)
+        canvas.mpl_connect('button_release_event', onRelease)
+        canvas.mpl_connect('motion_notify_event', onMove)
         box.add(canvas)
 
         box.show_all()
@@ -197,7 +211,7 @@ class OutputEncoderCalibrationGenerator:
     def invertOutputEncoder(self, configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
-        temp = OutputEncoderCalibrationGenerator._unitPerRevPattern.search(configClassString)
+        temp = outputEncoderUnitPerRevPattern.search(configClassString)
 
         if temp is not None:
             unitsPerRevStr = temp.group('units')
@@ -206,8 +220,8 @@ class OutputEncoderCalibrationGenerator:
             while unitsPerRevStr.find('-(-(') == 0:
                 unitsPerRevStr = unitsPerRevStr[4:-2]
 
-            configClassString = re.sub(OutputEncoderCalibrationGenerator._unitPerRevPattern,
-                    r'\g<beg>' + unitsPerRevStr + r'\g<end>', configClassString)
+            configClassString = re.sub(outputEncoderUnitPerRevPattern,
+                    r'\g<beg>' + r'\g<encoderType>' + r'\g<mid>' + unitsPerRevStr + r'\g<end>', configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -220,11 +234,28 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.set_margin_start(40)
     calibrationBox.set_margin_bottom(100)
 
-    controlSpeedScale = GuiFunctions.creatHScale(14, 0, 100, 1, getLowLev=True)
+    contorlParameters = ControlParameters(14, 14 * 4, 14 * 32, 1.0)
+
+    controlSpeedScale = GuiFunctions.creatHScale(contorlParameters.getMainSpeed(), 0, 100, 1, getLowLev=True)
     controlSpeedScale = GuiFunctions.addTopLabelTo('<b>Control speed</b>\n'
             ' Higher value results in tighter control but increases noise feedback\n'
             '(control theory: pole placement of slowest pole)', controlSpeedScale[0]), controlSpeedScale[1]
     calibrationBox.pack_start(controlSpeedScale[0], False, False, 0)
+
+    advancedParametersButton = GuiFunctions.createButton('Set advanced parameters', getLowLev=True)
+    calibrationBox.pack_start(advancedParametersButton[0], False, False, 0)
+
+    def onControlSpeedScaleChange(widget):
+        contorlParameters.setMainSpeed(controlSpeedScale[1].get_value())
+
+    controlSpeedScale[1].connect('value-changed', onControlSpeedScaleChange)
+
+    def onAdvancedParamClicked(widget):
+        nonlocal contorlParameters
+        contorlParameters = GuiFunctions.openAdvancedParametersDialog(parent, contorlParameters)
+        controlSpeedScale[1].set_value(contorlParameters.getMainSpeed())
+
+    advancedParametersButton[1].connect('clicked', onAdvancedParamClicked)
 
     startButton = GuiFunctions.createButton('Start calibration', getLowLev=True)
 
@@ -235,8 +266,12 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     threadMutex = threading.Lock()
     testThread = None
 
+    changeTorqueDirTime = 6.0
+    runTime = 120.0 + changeTorqueDirTime
+
     def resetGuiAfterCalibration():
         controlSpeedScale[1].set_sensitive(True)
+        advancedParametersButton[1].set_sensitive(True)
         startButton[1].set_label('Start calibration')
         startButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
@@ -245,11 +280,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     runThread = False
 
     def updateRecordingProgressBar(fraction, pos):
+        timeBeforeDirChange = (runTime - changeTorqueDirTime) / 2
+        timeAfterDirChange = timeBeforeDirChange + changeTorqueDirTime
         stepsStr = []
         stepsStr.append('1) Move the servo-output-shaft over its range of motion.\n')
         stepsStr.append('2) Leave it somewhere in the middle.\n')
-        stepsStr.append('3) Apply constant torque in CW direction (60 sec).\n')
-        stepsStr.append('4) Change torque direction to CCW (60 sec).\n')
+        stepsStr.append(f'3) Apply constant torque in CW direction ({timeBeforeDirChange:.0f} sec).\n')
+        stepsStr.append(f'4) Change torque direction to CCW ({changeTorqueDirTime:.0f} sec).\n')
+        stepsStr.append(f'5) Apply constant torque in CCW direction ({timeBeforeDirChange:.0f} sec).\n')
         if fraction < 0:
             if fraction <= -1:
                 recordingProgressBar[1].set_text('Waiting for move to complete')
@@ -262,17 +300,23 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             fraction = -fraction
         else:
-            if fraction < 0.5:
-                fraction = fraction * 2.0
+            currentRunTime = fraction * runTime
+            if currentRunTime < timeBeforeDirChange:
+                fraction = currentRunTime / timeBeforeDirChange
                 recordingProgressBar[1].set_text('Recording with CW torque')
 
                 stepsStr[2] = '<b>' + stepsStr[2] + '</b>\n'
-
-            else:
-                fraction = (fraction - 0.5) * 2.0
-                recordingProgressBar[1].set_text('Recording with CCW torque')
+            elif currentRunTime < timeAfterDirChange:
+                fraction = (currentRunTime - timeBeforeDirChange) / changeTorqueDirTime
+                fraction = 1.0 - fraction
+                recordingProgressBar[1].set_text('Change to CCW torque')
 
                 stepsStr[3] = '<b>' + stepsStr[3] + '</b>\n'
+            else:
+                fraction = (currentRunTime - timeAfterDirChange) / (runTime - timeAfterDirChange)
+                recordingProgressBar[1].set_text('Recording with CCW torque')
+
+                stepsStr[4] = '<b>' + stepsStr[4] + '</b>\n'
 
         directionLabel.set_text(''.join(stepsStr) + '\nRaw encoder position is ' + str(int(pos)))
         directionLabel.set_use_markup(True)
@@ -282,8 +326,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with open(configFilePath, 'r', encoding='utf-8') as configFile:
             configFileAsString = configFile.read()
 
-            magneticEncoder, unitsPerRev = OutputEncoderCalibrationGenerator.getConfiguredOutputEncoderData(
-                    configFileAsString, configClassName)
+            magneticEncoder, unitsPerRev = getConfiguredOutputEncoderData(
+                getConfigClassString(configFileAsString, configClassName))
             outputEncoderCalibrationGenerator = OutputEncoderCalibrationGenerator(data, magneticEncoder, unitsPerRev)
 
             if outputEncoderCalibrationGenerator.isInverted():
@@ -370,15 +414,19 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 response = dialog.run()
                 dialog.destroy()
 
+    simulationConfig = False
+
     def startCalibrationRun(nodeNr, port):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
         try:
             controlSpeedScale[1].set_sensitive(False)
-            controlSpeed = controlSpeedScale[1].get_value()
+            advancedParametersButton[1].set_sensitive(False)
+
             def initFun(servoArray):
-                servoArray[0].setControlSpeed(controlSpeed, 4 * controlSpeed, 32 * controlSpeed)
+                controlSpeed, velControlSpeed, filterSpeed, inertiaMarg = contorlParameters.getValues()
+                servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed, inertiaMarg)
                 servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
             with createServoManager(nodeNr, port, dt=0.003, initFunction=initFun) as servoManager:
@@ -389,7 +437,35 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 maxPos = None
                 direction = 1
 
-                runTime = 122.0
+                out = []
+
+                encPos = None
+                filteredVel = 0.0
+
+                if simulationConfig or port == '':
+                    servo = servoManager.servoArray[0]
+                    p = servo.getPosition(True)
+                    minPos = p - 1.5
+                    maxPos = p + 1.5
+                    out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+                    out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
+
+                if os.path.isfile('outputEncoderDataToLoad.txt') and encPos is None:
+                    dialog = Gtk.MessageDialog(
+                            transient_for=parent,
+                            flags=0,
+                            message_type=Gtk.MessageType.INFO,
+                            buttons=Gtk.ButtonsType.YES_NO,
+                            text='Found file: "outputEncoderDataToLoad.txt"!\n'
+                                'Should this file be loaded instead of\n'
+                                'running a new calibration?',
+                    )
+                    response = dialog.run()
+                    dialog.destroy()
+
+                    if response == Gtk.ResponseType.YES:
+                        out = np.loadtxt('outputEncoderDataToLoad.txt')
+                        doneRunning = True
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     nonlocal t
@@ -403,9 +479,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     if t < 0:
                         servo.setOpenLoopControlSignal(0, True)
                     else:
-                        refVel = (maxPos - minPos) / (runTime - 2.0) * 6
+                        refVel = (maxPos - minPos) / (runTime - changeTorqueDirTime) * 6
 
-                        if abs(t - runTime / 2) < 1.0:
+                        if abs(t - runTime / 2) < changeTorqueDirTime / 2:
                             refVel = 0.0
 
                         refPos += direction * refVel * dt
@@ -418,19 +494,6 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             direction = 1
 
                         servo.setReference(refPos, direction * refVel, 0.0)
-
-                out = []
-
-                encPos = None
-                filteredVel = 0.0
-
-                if port == '':
-                    servo = servoManager.servoArray[0]
-                    p = servo.getPosition(True)
-                    minPos = p - 1.5
-                    maxPos = p + 1.5
-                    out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
-                    out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
 
                 def readResultHandlerFunction(dt, servoManager):
                     # pylint: disable=too-many-locals, too-many-branches, too-many-statements
@@ -523,6 +586,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 if runThread is True:
                     data = np.array(out)
+                    np.savetxt('lastOutputEncoderData.txt', data)
                     GLib.idle_add(handleResults, data)
 
         except Exception as e:
@@ -533,6 +597,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def onStartCalibration(widget):
         nonlocal testThread
         nonlocal runThread
+        nonlocal simulationConfig
 
         if widget.get_label() == 'Start calibration':
             with open(configFilePath, 'r', encoding='utf-8') as configFile:
@@ -563,6 +628,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         GuiFunctions.transferToTargetMessage(parent)
 
                     return
+
+                simulationConfig = isSimulationConfig(
+                        getConfigClassString(configFileAsString, configClassName))
 
             widget.set_label('Abort calibration')
 

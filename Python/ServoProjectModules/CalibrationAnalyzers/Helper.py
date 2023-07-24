@@ -8,7 +8,6 @@ import time
 import math
 import random
 import re
-import numba
 import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
@@ -19,6 +18,7 @@ import ServoProjectModules.Communication as ServoComModule
 from ServoProjectModules.Communication import pi
 import ServoProjectModules.GuiHelper as GuiFunctions
 from ServoProjectModules.GuiHelper import GLib, Gtk
+from ServoProjectModules.GuiHelper import ControlParameters
 
 def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
     if port != '':
@@ -48,7 +48,72 @@ def createServoManager(nodeNr, port, dt=0.004, initFunction=None):
 
     return servoManager
 
-def shrinkArray(a, size, median = False):
+def median(vec):
+    if len(vec) == 0:
+        return math.nan
+    sortedVec = sorted(list(vec))
+    i = len(vec)//2-1
+    if len(vec) % 2 == 1:
+        return sortedVec[i]
+    return sum(sortedVec[i:i+2])/2
+
+def meanIgnoringNan(x):
+    skipNan = [v for v in x if not math.isnan(v)]
+    return np.mean(skipNan)
+
+def calcSpikeResistantAvarage(vec, excluded=0.33):
+    if len(vec) == 0:
+        return math.nan
+    vec = sorted(vec)
+    excludeIndex = int(len(vec) * excluded)
+    if excludeIndex > 0:
+        vec = vec[excludeIndex - 1:-excludeIndex]
+    return sum(vec) / len(vec)
+
+def slidingAvarageFiltering(y, filterN):
+    y = list(y)
+
+    if filterN <= 1:
+        return y
+
+    filterN = max(1, filterN // 2)
+    return [meanIgnoringNan(
+            y[min(i-filterN, 0):0]
+            + y[max(i-filterN, 0):min(i+filterN+1, len(y))]
+            + y[0:max(0, i+filterN+1-len(y))]) for i in range(0, len(y))]
+
+
+def fftFilter(tt, yy, freqCut, minFreqCut=0, upSampleTt=None):
+    mean = meanIgnoringNan(yy)
+    yy = [mean if math.isnan(v) else v for v in yy]
+    tt = np.array(tt)
+    yy = np.array(yy)
+
+    l = len(tt)
+    ff = np.fft.fftfreq(l, (tt[1]-tt[0]))   # assume uniform spacing
+    fyy = np.fft.fft(yy)
+
+    for i, f in enumerate(ff):
+        if abs(f) > freqCut:
+            fyy[i] = 0.0
+        elif abs(f) < minFreqCut:
+            fyy[i] = 0.0
+
+    if upSampleTt is None:
+        return np.real(np.fft.ifft(fyy))
+
+    def symbolicRepOfTtToYy(tt):
+        #x[n] = 1/N * sum{k=0 to N-1} X[k] * exp(j * 2*pi * k * n / N)
+
+        yy = tt * 0
+        for f, fy in zip(ff, fyy):
+            yy = yy + 1 / l * fy * np.exp(2j * math.pi * f * tt)
+
+        return yy
+
+    return np.real(symbolicRepOfTtToYy(upSampleTt))
+
+def shrinkArray(a, size, useMedian = False):
     if len(a) <= size:
         return a
 
@@ -63,12 +128,11 @@ def shrinkArray(a, size, median = False):
         if nextIndex > len(a):
             nextIndex = len(a)
 
-        sortedSubA = sorted(a[int(index): int(nextIndex)])
-        if median and len(sortedSubA) > 1:
-            i = int(len(sortedSubA) / 2 - 0.49)
-            sortedSubA = sortedSubA[i: -i]
-
-        newA.append(sum(sortedSubA) / len(sortedSubA))
+        subA = a[int(index): int(nextIndex)]
+        if useMedian:
+            newA.append(median(subA))
+        else:
+            newA.append(sum(subA) / len(subA))
         index = nextIndex
 
     return newA
@@ -108,7 +172,8 @@ def sign(v):
     return -1.0
 
 def getConfigClassString(configFileAsString, configClassName):
-    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\}(;\n+SimulationHandler\s+'
+            + configClassName + r'::simHandler)?)')
     temp = classPattern.search(configFileAsString)
     if not temp:
         return ''
@@ -116,7 +181,8 @@ def getConfigClassString(configFileAsString, configClassName):
     return temp.group(0)
 
 def setConfigClassString(configFileAsString, configClassName, classString):
-    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\})')
+    classPattern = re.compile(r'(\s*class\s+' + configClassName + r'\s+(.*\n)*?(.*\n)*?\}(;\n+SimulationHandler\s+'
+            + configClassName + r'::simHandler)?)')
     temp = classPattern.search(configFileAsString)
     if not temp:
         return ''
@@ -124,6 +190,14 @@ def setConfigClassString(configFileAsString, configClassName, classString):
     configFileAsString = re.sub(classPattern, classString, configFileAsString)
 
     return configFileAsString
+
+def isSimulationConfig(configClassString):
+    classPattern = re.compile(r'SimulationHandler\s+\w+::simHandler')
+    temp = classPattern.search(configClassString)
+    if not temp:
+        return False
+
+    return True
 
 def newConfigFileAsString(configClassString, nodeNr, configClassName):
     # pylint: disable=line-too-long
@@ -153,20 +227,19 @@ def newConfigFileAsString(configClassString, nodeNr, configClassName):
     out += '#endif\n'
     return out
 
-wrapAroundAndUnitPerRevPattern = re.compile(
-        r'(?P<beg>return\s+std::make_unique\s*<\s*)(?P<encoderType>\w*)'
-        r'(?P<mid>\s*>\s*\((\w+\s*,\s*))(?P<units>[^;]*)(?P<end>,\s*compVec\s*\)\s*;)')
+outputEncoderUnitPerRevPattern = re.compile(
+        r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*return\s+std::make_unique\s*<\s*)'
+        r'(?P<encoderType>\w*)(?P<mid>\s*>\s*\(([^,]+,\s*){0,10})(?P<units>[^,]+)(?P<end>,\s*compVec\s*\)\s*;)')
 
 def getConfiguredOutputEncoderData(configClassString):
-    temp = wrapAroundAndUnitPerRevPattern.search(configClassString)
+    temp = outputEncoderUnitPerRevPattern.search(configClassString)
 
     magneticEncoder = temp.group('encoderType') == 'EncoderHandler'
     unitsPerRev = 4096
     if not magneticEncoder:
-        unitsStr = wrapAroundAndUnitPerRevPattern.search(configClassString).group('units')
-
-        unitsStr = re.sub(r'f', '', unitsStr)
-        unitsPerRev = eval(unitsStr)  # pylint: disable=eval-used
+        unitsPerRevStr = temp.group('units')
+        unitsPerRevStr = re.sub(r'f', '', unitsPerRevStr)
+        unitsPerRev = eval(unitsPerRevStr)  # pylint: disable=eval-used
 
     return magneticEncoder, unitsPerRev
 
@@ -177,7 +250,7 @@ def setConfiguredOutputEncoderData(configClassString, magneticEncoder, unitsPerR
     if not magneticEncoder:
         unitsStr = f'4096.0f * {unitsPerRev / 4096 * 360 :0.1f}f / 360'
 
-    configClassString = re.sub(wrapAroundAndUnitPerRevPattern,
+    configClassString = re.sub(outputEncoderUnitPerRevPattern,
             r'\g<beg>' + encoderTypeStr +
             r'\g<mid>' + unitsStr + r'\g<end>', configClassString)
 
@@ -221,6 +294,84 @@ def setConfiguredGearRatio(configClassString, gearRatioStr):
     configClassString = re.sub(parmeterPattern, r'\g<beg>' + paramStr + r'\g<end>', configClassString)
 
     return configClassString
+
+class PwmNonlinearityConfigHandler:
+    def __init__(self, pwmCompLookUp=None, pwmOffset=None):
+        self.pwmCompLookUp = pwmCompLookUp
+        self.pwmOffset = pwmOffset
+
+    _linearizeFuncReturnPattern = re.compile(
+            r'(\n([ \t]*).*createCurrentController\(\)\s*\{(.*\n)*?(\s*)auto\s+pwmHighFrqCompFun\s+=\s+'
+            r'\[\]\(uint16_t\s+in\)\4\{\n)([ \t]*)(?P<function>(.*\n)*?.*)(\4\};(.*\n)*?\2\})')
+    _linearizeVecPattern = re.compile(
+            r'((\s*).*createCurrentController\(\)\s*\{(.*\n)*?)(\s*)auto\s+pwmHighFrqCompFun\s+=\s+'
+            r'\[\]\(uint16_t\s+in\)(.*\n)*?\4\};((.*\n)*?\2\})')
+
+    @staticmethod
+    def checkForPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        temp = PwmNonlinearityConfigHandler._linearizeFuncReturnPattern.search(configClassString)
+        if not temp:
+            raise Exception('Configuration not compatible')
+
+        if temp.group('function') != 'return in;':
+            return True
+
+        return False
+
+    @staticmethod
+    def resetPreviousCalibration(configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+
+        configClassString = re.sub(PwmNonlinearityConfigHandler._linearizeFuncReturnPattern, r'\1\5return in;\8',
+                                    configClassString)
+        configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+        return configFileAsString
+
+    def writeLinearizationFunctionToConfigFileString(self, configFileAsString, configClassName):
+        configClassString = getConfigClassString(configFileAsString, configClassName)
+        linearizeVecPattern = PwmNonlinearityConfigHandler._linearizeVecPattern
+
+        temp = linearizeVecPattern.search(configClassString)
+        if temp is not None:
+            out = r'\1'
+            out += self.getLinearizationFunction(r'\4')
+            out += r'\6'
+            configClassString = re.sub(linearizeVecPattern, out, configClassString)
+            configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
+
+            return configFileAsString
+
+        return ''
+
+    def getLinearizationFunction(self, indent = ''):
+        out = ''
+        out += indent + 'auto pwmHighFrqCompFun = [](uint16_t in)\n'
+        out += indent + '{\n'
+
+        if self.pwmOffset is None:
+            lookUpSize = len(self.pwmCompLookUp)
+            out += indent + (f'    constexpr static std::array<uint16_t, {lookUpSize}> linearizeVec = '
+                            + f'{intArrayToString(self.pwmCompLookUp)}\n')
+            out += '\n'
+            out += indent +  '    return DefaultConfigHolder::pwmHighFrqCompFun(linearizeVec, in);\n'
+        else:
+            out += indent +  '    constexpr static uint16_t maxPwm = 1023;\n'
+            out += indent + f'    constexpr static uint16_t pwmOffset = {int(round(self.pwmOffset))};\n'
+            out += '\n'
+            out += indent +  '    if (in == 0)\n'
+            out += indent +  '    {\n'
+            out += indent +  '        return static_cast<uint16_t>(0);\n'
+            out += indent +  '    }\n'
+            out += '\n'
+            out += indent + ('    return static_cast<uint16_t>(pwmOffset + static_cast<uint32_t>(maxPwm - pwmOffset)'
+                                ' * in / maxPwm);\n')
+
+        out += indent + '};'
+
+        return out
 
 class SmoothMoveHandler:
     def __init__(self, startPos, minMoveTime = 0.1):
@@ -272,46 +423,51 @@ class SmoothMoveHandler:
         v = self.d * a * math.sin(self.w)
         return self.p, v
 
-def main():
-    moveHandler = SmoothMoveHandler(0.0, 0.4)
-    moveHandler.set(0.0, 0.2)
+class PiecewiseLinearFunction:
+    def __init__(self, xList, yList):
+        xList = list(xList)
+        yList = list(yList)
 
-    refV = 1.0
-    r = 1.0
-    moveHandler.set(r, refV)
+        if len(xList) != len(yList):
+            raise Exception('x and y list not same length')
+        if len(xList) < 2:
+            raise Exception('x list is too short')
 
-    p, v = moveHandler.getNextRef(0.0)
+        if sorted(xList) != xList:
+            raise Exception('x list is not sorted')
 
-    pVec = [p]
-    vVec = [v]
-    rVec = [r]
-    for i in range(0, 100):
-        p, v = moveHandler.getNextRef(0.01)
-        pVec.append(p)
-        vVec.append(v)
-        rVec.append(r)
+        sortedY = sorted(yList)
+        self.monotoneFunction = sortedY in (yList, yList[::-1])
 
-    r = 1.5
+        self.xList = xList
+        self.yList = yList
 
-    for i in range(0, 100):
-        moveHandler.set(r, refV)
-        p, v = moveHandler.getNextRef(0.01)
-        pVec.append(p)
-        vVec.append(v)
-        rVec.append(r)
+    @staticmethod
+    def _findIndex(l, v):
+        for i, d in enumerate(l):
+            if v < d:
+                return i - 1
+        return len(l) - 1
 
-    for i in range(0, 500):
-        r = 0.5 + min(0.3, i * 0.001)
-        moveHandler.set(r, refV)
-        p, v = moveHandler.getNextRef(0.01)
-        pVec.append(p)
-        vVec.append(v)
-        rVec.append(r)
+    @staticmethod
+    def _calcInterpolation(inputList, outputList, inputValue):
+        i = PiecewiseLinearFunction._findIndex(inputList, inputValue)
+        i = max(i, 0)
+        i = min(i, len(inputList) - 2)
+        x0 = inputList[i]
+        x1 = inputList[i + 1]
 
-    plt.plot(pVec, 'g+')
-    plt.plot(vVec, 'y+')
-    plt.plot(rVec, 'r+')
-    plt.show()
+        y0 = outputList[i]
+        y1 = outputList[i + 1]
 
-if __name__ == '__main__':
-    main()
+        t = (inputValue - x0) / (x1 - x0) if x1 != x0 else 0.5
+
+        return (y1 - y0) * t + y0
+
+    def getX(self, y, takeLowest=False):
+        if not self.monotoneFunction and not takeLowest:
+            raise Exception('not a monotone function')
+        return PiecewiseLinearFunction._calcInterpolation(self.yList, self.xList, y)
+
+    def getY(self, x):
+        return PiecewiseLinearFunction._calcInterpolation(self.xList, self.yList, x)

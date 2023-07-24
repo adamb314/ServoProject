@@ -10,7 +10,6 @@ Dependencies
 * python3-gi
 
 * matplotlib >= 3.4.2
-* numba >= 0.55.1
 * numpy >= 1.17.4
 * pyserial >= 3.5
 * requests >= 2.22.0

@@ -1,5 +1,5 @@
-#include "ArduinoC++BugFixes.h"
-#include "ThreadHandler.h"
+#include "src/ArduinoC++BugFixes.h"
+#include "src/Hardware/ThreadHandler.h"
 
 #include "config/config.h"
 

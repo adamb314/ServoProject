@@ -268,3 +268,132 @@ def creatProgressBar(label, width = 500, getLowLev = False):
         return box, progressBar
 
     return box
+
+class ControlParameters:
+    def __init__(self, mainSpeed, velControlSpeed, filterSpeed, inertiaMarg):
+        self.mainSpeed = None
+        self.velControlSpeedRatio = None
+        self.filterSpeedRatio = None
+        self.inertiaMarg = None
+        self.setValues(mainSpeed, velControlSpeed, filterSpeed, inertiaMarg)
+
+    def getValues(self):
+        velControlSpeed = self.mainSpeed * self.velControlSpeedRatio
+        filterSpeed = self.mainSpeed * self.velControlSpeedRatio * self.filterSpeedRatio
+        return (self.mainSpeed, velControlSpeed, filterSpeed, self.inertiaMarg)
+
+    def getRatios(self):
+        return (self.velControlSpeedRatio, self.filterSpeedRatio)
+
+    def getMainSpeed(self):
+        return self.mainSpeed
+
+    def setValues(self, mainSpeed, velControlSpeed, filterSpeed, inertiaMarg):
+        self.mainSpeed = mainSpeed
+        self.velControlSpeedRatio = velControlSpeed / mainSpeed
+        self.filterSpeedRatio = filterSpeed / velControlSpeed
+        self.inertiaMarg = inertiaMarg
+
+    def setMainSpeed(self, mainSpeed):
+        self.mainSpeed = mainSpeed
+
+def openAdvancedParametersDialog(parent, currentParameters):
+    # pylint: disable=too-many-locals, too-many-statements
+    dialog = Gtk.MessageDialog(
+            transient_for=parent,
+            flags=0,
+            message_type=Gtk.MessageType.OTHER,
+            buttons=Gtk.ButtonsType.OK,
+            text='Advanced parameters',
+    )
+    dialog.format_secondary_text(
+        ''
+    )
+    box = dialog.get_message_area()
+
+    velControlSpeedRatio, filterSpeedRatio = currentParameters.getRatios()
+    controlSpeed, velControlSpeed, filterSpeed, inertiaMarg = currentParameters.getValues()
+
+    controlSpeedScale = creatHScale(controlSpeed, 0, 100, 1, getLowLev=True)
+    controlSpeedScale = addTopLabelTo('<b>Control speed</b>', controlSpeedScale[0]), controlSpeedScale[1]
+    box.pack_start(controlSpeedScale[0], False, False, 0)
+
+    velControlSpeedScale = creatHScale(velControlSpeed, 0, 100 * 4, 4, getLowLev=True)
+    velControlSpeedScale = (addTopLabelTo('<b>Velocity control speed</b>', velControlSpeedScale[0]),
+                            velControlSpeedScale[1])
+    box.pack_start(velControlSpeedScale[0], False, False, 0)
+
+    filterSpeedScale = creatHScale(filterSpeed, 0, 100 * 32, 32, getLowLev=True)
+    filterSpeedScale = addTopLabelTo('<b>Filter speed</b>', filterSpeedScale[0]), filterSpeedScale[1]
+    box.pack_start(filterSpeedScale[0], False, False, 0)
+
+    inertiaMargScale = creatHScale(inertiaMarg, 1.0, 3.0, 0.1, getLowLev=True)
+    inertiaMargScale = addTopLabelTo('<b>Inertia margin</b>',
+            inertiaMargScale[0]), inertiaMargScale[1]
+    box.pack_start(inertiaMargScale[0], False, False, 0)
+    box.show_all()
+
+    secondaryEvent = False
+
+    def onControlSpeedScaleChange(widget):
+        nonlocal secondaryEvent
+        nonlocal controlSpeed
+        controlSpeed = controlSpeedScale[1].get_value()
+
+        secondaryEvent = True
+
+        velControlSpeedScale[1].set_value(controlSpeed * velControlSpeedRatio)
+
+        secondaryEvent = False
+
+    def onVelControlSpeedScaleChange(widget):
+        nonlocal secondaryEvent
+        nonlocal velControlSpeed
+        nonlocal velControlSpeedRatio
+        velControlSpeed = velControlSpeedScale[1].get_value()
+        velControlSpeed = int(round(velControlSpeed / 4)) * 4
+
+        isDrivingWidget = not secondaryEvent
+        if isDrivingWidget:
+            velControlSpeedRatio = velControlSpeed / controlSpeed
+            secondaryEvent = True
+
+        filterSpeedScale[1].set_value(velControlSpeed * filterSpeedRatio)
+
+        if velControlSpeed != velControlSpeedScale[1].get_value():
+            velControlSpeedScale[1].set_value(velControlSpeed)
+
+        if isDrivingWidget:
+            secondaryEvent = False
+
+    def onFilterSpeedScaleChange(widget):
+        nonlocal secondaryEvent
+        nonlocal filterSpeed
+        nonlocal filterSpeedRatio
+        filterSpeed = filterSpeedScale[1].get_value()
+        filterSpeed = int(round(filterSpeed / 32)) * 32
+
+        isDrivingWidget = not secondaryEvent
+        if isDrivingWidget:
+            filterSpeedRatio = filterSpeed / velControlSpeed
+            secondaryEvent = True
+
+        if filterSpeed != filterSpeedScale[1].get_value():
+            filterSpeedScale[1].set_value(filterSpeed)
+
+        if isDrivingWidget:
+            secondaryEvent = False
+
+    def onInertiaMargScaleChange(widget):
+        nonlocal inertiaMarg
+        inertiaMarg = inertiaMargScale[1].get_value()
+
+    controlSpeedScale[1].connect('value-changed', onControlSpeedScaleChange)
+    velControlSpeedScale[1].connect('value-changed', onVelControlSpeedScaleChange)
+    filterSpeedScale[1].connect('value-changed', onFilterSpeedScaleChange)
+    inertiaMargScale[1].connect('value-changed', onInertiaMargScaleChange)
+
+    dialog.run()
+    dialog.destroy()
+
+    return ControlParameters(controlSpeed, velControlSpeed, filterSpeed, inertiaMarg)

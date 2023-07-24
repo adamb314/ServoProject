@@ -6,7 +6,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/serial_port.hpp> 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 
 #ifndef SERVO_PROJECT_H
 #define SERVO_PROJECT_H
@@ -94,21 +94,21 @@ protected:
         char c;
         boost::asio::deadline_timer timer;
         bool read_error;
-     
-        // Called when an async read completes or has been cancelled
+
+           // Called when an async read completes or has been cancelled
         void read_complete(const boost::system::error_code& error,
                             size_t bytes_transferred);
-     
-        // Called when the timer's deadline expires.
+
+           // Called when the timer's deadline expires.
         void time_out(const boost::system::error_code& error);
-     
-    public:
-     
-        // Constructs a blocking reader, pass in an open serial_port and
+
+       public:
+
+           // Constructs a blocking reader, pass in an open serial_port and
         // a timeout in milliseconds.
         blocking_reader(boost::asio::serial_port& port, size_t timeout);
-     
-        // Reads a character or times out
+
+           // Reads a character or times out
         // returns false if the read times out
         bool read_char(char& val);
     };
@@ -187,7 +187,7 @@ class ContinuousValueUpCaster
 
 class DCServoCommunicator
 {
-  public:
+public:
     class OpticalEncoderChannelData
     {
     public:
@@ -203,9 +203,9 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(double scale, double offset, double startPosition = 0);
 
-    void setControlSpeed(unsigned char controlSpeed);
+    void setControlSpeed(unsigned char controlSpeed, double inertiaMarg = 1.0);
     void setControlSpeed(unsigned char controlSpeed, unsigned short int velControlSpeed,
-            unsigned short int filterSpeed);
+            unsigned short int filterSpeed, double inertiaMarg = 1.0);
 
     void setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
             double backlashCompensationCutOffSpeed, double backlashSize);
@@ -240,6 +240,8 @@ class DCServoCommunicator
 
     short int getLoopTime() const;
 
+    double getTime() const;
+
     float getBacklashCompensation() const;
 
     OpticalEncoderChannelData getOpticalEncoderChannelData() const;
@@ -250,7 +252,38 @@ class DCServoCommunicator
 
     void run();
 
-  private:
+private:
+    class ControlLoopSyncedTimeHandler
+    {
+    public:
+        ControlLoopSyncedTimeHandler();
+
+        bool isInitialized() const;
+
+        bool initialize(unsigned char loopNr);
+
+        void update(unsigned char loopNr);
+
+        double get() const;
+
+        double getLocalTime() const;
+
+    private:
+        class InitData
+        {
+        public:
+            double localTime;
+            unsigned char loopNr;
+        };
+
+        constexpr static double us200 = 200.0 / 1000000;
+
+        mutable std::chrono::high_resolution_clock::time_point initTimePoint;
+        std::vector<InitData> initDataList;
+        double loopCycleTime{0.0};
+        double lastRemoteTime{0.0};
+    };
+
     void updateOffset();
 
     Communication* bus{nullptr};
@@ -259,6 +292,7 @@ class DCServoCommunicator
     bool communicationIsOk{false};
 
     int initState{0};
+    ControlLoopSyncedTimeHandler remoteTimeHandler;
     bool backlashControlDisabled{false};
     bool newPositionReference{false};
     bool newOpenLoopControlSignal{false};
@@ -267,6 +301,7 @@ class DCServoCommunicator
     unsigned char controlSpeed{50};
     unsigned short int velControlSpeed{50 * 4};
     unsigned short int filterSpeed{50 * 32};
+    unsigned char inertiaMarg{0};
     unsigned char backlashCompensationSpeed{10};
     unsigned char backlashCompensationSpeedVelDecrease{0};
     unsigned char backlashSize{0};
@@ -316,7 +351,8 @@ class ServoManager
 {
 public:
     ServoManager(double cycleTime,
-            std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction);
+            std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction,
+            bool startManager = true);
 
     virtual ~ServoManager();
 
@@ -330,7 +366,7 @@ public:
 
     void removeHandlerFunctions();
 
-    void start();
+    void start(std::function<void(std::thread&)> threadInitFunction = [](std::thread& t){});
 
     void shutdown();
 
@@ -353,6 +389,7 @@ protected:
     double cycleTime;
     double cycleSleepTime{0.0};
     bool shuttingDown{true};
+    bool waitForThreadInit{true};
     bool delayedExceptionsEnabled{false};
     std::exception_ptr exception;
 

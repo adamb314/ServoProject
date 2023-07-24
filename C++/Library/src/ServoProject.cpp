@@ -387,17 +387,20 @@ void DCServoCommunicator::updateOffset()
     }
 }
 
-void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed)
+void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed, double inertiaMarg)
 {
-    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 32);
+    setControlSpeed(controlSpeed, controlSpeed * 4, controlSpeed * 32, inertiaMarg);
 }
 
 void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed,
-        unsigned short int velControlSpeed, unsigned short int filterSpeed)
+        unsigned short int velControlSpeed, unsigned short int filterSpeed,
+        double inertiaMarg)
 {
     this->controlSpeed = controlSpeed;
     this->velControlSpeed = velControlSpeed;
     this->filterSpeed = filterSpeed;
+    inertiaMarg = std::min(std::max(inertiaMarg, 1.0), 1.0 + 255.0 / 128);
+    this->inertiaMarg = static_cast<unsigned char>(std::round((inertiaMarg - 1.0) * 128.0));
 }
 
 void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
@@ -423,7 +426,7 @@ void DCServoCommunicator::disableBacklashControl(bool b)
 
 bool DCServoCommunicator::isInitComplete() const
 {
-    return initState == 10;
+    return initState >= 10 and remoteTimeHandler.isInitialized();
 }
 
 bool DCServoCommunicator::isCommunicationOk() const
@@ -435,8 +438,19 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
 {
     newPositionReference = true;
     newOpenLoopControlSignal = false;
-    refPos = (pos - offset) / scale * positionUpscaling;
-    refVel = vel / scale;
+    refPos = std::round((pos - offset) / scale * positionUpscaling);
+
+    int sign = 0;
+    if (vel > 0.0f)
+    {
+        sign = 1;
+    }
+    else if (vel < 0.0f)
+    {
+        sign = -1;
+    }
+    refVel = std::round(vel / scale);
+    refVel = std::max(1, std::abs(refVel)) * sign;
 
     if (refVel > 4)
     {
@@ -446,7 +460,7 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     {
         frictionCompensation = -std::abs(frictionCompensation);
     }
-    this->feedforwardU = feedforwardU + frictionCompensation;
+    this->feedforwardU = std::round(feedforwardU + frictionCompensation);
 }
 
 void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)
@@ -541,6 +555,12 @@ short int DCServoCommunicator::getLoopTime() const
     return loopTime;
 }
 
+double DCServoCommunicator::getTime() const
+{
+    activeCharReads[11] = true;
+    return remoteTimeHandler.get();
+}
+
 float DCServoCommunicator::getBacklashCompensation() const
 {
     activeIntReads[11] = true;
@@ -586,6 +606,8 @@ void DCServoCommunicator::run()
         }
     }
 
+    bool loopNrReadActive = activeCharReads[11];
+
     if (isInitComplete())
     {
         if (newPositionReference)
@@ -623,6 +645,7 @@ void DCServoCommunicator::run()
         bus->write(3, static_cast<char>(controlSpeed));
         bus->write(4, static_cast<char>(std::round(velControlSpeed / 4.0)));
         bus->write(5, static_cast<char>(std::round(filterSpeed / 32.0)));
+        bus->write(10, static_cast<char>(inertiaMarg));
         bus->write(6, static_cast<char>(backlashCompensationSpeed));
         bus->write(7, static_cast<char>(backlashCompensationSpeedVelDecrease));
         bus->write(8, static_cast<char>(backlashSize));
@@ -647,7 +670,6 @@ void DCServoCommunicator::run()
     {
         if (activeCharReads[i])
         {
-
             if (isInitComplete())
             {
                 activeCharReads[i] = false;
@@ -661,6 +683,11 @@ void DCServoCommunicator::run()
         intReadBufferIndex3Upscaling.update(intReadBuffer[3]);
         intReadBufferIndex10Upscaling.update(intReadBuffer[10]);
         intReadBufferIndex11Upscaling.update(intReadBuffer[11]);
+
+        if (loopNrReadActive)
+        {
+            remoteTimeHandler.update(charReadBuffer[11]);
+        }
     }
     else
     {
@@ -699,6 +726,8 @@ void DCServoCommunicator::run()
     {
         ++initState;
 
+        remoteTimeHandler.initialize(charReadBuffer[11]);
+
         float pos;
         if (!backlashControlDisabled)
         {
@@ -722,8 +751,109 @@ void DCServoCommunicator::run()
     }
 }
 
+DCServoCommunicator::ControlLoopSyncedTimeHandler::ControlLoopSyncedTimeHandler()
+{
+}
+
+bool DCServoCommunicator::ControlLoopSyncedTimeHandler::isInitialized() const
+{
+    return loopCycleTime != 0.0;
+}
+
+bool DCServoCommunicator::ControlLoopSyncedTimeHandler::initialize(unsigned char loopNr)
+{
+    if (isInitialized())
+    {
+        return true;
+    }
+
+    if (initDataList.size() < 20)
+    {
+        initDataList.push_back(InitData{getLocalTime(), loopNr});
+        return false;
+    }
+
+    std::vector<double> listOfDt;
+    for (size_t i = 0; i != initDataList.size() - 1; ++i)
+    {
+        const auto& d0 = initDataList[i];
+        const auto& d1 = initDataList[i + 1];
+        double localTimeDiff = d1.localTime - d0.localTime;
+        char loopNrDiff = static_cast<char>(d1.loopNr - d0.loopNr);
+
+        if (loopNrDiff == 0)
+        {
+            continue;
+        }
+
+        listOfDt.push_back(localTimeDiff / loopNrDiff);
+    }
+
+    std::sort(listOfDt.begin(), listOfDt.end());
+
+    size_t cutI = listOfDt.size() / 4;
+    listOfDt = std::vector<double>{listOfDt.begin() + cutI, listOfDt.end() - cutI};
+
+    if (listOfDt.size() == 0)
+    {
+        loopCycleTime = -1.0;
+        return true;
+    }
+
+    loopCycleTime = 0.0;
+    for (auto dt : listOfDt)
+    {
+        loopCycleTime += dt;
+    }
+    loopCycleTime /= listOfDt.size();
+    loopCycleTime = std::round(loopCycleTime / us200) * us200;
+    return true;
+}
+
+void DCServoCommunicator::ControlLoopSyncedTimeHandler::update(unsigned char loopNr)
+{
+    double localTime = getLocalTime();
+
+    if (loopCycleTime == -1.0)
+    {
+        lastRemoteTime = localTime;
+        return;
+    }
+
+    double localTimeDiff = localTime - initDataList.back().localTime;
+
+    unsigned long nrOfLoops = static_cast<unsigned char>(loopNr - initDataList.back().loopNr);
+    nrOfLoops += std::round((localTimeDiff / loopCycleTime - nrOfLoops) / 256) * 256;
+
+    lastRemoteTime += nrOfLoops * loopCycleTime;
+
+    initDataList.back().localTime = localTime;
+    initDataList.back().loopNr = loopNr;
+}
+
+double DCServoCommunicator::ControlLoopSyncedTimeHandler::get() const
+{
+  return lastRemoteTime;
+}
+
+double DCServoCommunicator::ControlLoopSyncedTimeHandler::getLocalTime() const
+{
+    using namespace std::chrono;
+
+    if (initDataList.size() == 0)
+    {
+        initTimePoint = high_resolution_clock::now();
+        return 0.0;
+    }
+
+    double localTime = std::chrono::duration<double>(high_resolution_clock::now()
+            - initTimePoint).count();
+    return localTime;
+}
+
 ServoManager::ServoManager(double cycleTime,
-        std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction) :
+        std::function<std::vector<std::unique_ptr<DCServoCommunicator> >() > initFunction,
+        bool startManager) :
     servos{initFunction()},
     cycleTime{cycleTime}
 {
@@ -747,7 +877,10 @@ ServoManager::ServoManager(double cycleTime,
         currentPosition.push_back(s->getPosition());
     }
 
-    start();
+    if (startManager)
+    {
+        start();
+    }
 }
 
 ServoManager::~ServoManager()
@@ -757,6 +890,11 @@ ServoManager::~ServoManager()
 
 void ServoManager::run()
 {
+    while (waitForThreadInit && !shuttingDown)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
     using namespace std::chrono;
     high_resolution_clock::time_point sleepUntilTimePoint = high_resolution_clock::now();
     high_resolution_clock::duration clockDurationCycleTime(
@@ -850,7 +988,7 @@ void ServoManager::removeHandlerFunctions()
     setHandlerFunctions(nullFun, nullFun);
 }
 
-void ServoManager::start()
+void ServoManager::start(std::function<void(std::thread&)> threadInitFunction)
 {
     shuttingDown = false;
     if (t.get_id() == std::this_thread::get_id())
@@ -860,7 +998,10 @@ void ServoManager::start()
 
     if (!t.joinable())
     {
+        waitForThreadInit = true;
         t = std::thread{&ServoManager::run, this};
+        threadInitFunction(t);
+        waitForThreadInit = false;
     }
 }
 

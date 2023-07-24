@@ -4,8 +4,10 @@
 # and OpenOCD
 #-----------------------------------------------
 #
-# 1) Install OpenOCD on the pi with this guide
+# 1) Install OpenOCD on the pi with this guide:
 #       https://learn.adafruit.com/programming-microcontrollers-using-openocd-on-raspberry-pi/compiling-openocd
+#    or using apt-get:
+#       sudo apt-get install openocd
 #
 # 2) Download bootloader:
 #       https://github.com/adafruit/uf2-samdx1/releases/download/v3.13.0/bootloader-itsybitsy_m0-v3.13.0.bin
@@ -13,7 +15,7 @@
 #    or latest from:
 #       https://github.com/adafruit/uf2-samdx1/releases
 #      
-# 3) Put in new folder on pi together with this script
+# 3) Put *.bin file in new folder on pi together with this script and rename this script to "openocd.cfg"
 #      
 # 4) Connections for Raspberry Pi 3 B
 #       Power "combined" PCB via USB from pi

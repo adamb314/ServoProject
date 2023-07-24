@@ -249,7 +249,7 @@ class ContinuousValueUpCaster
 
 class DCServoCommunicator
 {
-  public:
+public:
     class OpticalEncoderChannelData
     {
     public:
@@ -265,9 +265,9 @@ class DCServoCommunicator
 
     void setOffsetAndScaling(float scale, float offset, float startPosition = 0);
 
-    void setControlSpeed(unsigned char controlSpeed);
+    void setControlSpeed(unsigned char controlSpeed, float inertiaMarg = 1.0);
     void setControlSpeed(unsigned char controlSpeed, unsigned short int velControlSpeed,
-            unsigned short int filterSpeed);
+            unsigned short int filterSpeed, float inertiaMarg = 1.0);
 
     void setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
             float backlashCompensationCutOffSpeed, float backlashSize);
@@ -312,7 +312,7 @@ class DCServoCommunicator
 
     CommunicationError run();
 
-  private:
+private:
     void updateOffset();
 
     Communication* bus{nullptr};
@@ -329,6 +329,7 @@ class DCServoCommunicator
     unsigned char controlSpeed{50};
     unsigned short int velControlSpeed{50 * 4};
     unsigned short int filterSpeed{50 * 32};
+    unsigned char inertiaMarg{0};
     unsigned char backlashCompensationSpeed{10};
     unsigned char backlashCompensationSpeedVelDecrease{0};
     unsigned char backlashSize{0};

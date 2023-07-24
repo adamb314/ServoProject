@@ -39,7 +39,7 @@ int main()
 
         auto newServo = std::make_unique<DCServoCommunicator>(1, com.get());
         newServo->setOffsetAndScaling(360.0 / 4096.0, -110.0, 0);
-        newServo->setControlSpeed(32);
+        newServo->setControlSpeed(32, 1.2);
         newServo->setBacklashControlSpeed(6, 180.0, 0.00);
         servos.push_back(std::move(newServo));
 
