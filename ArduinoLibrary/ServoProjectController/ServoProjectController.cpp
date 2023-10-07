@@ -234,8 +234,8 @@ void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed,
     this->controlSpeed = controlSpeed;
     this->velControlSpeed = velControlSpeed;
     this->filterSpeed = filterSpeed;
-    inertiaMarg = stdmin::min(stdmin::max(inertiaMarg, 1.0), 1.0 + 255.0 / 128);
-    this->inertiaMarg = static_cast<unsigned char>(stdmin::round((inertiaMarg - 1.0) * 128.0));
+    inertiaMarg = stdmin::min(stdmin::max(inertiaMarg, 1.0f), 1.0f + 255.0f / 128);
+    this->inertiaMarg = static_cast<unsigned char>(stdmin::round((inertiaMarg - 1.0f) * 128.0f));
 }
 
 void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
