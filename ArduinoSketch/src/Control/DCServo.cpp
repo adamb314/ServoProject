@@ -268,8 +268,7 @@ void DCServo::controlLoop()
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             bool brake;
             std::tie(pwm, brake) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);
-            brake |= std::abs(velRef) <= 1;
-            brake &= std::abs(velRef) <= 4;
+            brake |= std::abs(x[1]) <= 1;
             currentController->addDamping(brake);
             currentController->setReference(pwm);
 
@@ -530,7 +529,7 @@ std::tuple<int32_t, bool> DefaultControlConfiguration::applyForceCompensations(
     out += posDepForceCompVec[i];
     out += posDepFrictionCompVec[i] * fricCompDir;
 
-    bool brake = fricCompDir == 0;
+    bool brake = std::abs(vel) <= 1 | velRef == 0.0f;
 
     return std::make_tuple(out, brake);
 }
