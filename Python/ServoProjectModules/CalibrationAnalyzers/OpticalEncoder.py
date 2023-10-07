@@ -552,6 +552,52 @@ class OpticalEncoderDataVectorGenerator:
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
+
+        zoomWindowX = 100
+        zoomWindowY = 2**10
+        defaultXLims = [-100, len(self.aVecShifted) + 100]
+        xLims = defaultXLims
+        ax.set_xlim(xLims[0], xLims[1])
+        
+        defaultYLims = [0, 2**14]
+        yLims = defaultYLims
+        ax.set_ylim(yLims[0], yLims[1])
+
+        def onRelease(event):
+            nonlocal xLims
+            nonlocal yLims
+
+            xLims = defaultXLims
+            ax.set_xlim(xLims[0], xLims[1])
+            yLims = defaultYLims
+            ax.set_ylim(yLims[0], yLims[1])
+            canvas.draw()
+
+        def onMove(event):
+            nonlocal xLims
+            nonlocal yLims
+
+            if event.button != 1:
+                onRelease(event)
+                return
+
+            x = event.xdata
+            y = event.ydata
+            if not x is None and not y is None:
+                xt = (x - xLims[0]) / (xLims[1] - xLims[0])
+                x = defaultXLims[0] + xt * (defaultXLims[1] - defaultXLims[0])
+                xLims = [x - zoomWindowX / 2, x + zoomWindowX / 2]
+                ax.set_xlim(xLims[0], xLims[1])
+
+                yt = (y - yLims[0]) / (yLims[1] - yLims[0])
+                y = defaultYLims[0] + yt * (defaultYLims[1] - defaultYLims[0])
+                yLims = [y - zoomWindowY / 2, y + zoomWindowY / 2]
+                ax.set_ylim(yLims[0], yLims[1])
+                canvas.draw()
+
+        canvas.mpl_connect('button_press_event', onMove)
+        canvas.mpl_connect('button_release_event', onRelease)
+        canvas.mpl_connect('motion_notify_event', onMove)
         box.add(canvas)
 
         label = Gtk.Label(label=labelStr)
