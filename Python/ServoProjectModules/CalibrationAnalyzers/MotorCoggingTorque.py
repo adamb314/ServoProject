@@ -20,8 +20,8 @@ class CoggingTorqueCalibrationGenerator:
         # pylint: disable=too-many-locals, too-many-statements
         self.data = data
 
-        self.positions = np.array(data[:, 6])
-        self.forces = np.array(data[:,5])
+        self.positions = np.array(data[:, 3])
+        self.forces = np.array(data[:,2])
 
         self.posRes = int(round(posRes))
 
@@ -130,27 +130,18 @@ class CoggingTorqueCalibrationGenerator:
 
         t = data[:, 0] - data[0, 0]
         fig = plt.figure(1)
-        fig.suptitle('Position')
-        plt.plot(t, data[:, 1], 'g')
+        fig.suptitle('Low level error over motor position')
+        plt.plot(self.positions, data[:, 1], 'b+', alpha=0.25)
 
         fig = plt.figure(2)
-        fig.suptitle('Velocity')
-        plt.plot(t, data[:, 2])
+        fig.suptitle('Low level error at motor')
+        plt.plot(t, data[:, 1])
 
         fig = plt.figure(3)
-        fig.suptitle('Motor pos diff over motor position')
-        plt.plot(self.positions[0:-1],
-                [(d1 - d0 + 1024)%2048-1024 for d1, d0 in zip(self.positions[1:], self.positions[0:-1])], '+')
+        fig.suptitle('Control signal')
+        plt.plot(t, data[:, 2])
 
         fig = plt.figure(4)
-        fig.suptitle('Error at motor')
-        plt.plot(t, data[:, 4])
-
-        fig = plt.figure(5)
-        fig.suptitle('Control signal')
-        plt.plot(t, data[:, 5])
-
-        fig = plt.figure(6)
         fig.suptitle('Cogging over motor position')
 
         lowCogging = [samples[0:len(samples)//2] for samples in self.samplesList]
@@ -168,7 +159,7 @@ class CoggingTorqueCalibrationGenerator:
             plt.plot(x, self.oldCogging, 'c')
         plt.plot(x, self.cogging, 'g')
 
-        fig = plt.figure(7)
+        fig = plt.figure(5)
         fig.suptitle('Friction over motor position')
 
         x = np.arange(0, 2048, self.posRes)
@@ -398,7 +389,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed, inertiaMarg)
                 servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-            with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
+            with createServoManager(nodeNr, port, dt=0.006, initFunction=initFun) as servoManager:
                 t = 0.0
                 doneRunning = False
 
@@ -503,17 +494,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     servo = servoManager.servoArray[0]
 
-                    p = servo.getPosition(True)
-                    v = servo.getVelocity()
                     u = servo.getPwmControlSignal()
-                    error = servo.getControlError(True)
-                    motorError = servo.getControlError(False)
                     optData = servo.getOpticalEncoderChannelData()
+                    lowLevelError = servo.getLowLevelControlError();
 
                     if testState in (1, 2) and abs(refV) >= maxRecordVel * 0.4:
-                        out.append([time.time(), p, v,
-                                error,
-                                motorError,
+                        out.append([time.time(),
+                                lowLevelError,
                                 u,
                                 optData.minCostIndex])
 
