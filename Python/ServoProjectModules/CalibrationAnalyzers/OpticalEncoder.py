@@ -649,6 +649,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             limitMovementButton[1])
     calibrationBox.pack_start(limitMovementButton[0], False, False, 0)
 
+    enableForceCompButton = GuiFunctions.createToggleButton('Enable', getLowLev=True)
+    enableForceCompButton = (GuiFunctions.addTopLabelTo(
+                '<b>Motor cogging compensation</b>\n May enable a lower constant velocity',
+                enableForceCompButton[0]),
+            enableForceCompButton[1])
+    calibrationBox.pack_start(enableForceCompButton[0], False, False, 0)
+
     startPos = None
 
     def onLockPosition(widget):
@@ -709,6 +716,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         calibrationBox.remove(statusLabel)
         pwmScale[1].set_sensitive(True)
         limitMovementButton[1].set_sensitive(True)
+        enableForceCompButton[1].set_sensitive(True)
 
     def updateStatusLabel(statusStr):
         statusLabel.set_label(statusStr)
@@ -746,7 +754,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             pwmDir *= -1
 
                     if pwm != 0.0:
-                        servo.setOpenLoopControlSignal(pwm * pwmDir, True)
+                        servo.setOpenLoopControlSignal(pwm * pwmDir,
+                            not enableForceCompButton[1].get_active())
 
                 out = []
 
@@ -855,6 +864,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         if widget.get_label() == 'Test pwm value':
             startButton[1].set_sensitive(False)
             limitMovementButton[1].set_sensitive(False)
+            enableForceCompButton[1].set_sensitive(False)
             calibrationBox.pack_start(statusLabel, False, False, 0)
 
             calibrationBox.show_all()
@@ -998,7 +1008,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         dirChangeWait = 2.0
 
                     if pwm != 0.0:
-                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
+                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t),
+                            not enableForceCompButton[1].get_active())
 
                 out = []
 
@@ -1111,6 +1122,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             calibrationBox.pack_start(analyzingProgressBar[0], False, False, 0)
             pwmScale[1].set_sensitive(False)
             limitMovementButton[1].set_sensitive(False)
+            enableForceCompButton[1].set_sensitive(False)
 
             calibrationBox.show_all()
 
