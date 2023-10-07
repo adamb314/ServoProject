@@ -120,7 +120,7 @@ void DCServo::enableInternalFeedForward(bool enable)
     internalFeedForwardEnabled = enable;
 }
 
-void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
+void DCServo::loadNewReference(float pos, float vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
     refInterpolator.loadNew(pos, vel, feedForwardU);
@@ -196,6 +196,12 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
     return mainEncoderHandler->getDiagnosticData();
 }
 
+float DCServo::getControlError()
+{
+    ThreadInterruptBlocker blocker;
+    return posDiff;
+}
+
 void DCServo::controlLoop()
 {
     mainEncoderHandler->triggerSample();
@@ -243,7 +249,7 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            float posDiff = posRef - outputPosOffset - x[0];
+            posDiff = posRef - outputPosOffset - x[0];
 
             vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);

@@ -439,24 +439,13 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
     newPositionReference = true;
     newOpenLoopControlSignal = false;
     refPos = std::round((pos - offset) / scale * positionUpscaling);
+    refVel = std::round(vel / scale * velocityUpscaling);
 
-    int sign = 0;
-    if (vel > 0.0f)
-    {
-        sign = 1;
-    }
-    else if (vel < 0.0f)
-    {
-        sign = -1;
-    }
-    refVel = std::round(vel / scale);
-    refVel = std::max(1, std::abs(refVel)) * sign;
-
-    if (refVel > 4)
+    if (refVel > 4 * velocityUpscaling)
     {
         frictionCompensation = std::abs(frictionCompensation);
     }
-    else if (refVel < -4)
+    else if (refVel < -4 * velocityUpscaling)
     {
         frictionCompensation = -std::abs(frictionCompensation);
     }
@@ -576,12 +565,18 @@ DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEn
     return opticalEncoderChannelData;
 }
 
-double DCServoCommunicator::getScaling()
+float DCServoCommunicator::getLowLevelControlError() const
+{
+    activeCharReads[12] = true;
+    return scale * lowLevelControlError;
+}
+
+double DCServoCommunicator::getScaling() const
 {
     return scale;
 }
 
-double DCServoCommunicator::getOffset()
+double DCServoCommunicator::getOffset() const
 {
     return offset;
 }
@@ -711,7 +706,7 @@ void DCServoCommunicator::run()
     encoderPos = intReadBufferIndex10Upscaling.get() * (1.0 / positionUpscaling);
     backlashCompensation = intReadBufferIndex11Upscaling.get() * (1.0 / positionUpscaling);
 
-    encoderVel = intReadBuffer[4];
+    encoderVel = intReadBuffer[4] * (1.0 / velocityUpscaling);
     controlSignal = intReadBuffer[5];
     current = intReadBuffer[6];
     pwmControlSignal = intReadBuffer[7];
@@ -721,6 +716,8 @@ void DCServoCommunicator::run()
     opticalEncoderChannelData.b = intReadBuffer[13];
     opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
     opticalEncoderChannelData.minCost = intReadBuffer[15];
+
+    lowLevelControlError = static_cast<signed char>(charReadBuffer[12]) * 0.001f;
 
     if (!isInitComplete())
     {
@@ -747,6 +744,12 @@ void DCServoCommunicator::run()
         if (isInitComplete())
         {
             updateOffset();
+
+            breakingChangeNr = static_cast<unsigned char>(charReadBuffer[15]);
+            if (breakingChangeNr >= 1)
+            {
+                velocityUpscaling = 8;
+            }
         }
     }
 }

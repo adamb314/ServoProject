@@ -88,7 +88,7 @@ class DCServo
 
     void enableInternalFeedForward(bool enable = true);
 
-    void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
+    void loadNewReference(float pos, float vel, int16_t feedForwardU = 0);
 
     void triggerReferenceTiming();
 
@@ -109,6 +109,8 @@ class DCServo
     float getBacklashCompensation();
 
     float getMainEncoderPosition();
+
+    float getControlError();
 
     EncoderHandlerInterface::DiagnosticData getMainEncoderDiagnosticData();
 
@@ -170,6 +172,7 @@ class DCServo
 
     ComplementaryFilter outputEncoderFilter;
 
+    float posDiff{0.0f};
     float Ivel{0.0f};
     float vControlRef{0.0f};
     int32_t pwm{0};

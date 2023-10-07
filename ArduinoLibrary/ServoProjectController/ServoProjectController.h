@@ -306,9 +306,11 @@ public:
 
     OpticalEncoderChannelData getOpticalEncoderChannelData() const;
 
-    float getScaling();
+    float getLowLevelControlError() const;
 
-    float getOffset();
+    float getScaling() const;
+
+    float getOffset() const;
 
     CommunicationError run();
 
@@ -355,6 +357,8 @@ private:
     short int loopTime{0};
     OpticalEncoderChannelData opticalEncoderChannelData;
 
+    float lowLevelControlError{0.0};
+
     long int refPos{0};
     CppArray<long int, 5> activeRefPos{0};
     short int refVel{0};
@@ -367,6 +371,14 @@ private:
     float scale{1.0f};
 
     static constexpr int positionUpscaling = 32;
+    int velocityUpscaling = 1;
+
+    // ----------------------------------------
+    // ---- Communication breaking changes ----
+    // ----------------------------------------
+    // 0 : version <= 4.0
+    // 1 : version >= 4.1 : breaking change is velocityUpscaling = 8 > 1
+    unsigned char breakingChangeNr{0};
 };
 
 template <size_t N>
