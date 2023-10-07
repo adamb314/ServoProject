@@ -330,49 +330,49 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         if response == Gtk.ResponseType.YES:
             coggingTorqueCalibrationGenerator.showAdditionalDiagnosticPlots()
 
+        dialog = Gtk.MessageDialog(
+                transient_for=parent,
+                flags=0,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text='Cogging torque calibration done!',
+        )
+        dialog.format_secondary_text(
+            "Should the configuration be updated with the green compensation vectors?"
+        )
+        coggingTorqueCalibrationGenerator.plotGeneratedVector(dialog.get_message_area())
+        dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
+        response = dialog.run()
+        dialog.destroy()
+
+        if response == Gtk.ResponseType.YES:
+            configFileAsString = coggingTorqueCalibrationGenerator.writeVectorToConfigFileString(
+                    configFileAsString, configClassName)
+
+            if configFileAsString != '':
+                with open(configFilePath, "w", encoding='utf-8') as configFile:
+                    configFile.write(configFileAsString)
+                    GuiFunctions.transferToTargetMessage(parent)
+
+                    return
+
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
                     flags=0,
-                    message_type=Gtk.MessageType.INFO,
-                    buttons=Gtk.ButtonsType.YES_NO,
-                    text='Cogging torque calibration done!',
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text='Configuration format error!',
             )
             dialog.format_secondary_text(
-                "Should the configuration be updated with the green compensation vectors?"
+                "Please past in the new compensation vector manually"
             )
-            coggingTorqueCalibrationGenerator.plotGeneratedVector(dialog.get_message_area())
-            dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
+            box = dialog.get_message_area()
+            vecEntry = Gtk.Entry()
+            vecEntry.set_text(coggingTorqueCalibrationGenerator.getGeneratedVectors())
+            box.add(vecEntry)
+            box.show_all()
             response = dialog.run()
             dialog.destroy()
-
-            if response == Gtk.ResponseType.YES:
-                configFileAsString = coggingTorqueCalibrationGenerator.writeVectorToConfigFileString(
-                        configFileAsString, configClassName)
-
-                if configFileAsString != '':
-                    with open(configFilePath, "w", encoding='utf-8') as configFile:
-                        configFile.write(configFileAsString)
-                        GuiFunctions.transferToTargetMessage(parent)
-
-                        return
-
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.ERROR,
-                        buttons=Gtk.ButtonsType.OK,
-                        text='Configuration format error!',
-                )
-                dialog.format_secondary_text(
-                    "Please past in the new compensation vector manually"
-                )
-                box = dialog.get_message_area()
-                vecEntry = Gtk.Entry()
-                vecEntry.set_text(coggingTorqueCalibrationGenerator.getGeneratedVectors())
-                box.add(vecEntry)
-                box.show_all()
-                response = dialog.run()
-                dialog.destroy()
 
     posOffset = None
     lastRefP = None
