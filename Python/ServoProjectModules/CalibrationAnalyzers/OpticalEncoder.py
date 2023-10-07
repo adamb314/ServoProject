@@ -28,7 +28,7 @@ class OpticalEncoderDataVectorGenerator:
             r'\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
 
     def __init__(self, data, configFileAsString='', configClassName='', *,
-            constVelIndex=10000, shouldAbort=None, updateProgress=None):
+            constVelIndex=10000, fftFilterLevel = 4, shouldAbort=None, updateProgress=None):
         # pylint: disable=too-many-locals, too-many-branches, too-many-statements
 
         self.data = data[:, 0:3]
@@ -72,10 +72,10 @@ class OpticalEncoderDataVectorGenerator:
 
             return np.array([rescale(i, v) for i, v in enumerate(vec)])
 
-        self.data[constVelIndex:, 1] = removeSensorTrends(self.data[constVelIndex:, 1], trendLength=2000)
-        self.data[constVelIndex:, 2] = removeSensorTrends(self.data[constVelIndex:, 2], trendLength=2000)
+        self.data[constVelIndex:, 1] = removeSensorTrends(self.data[constVelIndex:, 1], trendLength=4000)
+        self.data[constVelIndex:, 2] = removeSensorTrends(self.data[constVelIndex:, 2], trendLength=4000)
 
-        self.updateProgress(0.1)
+        self.updateProgress(0.02)
 
         def detectInvertedRotation(data):
             a0 = data[0, 1]
@@ -121,7 +121,7 @@ class OpticalEncoderDataVectorGenerator:
 
         invertedDir = detectInvertedRotation(self.data[0:constVelIndex])
 
-        self.updateProgress(0.2)
+        self.updateProgress(0.05)
 
         def filterOutStationarySegments(data):
             def calcCov(a1, b1, a0, b0):
@@ -144,22 +144,77 @@ class OpticalEncoderDataVectorGenerator:
 
         self.nonStationaryData = filterOutStationarySegments(self.data[constVelIndex:])
 
-        self.updateProgress(0.3)
+        self.updateProgress(0.1)
 
         self.fullLengthAVector, self.fullLengthBVector = self.genVec(self.nonStationaryData)
 
-        self.updateProgress(0.7)
+        l = len(self.nonStationaryData)
+
+        halfLengthAVectors = []
+        halfLengthBVectors = []
+        nrOfHalfLengthVecs = 128
+        for i in range(0, nrOfHalfLengthVecs):
+            halfLengthAVector, halfLengthBVector = self.genVec(
+                [d0 if random.random() < 0.5 else d1 for d0, d1 in 
+                    zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])])
+            halfLengthAVectors.append(halfLengthAVector)
+            halfLengthBVectors.append(halfLengthBVector)
+
+            self.updateProgress(0.1 + 0.7 * (i+1) / nrOfHalfLengthVecs)
 
         if invertedDir:
             self.fullLengthAVector = self.fullLengthAVector[::-1]
             self.fullLengthBVector = self.fullLengthBVector[::-1]
+            for i, _ in enumerate(halfLengthAVectors):
+                halfLengthAVectors[i] = halfLengthAVectors[i][::-1]
+                halfLengthBVectors[i] = halfLengthBVectors[i][::-1]
+
+        def shringkVectorByMean(vec, outputSize, meanWindow):
+            step = len(vec) / outputSize
+            return [np.mean(wrapAroundSegment(vec, i*step, meanWindow*step))
+                    for i in range(0, outputSize)]
+
+        def fftFilterVector(vec, coorseSize, outputSize):
+            vecCoorse = [vec[int(i * len(vec)/coorseSize)] for i in range(0, coorseSize)]
+
+            x = [(i+0.0) * outputSize/len(vecCoorse) for i, _ in enumerate(vecCoorse)]
+            outputX = np.arange(0, outputSize)
+            ff = np.fft.fftfreq(len(x), (x[1]-x[0]))
+
+            out = fftFilter(x, vecCoorse, max(ff), upSampleTt=outputX)
+
+            return list(out)
 
         outputSize = 2048
-        step = len(self.fullLengthAVector) / outputSize
-        self.aVec = [np.mean(wrapAroundSegment(self.fullLengthAVector, i*step, step))
-                for i in range(0, outputSize)]
-        self.bVec = [np.mean(wrapAroundSegment(self.fullLengthBVector, i*step, step))
-                for i in range(0, outputSize)]
+        coorseSize = outputSize//fftFilterLevel
+        aVecTemp = shringkVectorByMean(self.fullLengthAVector, outputSize, outputSize//coorseSize)
+        bVecTemp = shringkVectorByMean(self.fullLengthBVector, outputSize, outputSize//coorseSize)
+        self.aVecFromFullLength = fftFilterVector(aVecTemp, coorseSize, outputSize)
+        self.bVecFromFullLength = fftFilterVector(bVecTemp, coorseSize, outputSize)
+
+        self.listOfAVecFromHalfOfData = []
+        self.listOfBVecFromHalfOfData = []
+        for i, _ in enumerate(halfLengthAVectors):
+            aVecTemp = shringkVectorByMean(halfLengthAVectors[i], outputSize, outputSize//coorseSize)
+            bVecTemp = shringkVectorByMean(halfLengthBVectors[i], outputSize, outputSize//coorseSize)
+            self.listOfAVecFromHalfOfData.append(aVecTemp)
+            self.listOfBVecFromHalfOfData.append(bVecTemp)
+
+            self.updateProgress(0.8 + 0.2 * (i+1) / nrOfHalfLengthVecs)
+
+
+        def elementMean(vecs):
+            out = np.array(vecs[0])
+            for d in vecs[1:]:
+                out += np.array(d)
+
+            out /= len(vecs)
+            return list(out)
+
+        aVecTemp = elementMean(self.listOfAVecFromHalfOfData)
+        bVecTemp = elementMean(self.listOfBVecFromHalfOfData)
+        self.aVec = fftFilterVector(aVecTemp, coorseSize, outputSize)
+        self.bVec = fftFilterVector(bVecTemp, coorseSize, outputSize)
 
         self.oldAVec = None
         self.oldBVec = None
@@ -184,6 +239,16 @@ class OpticalEncoderDataVectorGenerator:
                 temp.append(d)
             return temp[-shift:] + temp[0:-shift]
 
+        def rescaleVec(vec, minRef, maxRef):
+            minVal = min(vec)
+            maxVal = max(vec)
+            valDiff = maxVal - minVal
+            refDiff = maxRef - minRef
+            def rescaleVal(val):
+                return refDiff / valDiff * (val - maxVal) + maxRef
+
+            return np.array([rescaleVal(v) for v in vec])
+
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
         if configClassString != '':
@@ -205,6 +270,9 @@ class OpticalEncoderDataVectorGenerator:
                     self.oldBVec = None
 
         if self.oldAVec is not None and self.oldBVec is not None:
+            self.oldAVec = rescaleVec(self.oldAVec, min(self.aVec), max(self.aVec))
+            self.oldBVec = rescaleVec(self.oldBVec, min(self.bVec), max(self.bVec))
+
             bestFittShift = getShift(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
             self.aVecShifted = shiftVec(self.aVec, bestFittShift)
             self.bVecShifted = shiftVec(self.bVec, bestFittShift)
@@ -390,10 +458,17 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(self.aVec, 'm-')
         plt.plot(self.bVec, 'c-')
 
+        def calcDiff(vec1, vec2):
+            return [d1 - d0 for d1, d0 in zip(vec1, vec2)]
+
+        def calcElementChange(vec):
+            return calcDiff(vec[1:], vec[0:-1])
 
         fig = plt.figure(2)
-        plt.plot([d1 - d0 for d1, d0 in zip(self.fullLengthAVector[1:], self.fullLengthAVector[0:-1])], 'r+')
-        plt.plot([d1 - d0 for d1, d0 in zip(self.fullLengthBVector[1:], self.fullLengthBVector[0:-1])], 'g+')
+        plt.plot(x[1:], calcElementChange(self.fullLengthAVector), 'r+')
+        plt.plot(x[1:], calcElementChange(self.fullLengthBVector), 'g+')
+        plt.plot(calcElementChange(self.aVec), 'm-')
+        plt.plot(calcElementChange(self.bVec), 'c-')
 
         t, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs) = self.getAdditionalDiagnostics()
 
@@ -438,6 +513,24 @@ class OpticalEncoderDataVectorGenerator:
         fig.suptitle('Diff between real sensor values and expected values over encoder position')
         plt.plot(positions, chADiffs, 'r+', alpha=0.5)
         plt.plot(positions, chBDiffs, 'g+', alpha=0.5)
+
+        fig = plt.figure(11)
+        l = len(self.listOfAVecFromHalfOfData)
+        for i, d in enumerate(zip(self.listOfAVecFromHalfOfData, self.listOfBVecFromHalfOfData)):
+            plt.plot(d[0], '+', color=(i/l, 0, 0))
+            plt.plot(d[1], '+', color=(0, i/l, 0))
+
+        plt.plot(self.aVec, 'm-')
+        plt.plot(self.bVec, 'c-')
+
+        fig = plt.figure(12)
+        l = len(self.listOfAVecFromHalfOfData)
+        plt.plot(calcDiff(self.aVecFromFullLength, self.aVec), 'r-')
+        plt.plot(calcDiff(self.bVecFromFullLength, self.bVec), 'g-')
+
+        fig = plt.figure(13)
+        plt.plot(calcDiff(self.aVecShifted, self.oldAVec), 'r-')
+        plt.plot(calcDiff(self.bVecShifted, self.oldBVec), 'g-')
 
         plt.show()
 
