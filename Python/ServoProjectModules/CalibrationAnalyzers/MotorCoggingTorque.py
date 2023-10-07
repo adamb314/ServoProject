@@ -496,7 +496,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     u = servo.getPwmControlSignal()
                     optData = servo.getOpticalEncoderChannelData()
-                    lowLevelError = servo.getLowLevelControlError();
+                    lowLevelError = servo.getLowLevelControlError()
 
                     if testState in (1, 2) and abs(refV) >= maxRecordVel * 0.4:
                         out.append([time.time(),

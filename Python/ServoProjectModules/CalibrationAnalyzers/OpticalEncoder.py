@@ -148,14 +148,12 @@ class OpticalEncoderDataVectorGenerator:
 
         self.fullLengthAVector, self.fullLengthBVector = self.genVec(self.nonStationaryData)
 
-        l = len(self.nonStationaryData)
-
         halfLengthAVectors = []
         halfLengthBVectors = []
         nrOfHalfLengthVecs = 128
         for i in range(0, nrOfHalfLengthVecs):
             halfLengthAVector, halfLengthBVector = self.genVec(
-                [d0 if random.random() < 0.5 else d1 for d0, d1 in 
+                [d0 if random.random() < 0.5 else d1 for d0, d1 in
                     zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])])
             halfLengthAVectors.append(halfLengthAVector)
             halfLengthBVectors.append(halfLengthBVector)
@@ -194,11 +192,11 @@ class OpticalEncoderDataVectorGenerator:
 
         self.listOfAVecFromHalfOfData = []
         self.listOfBVecFromHalfOfData = []
-        for i, _ in enumerate(halfLengthAVectors):
-            aVecTemp = shringkVectorByMean(halfLengthAVectors[i], outputSize, outputSize//coorseSize)
-            bVecTemp = shringkVectorByMean(halfLengthBVectors[i], outputSize, outputSize//coorseSize)
-            self.listOfAVecFromHalfOfData.append(aVecTemp)
-            self.listOfBVecFromHalfOfData.append(bVecTemp)
+        for i, (aVec, bVec) in enumerate(zip(halfLengthAVectors, halfLengthBVectors)):
+            aVecOutputSize = shringkVectorByMean(aVec, outputSize, outputSize//coorseSize)
+            bVecOutputSize = shringkVectorByMean(bVec, outputSize, outputSize//coorseSize)
+            self.listOfAVecFromHalfOfData.append(aVecOutputSize)
+            self.listOfBVecFromHalfOfData.append(bVecOutputSize)
 
             self.updateProgress(0.8 + 0.2 * (i+1) / nrOfHalfLengthVecs)
 
@@ -211,10 +209,10 @@ class OpticalEncoderDataVectorGenerator:
             out /= len(vecs)
             return list(out)
 
-        aVecTemp = elementMean(self.listOfAVecFromHalfOfData)
-        bVecTemp = elementMean(self.listOfBVecFromHalfOfData)
-        self.aVec = fftFilterVector(aVecTemp, coorseSize, outputSize)
-        self.bVec = fftFilterVector(bVecTemp, coorseSize, outputSize)
+        meanAVec = elementMean(self.listOfAVecFromHalfOfData)
+        meanBVec = elementMean(self.listOfBVecFromHalfOfData)
+        self.aVec = fftFilterVector(meanAVec, coorseSize, outputSize)
+        self.bVec = fftFilterVector(meanBVec, coorseSize, outputSize)
 
         self.oldAVec = None
         self.oldBVec = None
@@ -450,6 +448,7 @@ class OpticalEncoderDataVectorGenerator:
         return t, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs)
 
     def showAdditionalDiagnosticPlots(self):
+        # pylint: disable=too-many-locals, too-many-statements
         fig = plt.figure(1)
         fig.suptitle('Full length sensor characteristic vector')
         x = np.arange(len(self.fullLengthAVector)) * len(self.aVec) / len(self.fullLengthAVector)
@@ -535,6 +534,7 @@ class OpticalEncoderDataVectorGenerator:
         plt.show()
 
     def plotGeneratedVectors(self, box):
+        # pylint: disable=too-many-locals, too-many-statements
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
@@ -558,7 +558,7 @@ class OpticalEncoderDataVectorGenerator:
         defaultXLims = [-100, len(self.aVecShifted) + 100]
         xLims = defaultXLims
         ax.set_xlim(xLims[0], xLims[1])
-        
+
         defaultYLims = [0, 2**14]
         yLims = defaultYLims
         ax.set_ylim(yLims[0], yLims[1])
