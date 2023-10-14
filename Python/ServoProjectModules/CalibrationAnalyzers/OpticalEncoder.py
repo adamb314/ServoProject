@@ -1009,7 +1009,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     if t > (runTime - 10) * 0.5 and moveDir == 0:
                         moveDir = 1
                         pwmDir *= -1
-                        dirChangeWait = 2.0
+                        dirChangeWait = 1.5
 
                     if pwm != 0.0:
                         servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t),
