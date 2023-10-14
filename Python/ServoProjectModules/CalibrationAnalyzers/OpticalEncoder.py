@@ -527,9 +527,10 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(calcDiff(self.aVecFromFullLength, self.aVec), 'r-')
         plt.plot(calcDiff(self.bVecFromFullLength, self.bVec), 'g-')
 
-        fig = plt.figure(13)
-        plt.plot(calcDiff(self.aVecShifted, self.oldAVec), 'r-')
-        plt.plot(calcDiff(self.bVecShifted, self.oldBVec), 'g-')
+        if self.oldAVec is not None and self.oldBVec is not None:
+            fig = plt.figure(13)
+            plt.plot(calcDiff(self.aVecShifted, self.oldAVec), 'r-')
+            plt.plot(calcDiff(self.bVecShifted, self.oldBVec), 'g-')
 
         plt.show()
 
