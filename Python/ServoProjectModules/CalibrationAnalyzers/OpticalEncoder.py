@@ -152,6 +152,8 @@ class OpticalEncoderDataVectorGenerator:
         halfLengthBVectors = []
         nrOfHalfLengthVecs = 128
         for i in range(0, nrOfHalfLengthVecs):
+            if self.shouldAbort():
+                return
             halfLengthAVector, halfLengthBVector = self.genVec(
                 [d0 if random.random() < 0.5 else d1 for d0, d1 in
                     zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])])
@@ -193,6 +195,8 @@ class OpticalEncoderDataVectorGenerator:
         self.listOfAVecFromHalfOfData = []
         self.listOfBVecFromHalfOfData = []
         for i, (aVec, bVec) in enumerate(zip(halfLengthAVectors, halfLengthBVectors)):
+            if self.shouldAbort():
+                return
             aVecOutputSize = shringkVectorByMean(aVec, outputSize, outputSize//coorseSize)
             bVecOutputSize = shringkVectorByMean(bVec, outputSize, outputSize//coorseSize)
             self.listOfAVecFromHalfOfData.append(aVecOutputSize)
@@ -1087,7 +1091,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                                 shouldAbort=shouldAbort,
                                 updateProgress=updateProgress)
 
-                        GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
+                        if not shouldAbort():
+                            GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
                     except Exception as e:
                         GLib.idle_add(handleAnalyzeError, format(e))
 
