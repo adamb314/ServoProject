@@ -49,7 +49,8 @@ float ResistiveEncoderHandler::getValue(uint16_t sensorValue)
     size_t i = std::min(vecSize - 2, static_cast<size_t>(t / 64));
     t -= i * 64;
     constexpr int32_t compFixedPoint = 64 / superSampling;
-    int32_t comp = (compVec[i] * (64 - t) + compVec[i + 1] * t + (compFixedPoint / 2)) / compFixedPoint;
+    int32_t comp = compVec[i] * (64 - t) + compVec[i + 1] * t;
+    comp = (comp + adam_std::sign(comp) * (compFixedPoint / 2)) / compFixedPoint;
 
     return (sensorValue - comp) * std::abs(scaling);
 }

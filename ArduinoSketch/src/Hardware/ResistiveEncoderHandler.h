@@ -4,6 +4,7 @@
 #include "AdcHandler.h"
 #include "EncoderHandler.h"
 #include "PwmHandler.h"
+#include "../adam_stl.h"
 #include <array>
 
 class ResistiveEncoderHandler : public EncoderHandlerInterface
