@@ -1149,7 +1149,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             response = dialog.run()
             dialog.destroy()
 
-    def startCalibrationRun(nodeNr, port):
+    def startCalibrationRun(nodeNr, port, loadDataFileInstead):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
@@ -1179,22 +1179,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 out = []
 
-                if os.path.isfile('sysTestDataToLoad.txt') and t == 0.0:
-                    dialog = Gtk.MessageDialog(
-                            transient_for=parent,
-                            flags=0,
-                            message_type=Gtk.MessageType.INFO,
-                            buttons=Gtk.ButtonsType.YES_NO,
-                            text='Found file: "sysTestDataToLoad.txt"!\n'
-                                'Should this file be loaded instead of\n'
-                                'running a new calibration?',
-                    )
-                    response = dialog.run()
-                    dialog.destroy()
-
-                    if response == Gtk.ResponseType.YES:
-                        out = np.loadtxt('sysTestDataToLoad.txt')
-                        doneRunning = True
+                if loadDataFileInstead:
+                    out = np.loadtxt('sysTestDataToLoad.txt')
+                    doneRunning = True
 
                 def readResultHandlerFunction(dt, servoManager):
                     # pylint: disable=too-many-branches
@@ -1384,9 +1371,25 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             calibrationBox.show_all()
 
+            loadDataFileInstead = False
+            if os.path.isfile('sysTestDataToLoad.txt'):
+                dialog = Gtk.MessageDialog(
+                        transient_for=parent,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO,
+                        buttons=Gtk.ButtonsType.YES_NO,
+                        text='Found file: "sysTestDataToLoad.txt"!\n'
+                            'Should this file be loaded instead of\n'
+                            'running a new calibration?',
+                )
+                response = dialog.run()
+                dialog.destroy()
+
+                loadDataFileInstead = response == Gtk.ResponseType.YES
+
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(), loadDataFileInstead))
             testThread.start()
         else:
             with threadMutex:
