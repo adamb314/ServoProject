@@ -8,6 +8,24 @@ ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev,
 {
 }
 
+ResistiveEncoderHandler::ResistiveEncoderHandler(int16_t pin, float unitsPerRev, const std::array<int16_t, 513>& compVec) :
+        EncoderHandlerInterface(unitsPerRev),
+        sensor(pin, ADC_CTRLB_PRESCALER_DIV16_Val),
+        scaling{unitsPerRev * (1.0f / 4096.0f) / superSampling}
+{
+    constexpr size_t s = static_cast<int>((vecSize - 1) / (compVec.size() - 1));
+    for (size_t i = 0; i != (compVec.size() - 1); ++i)
+    {
+        for (size_t j = 0; j != s; ++j)
+        {
+            int32_t diff = compVec[i + 1] - compVec[i];
+            int16_t v = (diff * j + s / 2) / s + compVec[i];
+            this->compVec[s * i + j] = v;
+        }
+    }
+    this->compVec[vecSize - 1] = compVec[compVec.size() - 1];
+}
+
 ResistiveEncoderHandler::~ResistiveEncoderHandler()
 {
 }

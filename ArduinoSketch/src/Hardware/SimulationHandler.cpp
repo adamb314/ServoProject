@@ -123,6 +123,14 @@ ResistiveEncoderSim::ResistiveEncoderSim(SimulationHandler& simHandler, int16_t 
 {
 }
 
+ResistiveEncoderSim::ResistiveEncoderSim(SimulationHandler& simHandler, int16_t pin, float unitsPerRev,
+        const std::array<int16_t, 513>& compVec) :
+    ResistiveEncoderHandler(pin, unitsPerRev, compVec),
+    simHandler(simHandler),
+    scalingInv{4096.0f * 16 / unitsPerRev}
+{
+}
+
 void ResistiveEncoderSim::init()
 {
 }

@@ -61,6 +61,8 @@ class ResistiveEncoderSim : public ResistiveEncoderHandler
 public:
     ResistiveEncoderSim(SimulationHandler& simHandler, int16_t pin, float unitsPerRev,
             const std::array<int16_t, vecSize>& compVec = {0});
+    ResistiveEncoderSim(SimulationHandler& simHandler, int16_t pin, float unitsPerRev,
+            const std::array<int16_t, 513>& compVec = {0});
 
     virtual void init() override;
 

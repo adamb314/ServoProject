@@ -16,7 +16,7 @@ public:
 
     static std::unique_ptr<EncoderHandlerInterface> createOutputEncoderHandler()
     {
-        constexpr static std::array<int16_t, 513> compVec = {0};
+        constexpr static std::array<int16_t, 1025> compVec = {0};
         return std::make_unique<ResistiveEncoderHandler>(A1, 4096.0f * 180.0f / 360.0f, compVec);
     }
 
