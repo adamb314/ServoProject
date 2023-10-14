@@ -179,9 +179,8 @@ class OpticalEncoderDataVectorGenerator:
 
             x = [(i+0.0) * outputSize/len(vecCoorse) for i, _ in enumerate(vecCoorse)]
             outputX = np.arange(0, outputSize)
-            ff = np.fft.fftfreq(len(x), (x[1]-x[0]))
 
-            out = fftFilter(x, vecCoorse, max(ff), upSampleTt=outputX)
+            out = fftFilter(x, vecCoorse, upSampleTt=outputX)
 
             return list(out)
 

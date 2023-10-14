@@ -83,7 +83,7 @@ def slidingAvarageFiltering(y, filterN):
             + y[0:max(0, i+filterN+1-len(y))]) for i in range(0, len(y))]
 
 
-def fftFilter(tt, yy, freqCut, minFreqCut=0, upSampleTt=None):
+def fftFilter(tt, yy, freqCut=math.inf, minFreqCut=0, upSampleTt=None):
     mean = meanIgnoringNan(yy)
     yy = [mean if math.isnan(v) else v for v in yy]
     tt = np.array(tt)
