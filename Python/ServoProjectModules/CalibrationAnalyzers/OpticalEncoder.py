@@ -155,12 +155,15 @@ class OpticalEncoderDataVectorGenerator:
             if self.shouldAbort():
                 return
             halfLengthAVector, halfLengthBVector = self.genVec(
-                [d0 if random.random() < 0.5 else d1 for d0, d1 in
-                    zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])])
+                    [d0 if random.random() < 0.5 else d1 for d0, d1 in
+                        zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])],
+                    0.25 if i == 0 else 0.25 + 0.04 * (2.0 * random.random() - 1.0)
+                )
+
             halfLengthAVectors.append(halfLengthAVector)
             halfLengthBVectors.append(halfLengthBVector)
 
-            self.updateProgress(0.1 + 0.7 * (i+1) / nrOfHalfLengthVecs)
+            self.updateProgress(0.1 + 0.5 * (i+1) / nrOfHalfLengthVecs)
 
         if invertedDir:
             self.fullLengthAVector = self.fullLengthAVector[::-1]
@@ -191,17 +194,41 @@ class OpticalEncoderDataVectorGenerator:
         self.aVecFromFullLength = fftFilterVector(aVecTemp, coorseSize, outputSize)
         self.bVecFromFullLength = fftFilterVector(bVecTemp, coorseSize, outputSize)
 
+        def getShift(aVec, bVec, refAVec, refBVec):
+            calibrationData = (aVec, bVec)
+
+            posDiffs = [
+                (i - OpticalEncoderDataVectorGenerator.calculatePosition(
+                    refAVec[i], refBVec[i], calibrationData)[0] + len(aVec)/2)%len(aVec) - len(aVec)/2
+                for i in range(0, len(aVec), 16)]
+
+            shift = int(round(sum(posDiffs) / len(posDiffs)))
+            return shift
+
+        def shiftVec(vec, shift):
+            temp = list(vec)
+            return temp[-shift:] + temp[0:-shift]
+
         self.listOfAVecFromHalfOfData = []
         self.listOfBVecFromHalfOfData = []
         for i, (aVec, bVec) in enumerate(zip(halfLengthAVectors, halfLengthBVectors)):
             if self.shouldAbort():
                 return
+
             aVecOutputSize = shringkVectorByMean(aVec, outputSize, outputSize//coorseSize)
             bVecOutputSize = shringkVectorByMean(bVec, outputSize, outputSize//coorseSize)
+
+            if not i == 0:
+                bestFittShift = getShift(aVecOutputSize, bVecOutputSize,
+                        self.listOfAVecFromHalfOfData[0], self.listOfBVecFromHalfOfData[0])
+
+                aVecOutputSize = shiftVec(aVecOutputSize, bestFittShift)
+                bVecOutputSize = shiftVec(bVecOutputSize, bestFittShift)
+
             self.listOfAVecFromHalfOfData.append(aVecOutputSize)
             self.listOfBVecFromHalfOfData.append(bVecOutputSize)
 
-            self.updateProgress(0.8 + 0.2 * (i+1) / nrOfHalfLengthVecs)
+            self.updateProgress(0.6 + 0.4 * (i+1) / nrOfHalfLengthVecs)
 
 
         def elementMean(vecs):
@@ -219,26 +246,6 @@ class OpticalEncoderDataVectorGenerator:
 
         self.oldAVec = None
         self.oldBVec = None
-
-        def getShift(aVec, bVec, refAVec, refBVec):
-            aWeights = [1] * len(aVec)
-            bWeights = [1] * len(aVec)
-
-            calibrationData = (aVec, bVec, aWeights, bWeights)
-
-            posDiffs = [
-                (i - OpticalEncoderDataVectorGenerator.calculatePosition(
-                    refAVec[i], refBVec[i], calibrationData)[0])%len(aVec)
-                for i in range(0, len(aVec), 128)]
-
-            shift = int(round(sum(posDiffs) / len(posDiffs)))
-            return shift
-
-        def shiftVec(vec, shift):
-            temp = []
-            for d in vec:
-                temp.append(d)
-            return temp[-shift:] + temp[0:-shift]
 
         def rescaleVec(vec, minRef, maxRef):
             minVal = min(vec)
@@ -283,16 +290,31 @@ class OpticalEncoderDataVectorGenerator:
 
         self.updateProgress(1.0)
 
-    def genVec(self, data):
+    def genVec(self, data, cutRatio=0.25):
         # pylint: disable=too-many-locals, too-many-statements
         dataSumDiff = [(d[0], d[1]-d[2], d[1]+d[2]) for d in data]
         sortedDataByA = sorted(dataSumDiff, key=lambda d: d[1])
 
-        cutI = int(round(len(sortedDataByA)/4))
+        self.sortedDataByA = sortedDataByA
+
+        cutI = int(round(len(sortedDataByA) * cutRatio))
+        
+        def getAvarageLinearTrend(data, averagingSize):
+            temp = data[0:averagingSize]
+            mean0 = sum(temp) / len(temp)
+            temp = data[-averagingSize:]
+            mean1 = sum(temp) / len(temp)
+
+            mean = (mean0 + mean1) / 2
+            meanK = (mean1 - mean0) / (len(data) - averagingSize)
+            meanM = mean - meanK * (len(data) - averagingSize) / 2
+
+            return lambda i: meanM + meanK * i
+
         dataMinMaxB = sortedDataByA[cutI:-cutI]
-        meanB = sum((b for _, _, b in dataMinMaxB)) / len(dataMinMaxB)
-        dataMinB = [d for d in dataMinMaxB if d[2] < meanB]
-        dataMaxB = [d for d in dataMinMaxB if d[2] >= meanB]
+        meanB = getAvarageLinearTrend([b for _, _, b in dataMinMaxB], len(dataMinMaxB) // 10)
+        dataMinB = [d for i, d in enumerate(dataMinMaxB) if d[2] < meanB(i)]
+        dataMaxB = [d for i, d in enumerate(dataMinMaxB) if d[2] >= meanB(i)]
 
         dataMinMaxA = sortedDataByA[0:cutI] + sortedDataByA[-cutI:]
         dataMinMaxA = sorted(dataMinMaxA, key=lambda d: d[2])
@@ -312,70 +334,39 @@ class OpticalEncoderDataVectorGenerator:
 
         data = [(d[0], (d[2]+d[1])/2, (d[2]-d[1])/2) for d in dataSumDiff]
 
-        l = len(data)
-        data = data[-l//8:] + data[0:-l//8]
-        #data = data[l//8:] + data[0:l//8]
-        #data = data[::-1]
-
         aVec = [a for _, a, _ in data]
         bVec = [b for _, _, b in data]
 
-        return (np.array(aVec), np.array(bVec))
-
-    @staticmethod
-    def calcSensorWeights(aVec, bVec):
-        vecSize = len(aVec)
-
-        minAIndex = aVec.index(min(aVec))
-        maxBIndex = bVec.index(max(bVec))
-
-        dirSign = sign((maxBIndex - minAIndex + vecSize/2) % vecSize - vecSize/2)
-        sinSquers = [(math.sin(dirSign * (i - minAIndex)/1024*math.pi))**2
-                    for i in range(0, vecSize)]
-
-        minWeight = 0.2
-        c = minWeight / (1 - minWeight)
-        aWeights = [(w*(1-c) + c) / (1 + c) for w in sinSquers]
-        bWeights = [((1 - w)*(1-c) + c) / (1 + c) for w in sinSquers]
-
-        return aWeights, bWeights
+        return (aVec, bVec)
 
     @staticmethod
     def calculatePosition(ca, cb, calibrationData):
         # pylint: disable=too-many-locals, too-many-statements
-        aVec, bVec, aWeights, bWeights = calibrationData
+        aVec, bVec = calibrationData
         vecSize = len(aVec)
 
         def calcWrapAroundIndex(i):
             return i % vecSize
 
-        def calcCost(i, a, b, aVec, bVec, *, enableWeights=False):
-            aWeight = aWeights[i]
-            bWeight = bWeights[i]
-            if not enableWeights:
-                aWeight = 1
-                bWeight = 1
-
+        def calcCost(i, a, b, aVec, bVec):
             tempA = aVec[i] - a
             tempA = tempA * tempA
-            tempA *= aWeight
 
             tempB = bVec[i] - b
             tempB = tempB * tempB
-            tempB *= bWeight
 
             return tempA + tempB
 
         sensor1Value = ca
         sensor2Value = cb
 
-        stepSize = vecSize // 2
+        stepSize = vecSize // 5
 
         bestI = 0
-        bestCost = calcCost(bestI, sensor1Value, sensor2Value, aVec, bVec)
+        bestCost = calcCost(calcWrapAroundIndex(bestI), sensor1Value, sensor2Value, aVec, bVec)
 
         i = bestI + stepSize
-        while i < vecSize + bestI:
+        while i < vecSize:
             cost = calcCost(calcWrapAroundIndex(i), sensor1Value, sensor2Value, aVec, bVec)
 
             if cost < bestCost:
@@ -391,15 +382,11 @@ class OpticalEncoderDataVectorGenerator:
         while stepSize != 1:
             i = bestI
 
-            stepSize = int(stepSize / 2)
-            if stepSize == 0:
-                stepSize = 1
-
-            enableWeights = stepSize < vecSize//32
+            stepSize = int((stepSize + 1) / 2)
 
             i = calcWrapAroundIndex(i + stepSize * checkDir)
 
-            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec, enableWeights=enableWeights)
+            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
             if cost < bestCost:
                 bestI = i
@@ -411,7 +398,7 @@ class OpticalEncoderDataVectorGenerator:
 
             i = calcWrapAroundIndex(i - 2 * stepSize * checkDir)
 
-            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec, enableWeights=enableWeights)
+            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
             if cost < bestCost:
                 bestI = i
@@ -429,10 +416,8 @@ class OpticalEncoderDataVectorGenerator:
         chADiffs = []
         chBDiffs = []
 
-        aWeights, bWeights = OpticalEncoderDataVectorGenerator.calcSensorWeights(self.aVec, self.bVec)
-
-        calibrationData = (self.aVec, self.bVec, aWeights, bWeights)
-        for _, a, b in self.data:
+        calibrationData = (self.aVec, self.bVec)
+        for i, (_, a, b) in enumerate(self.data):
             pos, cost = OpticalEncoderDataVectorGenerator.calculatePosition(
                     a, b, calibrationData)
             positions.append(pos)

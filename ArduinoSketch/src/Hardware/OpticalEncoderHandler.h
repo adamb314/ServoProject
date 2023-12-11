@@ -89,18 +89,12 @@ protected:
 
     float getValue(uint16_t sensor1Value, uint16_t sensor2Value);
 
-    std::tuple<int32_t, uint32_t> calcPosition(uint16_t sensor1Value, uint16_t sensor2Value,
-            int32_t predictNextPos = 0);
-
-    void initWeights();
+    std::tuple<int32_t, uint32_t> calcPosition(uint16_t sensor1Value, uint16_t sensor2Value);
 
     DiagnosticData diagnosticData;
 
     std::array<uint16_t, vecSize> aVec;
     std::array<uint16_t, vecSize> bVec;
-
-    std::array<uint16_t, vecSize> aWeights;
-    std::array<uint16_t, vecSize> bWeights;
 
     AnalogSampler sensor1;
     AnalogSampler sensor1Sec;
@@ -110,7 +104,6 @@ protected:
     OpticalSensorValueScaler sensor2Scaler;
     float value{0.0f};
     int32_t pos{0};
-    uint16_t predictNextPos{0};
     int32_t wrapAroundCorretion{0};
     bool newData{false};
     bool sampleSensor1First{false};
