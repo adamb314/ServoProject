@@ -1,5 +1,6 @@
 #include "src/ArduinoC++BugFixes.h"
 #include "src/Hardware/ThreadHandler.h"
+#include "src/Hardware/FailSafeHandler.h"
 
 #include "config/config.h"
 
@@ -18,5 +19,6 @@ void setup()
 
 void loop()
 {
+    FailSafeHandler::getInstance()->resetWatchdogTimer();
     communication->run();
 }

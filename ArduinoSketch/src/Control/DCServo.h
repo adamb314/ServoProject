@@ -148,6 +148,7 @@ class DCServo
     //L[6]: Backlash size
     Eigen::Matrix<float, 7, 1> L;
 
+    uint32_t cycleTime{0};
     uint32_t loopTime{0};
     uint32_t loopNr{0};
     float rawMainPos{0.0f};

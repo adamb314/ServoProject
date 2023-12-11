@@ -1,4 +1,5 @@
 #include "DCServo.h"
+#include "../Hardware/FailSafeHandler.h"
 
 DCServo::DCServo(std::unique_ptr<CurrentController> currentController,
             std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
@@ -18,7 +19,7 @@ void DCServo::init()
 {
     InterruptTimer::getInstance()->enableTimerSyncEvents(false);
 
-    uint32_t cycleTime = controlConfig->getCycleTimeUs();
+    cycleTime = controlConfig->getCycleTimeUs();
 
     refInterpolator.setGetTimeInterval(cycleTime);
     refInterpolator.setLoadTimeInterval(18000);
@@ -62,6 +63,11 @@ void DCServo::init()
         [&]()
         {
             controlLoop();
+
+            if (loopTime > 2 * cycleTime)
+            {
+                FailSafeHandler::getInstance()->goToFailSafe();
+            }
         }));
 }
 
