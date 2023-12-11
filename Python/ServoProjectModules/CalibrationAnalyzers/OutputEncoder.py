@@ -151,7 +151,7 @@ class OutputEncoderCalibrationGenerator:
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        x = range(0, 4096 + self.posRes, self.posRes)
+        x = [self.posRes * i for i in range(0, len(self.meanList))]
         ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b+', alpha=0.25)
         ax.plot(x, self.meanList, 'g-+')
 
