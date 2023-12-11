@@ -1,5 +1,32 @@
 #include "PwmHandler.h"
 
+PwmHandler::PwmHandler()
+{
+    pwmHandlers.push_back(this);
+}
+
+PwmHandler::~PwmHandler()
+{
+    pwmHandlers.erase(std::remove(std::begin(pwmHandlers), std::end(pwmHandlers), this),
+        std::end(pwmHandlers));
+}
+
+void PwmHandler::addDamping(bool b)
+{
+    damping = b;
+}
+
+void PwmHandler::disconnectAllOutputs()
+{
+    for (auto pwmHandler : pwmHandlers)
+    {
+        pwmHandler->disconnectOutput();
+    }
+}
+
+std::vector<PwmHandler*> PwmHandler::pwmHandlers;
+
+
 HBridgeHighResPin11And12Pwm::HBridgeHighResPin11And12Pwm(bool invert, LinearizeFunctionType linearizeFunction, uint16_t frq) :
     HBridgeHighResPin11And12Pwm(TCC0, invert, false, linearizeFunction, frq)
 {

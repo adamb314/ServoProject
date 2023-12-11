@@ -65,18 +65,22 @@ protected:
 class PwmHandler
 {
 public:
-    ~PwmHandler() {};
+    PwmHandler();
+
+    virtual ~PwmHandler();
+
     virtual int setOutput(int output) = 0;
     virtual void activateBrake() = 0;
-    virtual void addDamping(bool b = true)
-    {
-        damping = b;
-    };
+    virtual void addDamping(bool b = true);
 
     virtual void disconnectOutput() = 0;
     virtual void connectOutput() = 0;
+
+    static void disconnectAllOutputs();
+
 protected:
     bool damping{false};
+    static std::vector<PwmHandler*> pwmHandlers;
 };
 
 class HBridgeHighResPin11And12Pwm : public PwmHandler, public SwitchAvoidingSynchronizer::Switcher
