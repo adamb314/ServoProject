@@ -662,12 +662,20 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     limitMovementButton[1].connect('toggled', onLockPosition)
 
+    testPwmValue = 0
     pwmValue = 0
     pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
     pwmScale = (GuiFunctions.addTopLabelTo(
                 '<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]),
             pwmScale[1])
     calibrationBox.pack_start(pwmScale[0], False, False, 0)
+
+    startPwmValue = 0
+    startPwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+    startPwmScale = (GuiFunctions.addTopLabelTo(
+                '<b>Start motor pwm value</b>\n Choose a value that makes the motor start rotating', startPwmScale[0]),
+            startPwmScale[1])
+    calibrationBox.pack_start(startPwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
     calibrationBox.pack_start(testButton[0], False, False, 0)
@@ -689,11 +697,23 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     threadMutex = threading.Lock()
     def updatePwmValue(widget):
         nonlocal pwmValue
+        nonlocal testPwmValue
 
         with threadMutex:
             pwmValue = widget.get_value()
+            testPwmValue = pwmValue
 
     pwmScale[1].connect('value-changed', updatePwmValue)
+
+    def updateStartPwmValue(widget):
+        nonlocal startPwmValue
+        nonlocal testPwmValue
+
+        with threadMutex:
+            startPwmValue = widget.get_value()
+            testPwmValue = startPwmValue
+
+    startPwmScale[1].connect('value-changed', updateStartPwmValue)
 
     def resetGuiAfterCalibration():
         testButton[1].set_label('Test pwm value')
@@ -704,6 +724,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         calibrationBox.remove(analyzingProgressBar[0])
         calibrationBox.remove(statusLabel)
         pwmScale[1].set_sensitive(True)
+        startPwmScale[1].set_sensitive(True)
         limitMovementButton[1].set_sensitive(True)
         enableForceCompButton[1].set_sensitive(True)
 
@@ -730,7 +751,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     pwm = 0
                     with threadMutex:
-                        pwm = pwmValue
+                        pwm = testPwmValue
 
                     pos = servo.getPosition(True)
 
@@ -880,8 +901,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
+        cycleTime = 0.0042
         try:
-            with createServoManager(nodeNr, port, dt=0.0042) as servoManager:
+            with createServoManager(nodeNr, port, dt=cycleTime) as servoManager:
 
                 def handleResults(opticalEncoderDataVectorGenerator):
                     dialog = Gtk.MessageDialog(
@@ -959,6 +981,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     dialog.destroy()
 
                 t = 0.0
+                waitTimeForConstSpeed = 1.0
+                startRampupTime = 4.0
                 dirChangeWait = 0.0
                 doneRunning = False
                 pwmDir = 1
@@ -973,31 +997,35 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     servo = servoManager.servoArray[0]
 
-                    pwm = 0
-                    with threadMutex:
-                        pwm = pwmValue
-
                     pos = servo.getPosition(True)
 
                     if startPos is not None:
                         if pos - startPos < -1:
-                            dirChangeWait = 1.0
+                            dirChangeWait = waitTimeForConstSpeed
                             if moveDir != -1:
                                 moveDir = -1
                                 pwmDir *= -1
                         elif pos - startPos > 1:
-                            dirChangeWait = 1.0
+                            dirChangeWait = waitTimeForConstSpeed
                             if moveDir != 1:
                                 moveDir = 1
                                 pwmDir *= -1
 
-                    if t > (runTime - 10) * 0.5 and moveDir == 0:
+                    constVelTime = startRampupTime + waitTimeForConstSpeed
+                    if t - constVelTime > (runTime - constVelTime) / 2 and moveDir == 0:
                         moveDir = 1
                         pwmDir *= -1
-                        dirChangeWait = 1.5
+                        dirChangeWait = waitTimeForConstSpeed
+
+                    pwm = 0
+                    with threadMutex:
+                        if t < startRampupTime or dirChangeWait > waitTimeForConstSpeed / 2:
+                            pwm = startPwmValue
+                        else:
+                            pwm = pwmValue
 
                     if pwm != 0.0:
-                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t),
+                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 1.0 / startRampupTime * t),
                             not enableForceCompButton[1].get_active())
 
                 out = []
@@ -1070,8 +1098,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         with open(configFilePath, "r", encoding='utf-8') as configFile:
                             configFileAsString = configFile.read()
 
+                        constVelIndex = int(round((startRampupTime + waitTimeForConstSpeed) / cycleTime))
                         opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                data, configFileAsString, configClassName, constVelIndex=4000,
+                                data, configFileAsString, configClassName, constVelIndex=constVelIndex,
                                 shouldAbort=shouldAbort,
                                 updateProgress=updateProgress)
 
@@ -1098,6 +1127,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
             calibrationBox.pack_start(analyzingProgressBar[0], False, False, 0)
             pwmScale[1].set_sensitive(False)
+            startPwmScale[1].set_sensitive(False)
             limitMovementButton[1].set_sensitive(False)
             enableForceCompButton[1].set_sensitive(False)
 
