@@ -39,10 +39,16 @@ def main():
     window.connect('destroy', Gtk.main_quit)
     window.show_all()
 
-    #work around for mathplotlib
+    #work around for bug in older versions of mathplotlib
     #calling Gtk.main_quit when all shown
-    #figures are closed
+    #figures are closed. 
+    #Fixed for, at least, version grater than 3.5.1
+    #Fix remains for backward compatibility.
+    firstLoop = True
     while not window.isClosed:
+        if not firstLoop:
+            print('matplotlib Gtk.main_quit bug workaround triggered! Consider upgrading matplotlib')
+        firstLoop = False
         Gtk.main()
 
 if __name__ == '__main__':

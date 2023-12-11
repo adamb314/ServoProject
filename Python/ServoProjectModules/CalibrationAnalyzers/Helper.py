@@ -10,6 +10,13 @@ import random
 import re
 import numpy as np
 import scipy.signal
+
+#workaround for matplotlib version 3.5.1
+#trying to use TkAgg even though gtk3 is active
+import matplotlib
+if matplotlib.get_backend() == 'TkAgg':
+    matplotlib.use('GTK3Cairo')
+
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_gtk3agg import (
     FigureCanvasGTK3Agg as FigureCanvas)
