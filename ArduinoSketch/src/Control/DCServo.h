@@ -165,7 +165,7 @@ class DCServo
 
     int16_t current{0};
     int16_t pwmControlSignal{0};
-    float kalmanControlSignal{0.0f};
+    int32_t kalmanControlSignal{0};
     SampleAveragingHandler<int32_t, 32> currentAveraging;
     SampleAveragingHandler<int32_t, 32> controlSignalAveraging;
 
