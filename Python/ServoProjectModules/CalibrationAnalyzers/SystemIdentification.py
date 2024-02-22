@@ -281,10 +281,10 @@ class SystemIdentificationObject:
                     xPad = np.arange(pwm[-1] + interpolSample, 1023 + extrapolate, interpolSample)
                     compPad = xn + k * (xPad - pwm[-1])
 
-                    xAtZero = -xn / k + pwm[-1]
-                    xPad0 = np.arange(-extrapolate, xAtZero, interpolSample)
+                    xAtUFric = (uFric - xn) / k + pwm[-1]
+                    xPad0 = np.arange(-extrapolate, xAtUFric, interpolSample)
 
-                    compPad0 = xn + k * (xPad0 - pwm[-1])
+                    compPad0 = uFric * (xPad0 / pwm[-1])
                     pwmExt = list(xPad0) + pwmInter + list(xPad)
                     compExt = list(compPad0) + compInter + list(compPad)
 
@@ -537,6 +537,8 @@ class SystemIdentificationObject:
         pwmFromLinComp[0] = 0
         plt.plot(pwmFromLinComp, linearCompList, '--', color=color)
         plt.plot(self.pwmList, self.pwmCompList, '+', color=color)
+        f = self.servoModelParameters[2]
+        plt.plot([f, 1024], [f, f], ':', color=color, alpha=0.4)
         plt.xlim(-20, 1043)
         plt.ylim(-20, 1043)
 
