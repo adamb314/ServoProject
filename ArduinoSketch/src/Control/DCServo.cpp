@@ -218,10 +218,10 @@ void DCServo::controlLoop()
 
     float posRef;
     float velRef;
-    float feedForwardU;
+    int32_t feedForwardU;
     float nextPosRef;
     float nextVelRef;
-    float nextFeedForwardU;
+    int32_t nextFeedForwardU;
 
     int32_t controlSignal = 0;
 
@@ -269,7 +269,7 @@ void DCServo::controlLoop()
 
             kalmanControlSignal = controlSignal;
 
-            controlSignal += adam_std::clamp_cast<int16_t>(feedForwardU);
+            controlSignal += feedForwardU;
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             bool brake;
@@ -320,7 +320,7 @@ void DCServo::controlLoop()
         loadNewReference(rawOutputPos, 0.0f, 0.0f);
         Ivel = 0.0f;
         outputPosOffset = rawOutputPos - rawMainPos;
-        backlashControlGainDelayCounter = 0.0f;
+        backlashControlGainDelayCounter = 0;
         controlSignal = 0.0f;
         kalmanControlSignal = controlSignal;
         currentController->addDamping(false);
@@ -354,24 +354,17 @@ void DCServo::controlLoop()
             backlashControlGainDelayCounter = backlashControlGainCycleDelay;
             backlashControlGain = L[4] * (10 * 100 +
                     90 * std::max((int32_t)0, 100 - static_cast<int32_t>(L[5]) * std::abs(static_cast<int32_t>(velRef))));
+
+            int newForceDir = forceDir;
+            newForceDir = adam_std::chooseOne(1, newForceDir, feedForwardU > 1);
+            newForceDir = adam_std::chooseOne(-1, newForceDir, feedForwardU < -1);
+            if (newForceDir != forceDir)
+            {
+                outputPosOffset -= newForceDir * backlashSize;
+            }
+            forceDir = newForceDir;
         }
         backlashControlGainDelayCounter--;
-
-        int newForceDir = forceDir;
-        if (feedForwardU > 1.0f)
-        {
-            newForceDir = 1;
-        }
-        else if (feedForwardU < -1.0f)
-        {
-            newForceDir = -1;
-        }
-
-        if (newForceDir != forceDir)
-        {
-            outputPosOffset -= newForceDir * L[6];
-        }
-        forceDir = newForceDir;
 
         float backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
         outputPosOffset -= backlashCompensationDiff;
@@ -426,6 +419,8 @@ void DCServo::calculateAndUpdateLVector()
 
     ThreadInterruptBlocker blocker;
     L = tempL;
+
+    backlashControlGain = L[4] * 100 * 100;
     kalmanFilter->setNewKVector(K);
     if (backlashControlPole != 0.0f)
     {

@@ -10,7 +10,7 @@ class ReferenceInterpolator
  public:
     ReferenceInterpolator();
 
-    void loadNew(float position, float velocity, float feedForward);
+    void loadNew(float position, float velocity, int32_t feedForward);
 
     void updateTiming();
 
@@ -18,7 +18,7 @@ class ReferenceInterpolator
 
     void calculateNext();
 
-    std::tuple<float, float, float> get();
+    std::tuple<float, float, int32_t> get();
 
     float getPositionInterpolationDist();
 
@@ -32,11 +32,11 @@ class ReferenceInterpolator
 
     float pos[3]{0};
     float vel[3]{0};
-    float feed[3]{0};
+    int32_t feed[3]{0};
 
     float interPos;
     float interVel;
-    float interFeed;
+    int32_t interFeed;
 
     uint16_t lastUpdateTimingTimestamp{0};
     uint16_t lastGetTimestamp{0};
