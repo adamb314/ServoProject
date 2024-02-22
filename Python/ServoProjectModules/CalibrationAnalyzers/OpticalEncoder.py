@@ -146,7 +146,17 @@ class OpticalEncoderDataVectorGenerator:
 
         self.updateProgress(0.1)
 
-        self.fullLengthAVector, self.fullLengthBVector = self.genVec(self.nonStationaryData)
+        def getMinMaxDiff(vec):
+            minVal = min(vec)
+            maxVal = max(vec)
+            return maxVal - minVal
+
+        startSortFromChA = (
+                getMinMaxDiff([d[1] for d in self.nonStationaryData]) >=
+                getMinMaxDiff([d[2] for d in self.nonStationaryData]))
+
+        self.fullLengthAVector, self.fullLengthBVector = self.genVec(self.nonStationaryData, cutRatio=0.25,
+                startSortFromChA=startSortFromChA)
 
         halfLengthAVectors = []
         halfLengthBVectors = []
@@ -157,7 +167,8 @@ class OpticalEncoderDataVectorGenerator:
             halfLengthAVector, halfLengthBVector = self.genVec(
                     [d0 if random.random() < 0.5 else d1 for d0, d1 in
                         zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])],
-                    0.25 if i == 0 else 0.25 + 0.04 * (2.0 * random.random() - 1.0)
+                    cutRatio=0.25 if i == 0 else 0.25 + 0.04 * (2.0 * random.random() - 1.0),
+                    startSortFromChA=startSortFromChA
                 )
 
             halfLengthAVectors.append(halfLengthAVector)
@@ -290,9 +301,15 @@ class OpticalEncoderDataVectorGenerator:
 
         self.updateProgress(1.0)
 
-    def genVec(self, data, cutRatio=0.25):
+    def genVec(self, data, *, cutRatio, startSortFromChA):
+        data = data[:]
         # pylint: disable=too-many-locals, too-many-statements
-        dataSumDiff = [(d[0], d[1]-d[2], d[1]+d[2]) for d in data]
+        if startSortFromChA:
+            dataSumDiff = [(d[0], d[1], d[2]) for d in data]
+        
+        else:
+            dataSumDiff = [(d[0], d[2], d[1]) for d in data]
+
         sortedDataByA = sorted(dataSumDiff, key=lambda d: d[1])
 
         self.sortedDataByA = sortedDataByA
@@ -322,6 +339,9 @@ class OpticalEncoderDataVectorGenerator:
         dataMinA = [d for d in dataMinMaxA if d[1] < meanA]
         dataMaxA = [d for d in dataMinMaxA if d[1] >= meanA]
 
+        self.dataMinMaxA = dataMinMaxA
+        self.dataMinMaxB = dataMinMaxB
+
         subDataLengths = []
         dataSumDiff = dataMinA
         subDataLengths.append(len(dataSumDiff))
@@ -332,7 +352,10 @@ class OpticalEncoderDataVectorGenerator:
         dataSumDiff += dataMinB[::-1]
         subDataLengths.append(len(dataSumDiff))
 
-        data = [(d[0], (d[2]+d[1])/2, (d[2]-d[1])/2) for d in dataSumDiff]
+        if startSortFromChA:
+            data = [(d[0], d[1], d[2]) for d in dataSumDiff]
+        else:
+            data = [(d[0], d[2], d[1]) for d in dataSumDiff[::-1]]
 
         aVec = [a for _, a, _ in data]
         bVec = [b for _, _, b in data]
@@ -519,6 +542,18 @@ class OpticalEncoderDataVectorGenerator:
             fig = plt.figure(13)
             plt.plot(calcDiff(self.aVecShifted, self.oldAVec), 'r-')
             plt.plot(calcDiff(self.bVecShifted, self.oldBVec), 'g-')
+
+        fig = plt.figure(14)
+        plt.plot([v for _, v, _ in self.sortedDataByA], 'r+')
+        plt.plot([v for _, _, v in self.sortedDataByA], 'g+')
+
+        fig = plt.figure(15)
+        plt.plot([v for _, v, _ in self.dataMinMaxA], 'r+')
+        plt.plot([v for _, _, v in self.dataMinMaxA], 'g+')
+
+        fig = plt.figure(16)
+        plt.plot([v for _, v, _ in self.dataMinMaxB], 'r+')
+        plt.plot([v for _, _, v in self.dataMinMaxB], 'g+')
 
         plt.show()
 
@@ -981,7 +1016,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     dialog.destroy()
 
                 t = 0.0
-                waitTimeForConstSpeed = 1.0
+                waitTimeForConstSpeed = 0.5
                 startRampupTime = 4.0
                 dirChangeWait = 0.0
                 doneRunning = False
