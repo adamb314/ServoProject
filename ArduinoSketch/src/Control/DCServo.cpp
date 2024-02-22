@@ -62,9 +62,14 @@ void DCServo::init()
     threads.push_back(createThread(1, cycleTime, 0,
         [&]()
         {
+            uint32_t loopStartTime = ThreadHandler::getInstance()->getTimingError();
             controlLoop();
+            uint32_t loopEndTime = ThreadHandler::getInstance()->getTimingError();
 
-            if (loopTime > 2 * cycleTime)
+            loopTime = std::max(loopTime, loopEndTime);
+            loopNr += 1;
+
+            if (loopEndTime - loopStartTime > cycleTime)
             {
                 FailSafeHandler::getInstance()->goToFailSafe();
             }
@@ -369,9 +374,6 @@ void DCServo::controlLoop()
         float backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
         outputPosOffset -= backlashCompensationDiff;
     }
-
-    loopTime = std::max(loopTime, ThreadHandler::getInstance()->getTimingError());
-    loopNr += 1;
 }
 
 void DCServo::calculateAndUpdateLVector()
