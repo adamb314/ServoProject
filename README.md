@@ -7,7 +7,7 @@ by Adam Bäckström
 Video demo of project
 ---------------------
 
-[<img width="500px" src="Doc/readmeResources/VideoTutorialImage.png">](https://youtu.be/ECLrLupFW10)
+[![Demo video](https://img.youtube.com/vi/ECLrLupFW10/0.jpg)](https://www.youtube.com/watch?v=ECLrLupFW10)
 
 Additional documentation for the project
 ----------------------------------------
@@ -18,14 +18,19 @@ Additional documentation for the project
 
 #### Build instructions
 
- * [Brushed servo](Doc/BuildInstructionsBrushedServo.md)
+ * [DS3225 Servo](Doc/BuildInstructionsServoDS3225.md)
 
- * [Coreless servo](Doc/BuildInstructionsCorelessServo.md)
-
- * [Micro servo](Doc/BuildInstructionsMicroServo.md)
+ * [MG90S Micro servo](Doc/BuildInstructionsMicroServoMG90S.md)
 
  * [Part list for robot and gripper](Doc/PartListForRobotAndGripper.md)
 
+ #### Legacy build instructions
+
+   * [Brushed servo](Doc/legacy/BuildInstructionsBrushedServo.md)
+
+   * [Coreless servo](Doc/legacy/BuildInstructionsCorelessServo.md)
+
+   * [Micro servo](Doc/legacy/BuildInstructionsMicroServo.md)
 
 Project structure
 ----------------

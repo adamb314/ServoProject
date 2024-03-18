@@ -1,49 +1,92 @@
 import cadquery as cq
 from cadquery import exporters
 import math
+from scipy.optimize import minimize
 
-def createEncDiscSinCosOffset():
+def createEncDisc():
     diameter = 7.5
     offset = 0.55
-    height = 1.6
+    height = 1.7
     baseThickness = height - 0.5
-    shellThickness = 0.4
+    shellThickness = 0.5
+    shellAndBaseOverlapRatio = 2.0
 
     axisDiameter = 1.1
 
     radius = diameter / 2
     edgeHeight = height - baseThickness
 
-    result = (
-            cq.Workplane('XY')
+    baseWorkplane = cq.Workplane('XY')
+
+    basicDisc = (
+            baseWorkplane
             .circle(axisDiameter/2)
-            .circle(radius - 2 * offset - 0.4 * shellThickness)
-            .extrude(baseThickness)
+            .circle(radius - 2 * offset - (1 - shellAndBaseOverlapRatio) * shellThickness)
+            .extrude(-baseThickness)
             .moveTo(offset, 0)
-            .circle(radius - offset)
+            .circle(radius - offset - shellThickness)
             .circle(2 * radius)
-            .cutBlind(baseThickness)
+            .cutBlind(-baseThickness)
         )
 
-    result = (
-            result.copyWorkplane(cq.Workplane('XY'))
+    def createDiscWithCOfMassCutout(cutoutSize):
+        out = (
+                basicDisc.copyWorkplane(baseWorkplane)
+                .moveTo(radius - 2 * offset - (1 - shellAndBaseOverlapRatio) * shellThickness - (cutoutSize - 100) / 2, 0)
+                .rect(cutoutSize + 100, diameter)
+                .cutBlind(-height)
+                .copyWorkplane(baseWorkplane)
+                .circle(axisDiameter/2)
+                .circle(axisDiameter/2 + 2 * shellThickness)
+                .extrude(-baseThickness)
+            )
+
+        cylinder = (
+                baseWorkplane
+                .moveTo(offset, 0)
+                .circle(radius - offset)
+                .circle(radius - offset - shellThickness)
+                .extrude(-height)
+            )
+
+        out = out.union(cylinder)
+
+        return out
+
+    def calcCenterOfMass(cutoutSize):
+        obj = createDiscWithCOfMassCutout(cutoutSize)
+        return cq.Shape.centerOfMass(obj.val()).x**2
+
+    res = minimize(calcCenterOfMass, 0.0, method='nelder-mead', options={'xatol': 1e-5, 'disp': True})
+    disc = createDiscWithCOfMassCutout(res.x[0])
+
+    log(f'{cq.Shape.centerOfMass(disc.val()) = }')
+
+    mount = (
+            baseWorkplane
             .moveTo(offset, 0)
-            .circle(radius - offset)
-            .circle(radius - offset - shellThickness)
-            .extrude(height)
+            .circle(axisDiameter / 2)
+            .circle(radius - offset - shellThickness - 0.1)
+            .extrude(-height)
+        )
+
+    temp = (
+            disc
+            .faces('>Z').workplane()
+            .circle(axisDiameter / 2)
+            .extrude(-baseThickness)
         )
 
     mount = (
-            cq.Workplane('XY')
-            .moveTo(offset, 0)
-            .circle(axisDiameter / 2)
-            .circle(radius - offset - shellThickness)
-            .extrude(height)
+            mount
+            .cut(temp.translate((0,0,baseThickness / 2)))
         )
 
-    return result, mount
+    disc = disc.rotate((0, 0, 0), (1, 0, 0), 180)
+    mount = mount.rotate((0, 0, 0), (1, 0, 0), 180)
+    return disc, mount
 
-def createMicroServoBase(squarePot):
+def createMicroServoBase(squarePot=False):
     length = 22.5
     width = 11.9
     height = 10.3
@@ -247,12 +290,12 @@ def createMicroServoBase(squarePot):
         baseBox = baseBox.cut(cutOutSolid)
     else:
         bushingPotDiameter = 10 + 0.2
-        bushingPotHeight = 3.5 + 0.4
+        bushingPotHeight = 3.5 + 0.1
         bushingPotNotchThickness = 0.6
         bushingPotNotchWidth = 1.5 + 0.2
 
         gearAxisBushingDiameter = gearAxisHoleDiameter + 2 * 1.6
-        gearAxisBushingHeight = 0.2
+        gearAxisBushingHeight = 0.3
 
         baseBox = (
                 baseBox.copyWorkplane(innerBaseWorkplane)
@@ -273,10 +316,6 @@ def createMicroServoBase(squarePot):
                 .circle(gearAxisHoleDiameter / 2)
                 .extrude(-gearAxisBushingHeight)
             )
-
-    optSensorHeight = 2.7 + 0.2
-    optSensorWidth = 3.4 + 0.2
-    optSensorDepth = 1.5 + 0.2 - 0.5
 
     optDiscMotorSpacerLength = 1.5
     optDiscMotorSpacerWidth = 1
@@ -306,29 +345,40 @@ def createMicroServoBase(squarePot):
             .extrude(optDiscMotorSpacerHeight)
         )
 
-    motorPosEdge = boxPosEdgeOffset - posBoxWallThickness
-    motorNegEdge = boxPosEdgeOffset - motorCenterOffset - motorWidth / 2
-    baseBox = (
-            baseBox.faces('<Y').workplane(origin=(0,0,0))
-            .moveTo(motorPosEdge + posBoxWallThickness, 0)
-            .vLine((optSensorHeight + posBoxWallThickness))
-            .lineTo(motorNegEdge - posBoxWallThickness, (optSensorHeight + posBoxWallThickness))
-            .vLine(-(optSensorHeight + posBoxWallThickness))
+    optSensorOffsetRadius = 6.0
+    optSensorHeight = 2.7 + 0.2 + 0.2
+    optSensorWidth = 3.4 + 0.2
+    optSensorDepth = 1.5 + 0.2 - 0.5 - 0.4
+    optSensorFrameThickness = 0.4
+    optSensorThickness = optSensorDepth + 1.6 + 0.8
+    optSnesorMountingAngle = 40
+
+    optSensorCutout = (
+            baseWorkplane
+            .rect(optSensorThickness, optSensorWidth)
+            .extrude(-optSensorHeight)
+
+            .faces('>X').workplane()
+            .moveTo(0, -optSensorHeight / 2)
+            .rect(optSensorWidth - optSensorFrameThickness, optSensorHeight - 0.8)
+            .extrude(optSensorThickness)
+
+            .faces('>Z').workplane(origin=(0,0,0))
+            .moveTo(optSensorThickness / 2 - optSensorDepth, optSensorWidth / 2)
+            .hLine(-(optSensorThickness - optSensorDepth))
+            .vLine(-optSensorWidth)
+            .hLine((optSensorThickness - optSensorDepth))
             .close()
-            .extrude(optSensorDepth - (width - motorHeight) / 2)
-            .faces('<Y').workplane(origin=(0,0,0))
-            .moveTo(motorPosEdge, 0)
-            .vLine(optSensorHeight)
-            .hLine(-optSensorWidth)
-            .vLine(-optSensorHeight)
-            .close()
-            .moveTo(motorNegEdge, 0)
-            .vLine(optSensorHeight)
-            .hLine(optSensorWidth)
-            .vLine(-optSensorHeight)
-            .close()
-            .cutBlind(-optSensorDepth)
-        )
+            .extrude(optSensorHeight)
+
+        ).translate((-optSensorOffsetRadius - optSensorThickness / 2 + optSensorDepth,
+                0, optSensorHeight))
+
+    cutoutSolid1 = optSensorCutout.rotate((0,0,0), (0,0,1), -optSnesorMountingAngle).translate((boxPosEdgeOffset - motorCenterOffset, 0, 0))
+    cutoutSolid2 = optSensorCutout.rotate((0,0,0), (0,0,1), optSnesorMountingAngle).translate((boxPosEdgeOffset - motorCenterOffset, 0, 0))
+
+    temp = cutoutSolid1.union(cutoutSolid2)
+    baseBox = baseBox.cut(temp)
 
     baseBox = (
             baseBox.faces('>Z').workplane(origin=(0,0,0))
@@ -372,34 +422,64 @@ def createMicroServoBase(squarePot):
 
     return baseBox, bushingsPlate
 
-def createMg90sBase():
-    return createMicroServoBase(False)
+def createMotor():
+    motorWidth = 8
+    motorHeight = 10
+    motorLength = 12.4
 
-def createSg90Base():
-    return createMicroServoBase(True)
+    bushingDiameter = 6.2
+    bushingHeight = 1.7
+    
+    axisDiameter = 1.1
+    axisHeight = 1
 
-mg90sBaseBox = None
-mg90sBushings = None
+    baseWorkplane = cq.Workplane('XY')
 
-sg90BaseBox = None
-sg90Bushings = None
+    result = (
+            baseWorkplane.circle(motorHeight / 2)
+            .extrude(motorLength)
+        )
 
-#mg90sBaseBox, mg90sBushings = createMg90sBase()
-sg90BaseBox, sg90Bushings = createSg90Base()
+    intersectShape = (
+            baseWorkplane.rect(motorWidth, motorHeight)
+            .extrude(motorLength)
+        )
 
-encDisc, turningMount = createEncDiscSinCosOffset()
+    return result.intersect(intersectShape)
 
-if mg90sBaseBox:
-    exporters.export(mg90sBaseBox, 'mg90sBaseBox.stl')
-if mg90sBushings:
-    exporters.export(mg90sBushings, 'mg90sBaseBushings.stl')
-if sg90BaseBox:
-    exporters.export(sg90BaseBox, 'sg90BaseBox.stl')
-if sg90Bushings:
-    exporters.export(sg90Bushings, 'sg90BaseBushings.stl')
+motorGlobalPos = ((22.5 - (4 + 3.5 / 2)) - (2.8 + 4 / 2), 0, 2.8)
+
+defaultViewOpt = {"alpha":0.5, "color": (20, 20, 20)}
+encDiscViewOpt = {"alpha":0.5, "color": (250, 250, 250)}
+
+motor = createMotor().translate(motorGlobalPos)
+show_object(motor, name='motor', options={"alpha":0.5, "color": (160, 160, 160)})
+
+baseBox = None
+bushings = None
+
+encDisc = None
+turningMount = None
+
+baseBox, bushings = createMicroServoBase()
+
+encDisc, turningMount = createEncDisc()
+
+if baseBox:
+    exporters.export(baseBox, 'baseBox.stl')
+    show_object(baseBox, name='baseBox', options=defaultViewOpt)
+if bushings:
+    exporters.export(bushings, 'baseBushings.stl')
+    show_object(bushings, name='bushings', options=defaultViewOpt)
 if encDisc:
-    encDisc = encDisc.rotate((0, 0, 0), (0, 0, 1), 90).translate(((22.5 - (4 + 3.5 / 2)) - (2.8 + 4 / 2), 0, 0.8))
-    exporters.export(encDisc, 'mg90sEncDisc.stl')
+    encDisc = (
+            encDisc.rotate((0, 0, 0), (0, 0, 1), 90)
+            .translate(((22.5 - (4 + 3.5 / 2)) - (2.8 + 4 / 2), 0, 0.8)))
+    exporters.export(encDisc, 'encDisc.stl')
+    show_object(encDisc, name='encDisc', options=encDiscViewOpt)
 if turningMount:
-    turningMount = turningMount.rotate((0, 0, 0), (0, 0, 1), 90).translate(((22.5 - (4 + 3.5 / 2)) - (2.8 + 4 / 2), 0, 2.8))
-    exporters.export(turningMount, 'mg90sEncDiscTruningMount.stl')
+    turningMount = (
+            turningMount.rotate((0, 0, 0), (0, 0, 1), 90)
+            .translate(((22.5 - (4 + 3.5 / 2)) - (2.8 + 4 / 2), 0, 2.8)))
+    exporters.export(turningMount, 'encDiscTruningMount.stl')
+    show_object(turningMount, name='turningMount', options=encDiscViewOpt)

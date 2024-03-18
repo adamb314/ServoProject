@@ -1,10 +1,11 @@
 import cadquery as cq
 from cadquery import exporters
 import math
+from scipy.optimize import minimize
 
 eps = 0.001
 
-def createEncDiscSinCosOffset():
+def createEncDisc():
     diameter = 13
     offset = 1.0
     height = 2.4
@@ -19,7 +20,7 @@ def createEncDiscSinCosOffset():
 
     baseWorkplane = cq.Workplane('XY')
 
-    disc = (
+    basicDisc = (
             baseWorkplane
             .circle(axisDiameter/2)
             .circle(radius - 2 * offset - (1 - shellAndBaseOverlapRatio) * shellThickness)
@@ -28,31 +29,40 @@ def createEncDiscSinCosOffset():
             .circle(radius - offset - shellThickness)
             .circle(2 * radius)
             .cutBlind(-baseThickness)
-            .moveTo(offset, 0)
-            .circle(radius - offset - 2 * shellThickness)
-            .circle(radius - offset - shellThickness)
-            .extrude(-height + shellThickness)
         )
 
+    def createDiscWithCOfMassCutout(cutoutSize):
+        out = (
+                basicDisc.copyWorkplane(baseWorkplane)
+                .moveTo(radius - 2 * offset - (1 - shellAndBaseOverlapRatio) * shellThickness - (cutoutSize - 100) / 2, 0)
+                .rect(cutoutSize + 100, diameter)
+                .cutBlind(-height)
+                .copyWorkplane(baseWorkplane)
+                .circle(axisDiameter/2)
+                .circle(axisDiameter/2 + 2 * shellThickness)
+                .extrude(-baseThickness)
+            )
 
-    cOfMassCompCutout = 3.915 #3.127
+        cylinder = (
+                baseWorkplane
+                .moveTo(offset, 0)
+                .circle(radius - offset)
+                .circle(radius - offset - shellThickness)
+                .extrude(-height)
+            )
 
-    disc = (
-            disc.copyWorkplane(baseWorkplane)
-            .moveTo(radius - 2 * offset - (1 - shellAndBaseOverlapRatio) * shellThickness - (cOfMassCompCutout - 100) / 2, 0)
-            .rect(cOfMassCompCutout + 100, diameter)
-            .cutBlind(-height)
-        )
+        out = out.union(cylinder)
 
-    cylinder = (
-            baseWorkplane
-            .moveTo(offset, 0)
-            .circle(radius - offset)
-            .circle(radius - offset - shellThickness)
-            .extrude(-height)
-        )
+        return out
 
-    log(f'{cq.Shape.centerOfMass(disc.union(cylinder).val()) = }')
+    def calcCenterOfMass(cutoutSize):
+        obj = createDiscWithCOfMassCutout(cutoutSize)
+        return cq.Shape.centerOfMass(obj.val()).x**2
+
+    res = minimize(calcCenterOfMass, 0.0, method='nelder-mead', options={'xatol': 1e-5, 'disp': True})
+    disc = createDiscWithCOfMassCutout(res.x[0])
+
+    log(f'{cq.Shape.centerOfMass(disc.val()) = }')
 
     mount = (
             baseWorkplane
@@ -68,16 +78,15 @@ def createEncDiscSinCosOffset():
             .circle(axisDiameter / 2)
             .extrude(-baseThickness)
         )
-    temp = temp.union(temp.shell(0.1))
+
     mount = (
             mount
-            .cut(temp.translate((0,0,baseThickness)))
+            .cut(temp.translate((0,0,baseThickness / 2)))
         )
 
-    return disc.union(cylinder), None, mount
-    #return disc, cylinder, mount
+    return disc, mount
 
-def ds3225GearLid():
+def gearLid():
     length = 38.4
     width = 18.3
     baseThickness = 3.1
@@ -94,6 +103,8 @@ def ds3225GearLid():
     potMountBoxThickness = 0.8
     potMountBoxHeight = 6.3
     potNotchWidth = 1.2
+    potMountBoxNotchThickness = 0.4
+    potMountBoxNotchHight = 0.8
 
     outputGearBaseDiameter = 7.6
     outputGearBaseHeight = 0.9
@@ -124,6 +135,8 @@ def ds3225GearLid():
 
     screwHoleDiamater = 2.1
     screwHoleEdgeOffset = 0.7 + 2.1 / 2
+
+    bridgeMargin = 0.2
 
     baseWorkplane = cq.Workplane('XY')
 
@@ -183,6 +196,13 @@ def ds3225GearLid():
             .cutBlind(potAxisBaseHeight)
             .faces('-Z').faces('>>Z[1]').edges('%CIRCLE').fillet(potAxisBaseFillet)
             .faces('<<Z[2]').edges('<Z').fillet((potAxisBaseDiameter - potAxisDiameter) / 2 - eps)
+
+            .faces('<Z').workplane(origin=(0,0,0))
+            .rect(potHeight + 2 * potMountBoxThickness, potWidth + 2 * potMountBoxThickness)
+            .extrude(potMountBoxNotchHight)
+            .moveTo(0, 0)
+            .rect(potHeight + 2 * potMountBoxThickness, potWidth - 2 * potMountBoxNotchThickness)
+            .cutBlind(potMountBoxNotchHight)
         )
 
     result = (
@@ -249,21 +269,31 @@ def ds3225GearLid():
     optDiscCutoutDiameter = 15
     motorZOffset = 1.5
     optSensorBlockWidth = 14.4
-    optSensorBlockThickness = 9.6 + 0.6
+    optSensorBlockThickness = 9.6 + 1
     optSensorBlockHeight = 6
+    optSensorHolderMountingMargin = 0.1
 
     optSensorBlockWidth2 = optSensorBlockWidth + 2
-    optSensorBlockWidth2Offset = 8
+    optSensorBlockWidth2Offset = 7.2
     optSensorBlockWidth2Transition = 1.5
 
-    result = (
-            result.copyWorkplane(baseWorkplane)
-            .moveTo(*motorCenterPoint)
-            .circle(optDiscCutoutDiameter / 2)
-            .cutBlind(baseThickness - gearZOffset - minBaseThicknessAtMotor)
-            .moveTo(*motorCenterPoint)
-            .circle(motorDiameter / 2)
-            .extrude(-motorZOffset)
+    optSensorBlockGearAxisCutoutLenght = 4
+    optSensorBlockGearAxisCutoutWidth = 8
+
+    optDiscCutoutDepth = baseThickness - gearZOffset - minBaseThicknessAtMotor + motorZOffset
+
+    tab = (
+            baseWorkplane
+            .rect(2 * 0.8, 1.2)
+            .extrude(-optDiscCutoutDepth + bridgeMargin + motorZOffset - 1.6)
+        ).translate((motorDiameter / 2,
+                0, -bridgeMargin))
+
+    teb1 = tab.rotate((0,0,0), (0,0,1), -45).translate((motorCenterPoint[0], 0, 0))
+    teb2 = tab.rotate((0,0,0), (0,0,1), 45).translate((motorCenterPoint[0], 0, 0))
+
+    optSensorHolder = (
+            cq.Workplane().copyWorkplane(baseWorkplane).workplane(offset=optDiscCutoutDepth - motorZOffset)
             .moveTo(motorCenterPoint[0], optSensorBlockWidth / 2)
             .lineTo(motorCenterPoint[0] - optSensorBlockWidth2Offset + optSensorBlockWidth2Transition,
                 optSensorBlockWidth / 2)
@@ -275,16 +305,57 @@ def ds3225GearLid():
                 -optSensorBlockWidth / 2)
             .lineTo(motorCenterPoint[0], -optSensorBlockWidth / 2)
             .close()
-            .extrude(-optSensorBlockHeight)
+            .extrude(-optSensorBlockHeight - (optDiscCutoutDepth - motorZOffset))
 
-            .faces('-Z').faces('>>Z[1]').workplane()
+            .union(teb1.union(teb2))
+
+            .moveTo(motorCenterPoint[0] - optSensorBlockThickness + optSensorBlockGearAxisCutoutLenght / 2, 0)
+            .rect(optSensorBlockGearAxisCutoutLenght, optSensorBlockGearAxisCutoutWidth / 2)
+            .extrude(-optDiscCutoutDepth - 2 * optSensorBlockHeight)
+
             .moveTo(*motorCenterPoint)
             .circle(motorDiameter / 2)
-            .cutBlind(-optSensorBlockHeight + motorZOffset)
+            .cutBlind(- 100)
+
+            .moveTo(*motorCenterPoint)
+            .circle(motorDiameter / 2)
+            .extrude(-optDiscCutoutDepth)
+
             .moveTo(*motorCenterPoint)
             .circle(optDiscCutoutDiameter / 2)
-            .cutBlind(-optSensorBlockHeight)
+            .cutBlind(-optDiscCutoutDepth)
+
+            .moveTo(motorCenterPoint[0] - optSensorBlockThickness + optSensorBlockGearAxisCutoutLenght / 2, 0)
+            .rect(optSensorBlockGearAxisCutoutLenght, optSensorBlockGearAxisCutoutWidth / 2)
+            .cutBlind(-optDiscCutoutDepth - bridgeMargin)
         )
+
+    result = (
+            result.copyWorkplane(baseWorkplane)
+            .moveTo(*motorCenterPoint)
+            .circle(motorDiameter / 2)
+            .extrude(- (optDiscCutoutDepth - motorZOffset))
+
+            .moveTo(*motorCenterPoint)
+            .circle(optDiscCutoutDiameter / 2)
+            .cutBlind(-optDiscCutoutDepth + motorZOffset)
+
+            .moveTo(*motorCenterPoint)
+            .circle(optDiscCutoutDiameter / 2)
+            .cutBlind(baseThickness - gearZOffset - minBaseThicknessAtMotor)
+        )
+
+    splitWorkplane = baseWorkplane.workplane(offset=baseThickness - gearZOffset - minBaseThicknessAtMotor)
+
+    lidTop, lidBottom = (
+            result.copyWorkplane(splitWorkplane)
+            .split(keepTop=True, keepBottom=True)
+        ).all()
+
+    temp = lidBottom.intersect(optSensorHolder)
+    temp = temp.union(temp.shell(optSensorHolderMountingMargin))
+
+    lidBottom = lidBottom.cut(temp)
 
     optSensorHeight = 2.7 + 0.2 + 0.1
     optSensorWidth = 3.4 + 0.2
@@ -293,7 +364,7 @@ def ds3225GearLid():
     optSensorThickness = optSensorDepth + 2
     optSnesorMountingAngle = 35
 
-    temp = (
+    optSensorCutout = (
             baseWorkplane
             .rect(optSensorThickness, optSensorWidth)
             .extrude(-optSensorHeight)
@@ -304,24 +375,116 @@ def ds3225GearLid():
         ).translate((-motorDiameter / 2 - optSensorThickness / 2 + optSensorDepth,
                 0, baseThickness - gearZOffset - minBaseThicknessAtMotor))
 
-    cutoutSolid1 = temp.rotate((0,0,0), (0,0,1), -optSnesorMountingAngle).translate((motorCenterPoint[0], 0, 0))
-    cutoutSolid2 = temp.rotate((0,0,0), (0,0,1), optSnesorMountingAngle).translate((motorCenterPoint[0], 0, 0))
+    cutoutSolid1 = optSensorCutout.rotate((0,0,0), (0,0,1), -optSnesorMountingAngle).translate((motorCenterPoint[0], 0, 0))
+    cutoutSolid2 = optSensorCutout.rotate((0,0,0), (0,0,1), optSnesorMountingAngle).translate((motorCenterPoint[0], 0, 0))
 
-    result = result.cut(cutoutSolid1.union(cutoutSolid2))
+    optSensorHolder = optSensorHolder.cut(cutoutSolid1.union(cutoutSolid2))
 
-    temp = result.faces('+Z').faces('<Z')
+    tempFaces = optSensorHolder.faces('+Z').faces('>>Z[1]')
 
-    result = (
-            temp.workplane().add(temp.wires()).toPending()
-            .cutBlind(-optSensorBlockHeight + motorZOffset)
+    optSensorHolder = (
+            tempFaces.workplane().add(tempFaces.wires()).toPending()
+            .cutBlind(-optSensorBlockHeight)
         )
 
-    result = (
-            result.copyWorkplane(baseWorkplane).workplane(offset=baseThickness - gearZOffset - minBaseThicknessAtMotor)
-            .split(keepTop=True, keepBottom=True)
-        ).all()
+    pcbMountLength = 40
+    pcbMountWidth = 20
+    pcbMountWallThickness = 1.2
+    pcbMountHeight = 6.2
+    pcbMountNotchThickness = 0.8
+    pcbMountNotchDepth = 1.2
+    pcbMountMotorNotchThickness = 2.2
+    pcbMountMotorNotchHeight = 1.8
+    pcbMountCableCutout = 2.5
 
-    return result[0], result[1]
+    pcbMount = (
+            cq.Workplane('XY')
+            .moveTo(*boxCenterPoint)
+            .rect(pcbMountLength, pcbMountWidth)
+            .rect(pcbMountLength - 2 * pcbMountWallThickness, pcbMountWidth - 2 * pcbMountWallThickness)
+            .extrude(-pcbMountHeight - pcbMountMotorNotchHeight)
+            .edges('|Z').fillet(screwHoleEdgeOffset)
+        )
+
+    screwHoleVertices = (
+            pcbMount
+            .moveTo(*boxCenterPoint)
+            .rect(length - 2 * screwHoleEdgeOffset, width - 2 * screwHoleEdgeOffset, forConstruction=True)
+            .vertices()
+        )
+
+    tempCutoutSolid = (
+            cq.Workplane('XY')
+            .moveTo(*boxCenterPoint)
+            .rect(pcbMountLength - 2 * pcbMountNotchThickness, pcbMountWidth - 2 * pcbMountNotchThickness)
+            .extrude(-pcbMountNotchDepth)
+            .edges('|Z').fillet(screwHoleEdgeOffset - pcbMountNotchThickness)
+        )
+
+    motorMountNotch = (
+            cq.Workplane('XY').workplane(offset=-pcbMountHeight - pcbMountMotorNotchHeight)
+            .moveTo(*boxCenterPoint)
+            .rect(pcbMountLength, pcbMountWidth)
+            .extrude(pcbMountMotorNotchHeight)
+            .edges('|Z').fillet(screwHoleEdgeOffset)
+
+            .moveTo(motorCenterPoint[0] - (pcbMountLength - motorDiameter / 2) / 2, 0)
+            .rect(pcbMountLength - motorDiameter / 2, pcbMountWidth - 2 * pcbMountMotorNotchThickness)
+            .cutBlind(pcbMountMotorNotchHeight)
+
+            .moveTo(*motorCenterPoint)
+            .circle(pcbMountWidth / 2 - pcbMountMotorNotchThickness)
+            .cutBlind(pcbMountMotorNotchHeight)
+        )
+
+    pcbMount = (
+            pcbMount
+            .union(motorMountNotch)
+            .copyWorkplane(screwHoleVertices).add(screwHoleVertices)
+            .circle(screwHoleEdgeOffset)
+            .extrude(-pcbMountHeight - pcbMountMotorNotchHeight)
+            
+            .copyWorkplane(screwHoleVertices).add(screwHoleVertices)
+            .circle(screwHoleDiamater / 2)
+            .cutThruAll()
+
+            .cut(tempCutoutSolid)
+        )
+
+    tempHeight = pcbMountHeight + pcbMountMotorNotchHeight
+    pcbMount = (
+            pcbMount.faces('<X').workplane()
+            .moveTo(0, -tempHeight - pcbMountCableCutout)
+            .circle(2 * pcbMountCableCutout)
+            .cutBlind(-pcbMountWallThickness)
+
+            .moveTo(0, -tempHeight / 2)
+            .rect(0.4, tempHeight)
+            .cutBlind(-pcbMountWallThickness)
+        )
+
+    textDepth = 0.2
+
+    servoProjectText = (
+            cq.Workplane().copyWorkplane(pcbMount.faces('<Y').workplane())
+            .text('ServoProject', 4.5, -textDepth)
+            .translate((pcbMountLength / 2, 0, -pcbMountHeight / 2 - 0.75))
+        )
+
+    byAdamText = (
+            cq.Workplane().copyWorkplane(pcbMount.faces('>Y').workplane())
+            .text('by', 3.5, -textDepth)
+            .translate((pcbMountLength - 4.5, 0, -pcbMountHeight / 2))
+            .union(
+                cq.Workplane().copyWorkplane(pcbMount.faces('>Y').workplane())
+                .text('Adam Bäckström', 4, -textDepth)
+                .translate((pcbMountLength / 2 - 1.5, 0, -pcbMountHeight + 1))
+            )
+        )
+
+    pcbMount = pcbMount.cut(servoProjectText.union(byAdamText))
+
+    return lidTop, lidBottom, optSensorHolder, pcbMount
 
 def createMotor():
     diameter = 17
@@ -354,43 +517,49 @@ def createMotor():
 
     return result
 
-ds3225GearLidTop = None
-ds3225GearLidBottom = None
+gearLidTop = None
+gearLidBottom = None
+optSensorHolder = None
+pcbMount = None
 
 encDisc = None
 encDiscCylinder = None
 turningMount = None
 
-ds3225GearLidTop, ds3225GearLidBottom = ds3225GearLid()
+gearLidTop, gearLidBottom, optSensorHolder, pcbMount = gearLid()
 
 motorGlobalPos = (38.4 - (6.7 + 5 / 2) - (6.1 + 6.1 / 2), 0, -1.5)
 
-defaultViewOpt = {"alpha":0.5, "color": (255, 173, 0)}
+defaultViewOpt = {"alpha":0.5, "color": (20, 20, 20)}
+encDiscViewOpt = {"alpha":0.5, "color": (250, 250, 250)}
 
 motor = createMotor().translate(motorGlobalPos)
-show_object(motor, name='motor', options={"alpha":0.5, "color": (0, 127, 255)})
+show_object(motor, name='motor', options={"alpha":0.2, "color": (160, 160, 160)})
 
-encDisc, encDiscCylinder, turningMount = createEncDiscSinCosOffset()
+encDisc, turningMount = createEncDisc()
 
-if ds3225GearLidTop:
-    exporters.export(ds3225GearLidTop, 'ds3225GearLidTop.stl')
-    show_object(ds3225GearLidTop, name='ds3225GearLidTop', options=defaultViewOpt)
+if gearLidTop:
+    exporters.export(gearLidTop, 'gearLidTop.stl')
+    show_object(gearLidTop, name='gearLidTop', options=defaultViewOpt)
 
-if ds3225GearLidBottom:
-    exporters.export(ds3225GearLidBottom, 'ds3225GearLidBottom.stl')
-    show_object(ds3225GearLidBottom, name='ds3225GearLidBottom', options=defaultViewOpt)
+if gearLidBottom:
+    exporters.export(gearLidBottom, 'gearLidBottom.stl')
+    show_object(gearLidBottom, name='gearLidBottom', options=defaultViewOpt)
 
-encDiscViewOpt = {"alpha":0.5, "color": (240, 240, 240)}
+if optSensorHolder:
+    exporters.export(optSensorHolder, 'optSensorHolder.stl')
+    show_object(optSensorHolder, name='optSensorHolder', options=defaultViewOpt)
+
+if pcbMount:
+    pcbMount = pcbMount.translate((0, 0, -18.3))
+    exporters.export(pcbMount, 'pcbMount.stl')
+    show_object(pcbMount, name='pcbMount', options=defaultViewOpt)
 
 if encDisc:
     encDisc = encDisc.rotate((0, 0, 0), (0, 0, 1), 90).translate((motorGlobalPos[0], motorGlobalPos[1], motorGlobalPos[2] + 2.7))
-    exporters.export(encDisc, 'ds3225EncDisc.stl')
+    exporters.export(encDisc, 'encDisc.stl')
     show_object(encDisc, name='encDisc', options=encDiscViewOpt)
-if encDiscCylinder:
-    encDiscCylinder = encDiscCylinder.rotate((0, 0, 0), (0, 0, 1), 90).translate((motorGlobalPos[0], motorGlobalPos[1], motorGlobalPos[2] + 2.7))
-    exporters.export(encDiscCylinder, 'ds3225EncDiscCylinder.stl')
-    show_object(encDiscCylinder, name='encDiscCylinder', options=encDiscViewOpt)
 if turningMount:
     turningMount = turningMount.rotate((0, 0, 0), (0, 0, 1), 90).translate((motorGlobalPos[0], motorGlobalPos[1], motorGlobalPos[2]))
-    exporters.export(turningMount, 'ds3225EncDiscTruningMount.stl')
-    show_object(turningMount, name='turningMount', options=encDiscViewOpt)
+    exporters.export(turningMount, 'encDiscTruningMount.stl')
+    show_object(turningMount, name='encDiscTruningMount', options=encDiscViewOpt)

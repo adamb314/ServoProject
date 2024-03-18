@@ -271,7 +271,11 @@ class GuiWindow(Gtk.Window):
             for c in self.getConfigurations():
                 configs.append(c)
             configs.sort()
-            configs = [c for c in configs if c not in ('default.h', 'defaultSim.h')]
+            configs = [c for c in configs if c not in (
+                    'default.h',
+                    'defaultSim.h',
+                    'defaultDS3225.h',
+                    'defaultMG90S.h')]
 
             currentItem = GuiFunctions.getActiveComboBoxItem(activeConfigCombo[1])
             GuiFunctions.setComboBoxItems(activeConfigCombo[1], currentItem, configs)
