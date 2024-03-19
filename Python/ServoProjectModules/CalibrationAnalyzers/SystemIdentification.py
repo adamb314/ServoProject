@@ -905,11 +905,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
 
     minPwmScale = GuiFunctions.creatHScale(minPwmValue, 0, 1023, 1, getLowLev=True)
-    minPwmScale = GuiFunctions.addTopLabelTo('<b>Min motor pwm value</b>', minPwmScale[0]), minPwmScale[1]
+    minPwmScale = GuiFunctions.addTopLabelTo(
+                '<b>Min motor pwm value</b>\n Choose the lowest value that results in movement',
+                minPwmScale[0]), minPwmScale[1]
     calibrationBox.pack_start(minPwmScale[0], False, False, 0)
 
     maxPwmScale = GuiFunctions.creatHScale(maxPwmValue, 0, 1023, 1, getLowLev=True)
-    maxPwmScale = GuiFunctions.addTopLabelTo('<b>Max motor pwm value</b>', maxPwmScale[0]), maxPwmScale[1]
+    maxPwmScale = GuiFunctions.addTopLabelTo(
+                '<b>Max motor pwm value</b>\n Choose the highest value possible',
+                maxPwmScale[0]), maxPwmScale[1]
     calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)

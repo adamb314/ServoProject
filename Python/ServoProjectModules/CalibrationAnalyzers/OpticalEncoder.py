@@ -705,14 +705,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     testPwmValue = 0
     pwmValue = 0
-    pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+    pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 1, getLowLev=True)
     pwmScale = (GuiFunctions.addTopLabelTo(
                 '<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]),
             pwmScale[1])
     calibrationBox.pack_start(pwmScale[0], False, False, 0)
 
     startPwmValue = 0
-    startPwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+    startPwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 1, getLowLev=True)
     startPwmScale = (GuiFunctions.addTopLabelTo(
                 '<b>Start motor pwm value</b>\n Choose a value that makes the motor start rotating', startPwmScale[0]),
             startPwmScale[1])
