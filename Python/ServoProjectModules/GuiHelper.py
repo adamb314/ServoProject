@@ -144,6 +144,7 @@ def creatComboBox(currentItem, itemList, onChangeFun = nullFunEvent, getLowLev =
     return eventBox
 
 def creatSpinButton(startValue, minValue, maxValue, stepSize, *, onChangeFun = nullFunEvent, getLowLev = False):
+    # pylint: disable=too-many-arguments
     spinButton = Gtk.SpinButton.new_with_range(min=minValue, max=maxValue, step=stepSize)
     spinButton.set_value(startValue)
     spinButton.set_margin_start(40)
@@ -231,6 +232,7 @@ def createLabelBox(text, orientation=Gtk.Orientation.VERTICAL):
 
 def creatHScale(startValue, minValue, maxValue, stepSize, *,
                 onChangeFun = nullFunEvent, width = 500, getLowLev = False):
+    # pylint: disable=too-many-arguments
     scale = Gtk.Scale.new_with_range(orientation=Gtk.Orientation.HORIZONTAL, min=minValue, max=maxValue, step=stepSize)
     scale.set_value(startValue)
     scale.set_margin_start(40)

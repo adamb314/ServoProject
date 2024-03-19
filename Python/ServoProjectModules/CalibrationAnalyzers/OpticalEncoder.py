@@ -29,12 +29,15 @@ class OpticalEncoderDataVectorGenerator:
 
     def __init__(self, data, configFileAsString='', configClassName='', *,
             constVelIndex=10000, fftFilterLevel = 4, shouldAbort=None, updateProgress=None):
-        # pylint: disable=too-many-locals, too-many-branches, too-many-statements
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements, too-many-arguments
 
         self.data = data[:, 0:3]
         self.constVelIndex = constVelIndex
 
         self.shouldAbort = shouldAbort
+        if self.shouldAbort is None:
+            self.shouldAbort = lambda: False
+
         self.updateProgress = updateProgress
         if self.updateProgress is None:
             self.updateProgress = lambda _ : None
@@ -302,11 +305,11 @@ class OpticalEncoderDataVectorGenerator:
         self.updateProgress(1.0)
 
     def genVec(self, data, *, cutRatio, startSortFromChA):
+        # pylint: disable=too-many-locals
         data = data[:]
-        # pylint: disable=too-many-locals, too-many-statements
         if startSortFromChA:
             dataSumDiff = [(d[0], d[1], d[2]) for d in data]
-        
+
         else:
             dataSumDiff = [(d[0], d[2], d[1]) for d in data]
 
@@ -315,7 +318,7 @@ class OpticalEncoderDataVectorGenerator:
         self.sortedDataByA = sortedDataByA
 
         cutI = int(round(len(sortedDataByA) * cutRatio))
-        
+
         def getAvarageLinearTrend(data, averagingSize):
             temp = data[0:averagingSize]
             mean0 = sum(temp) / len(temp)
@@ -440,7 +443,7 @@ class OpticalEncoderDataVectorGenerator:
         chBDiffs = []
 
         calibrationData = (self.aVec, self.bVec)
-        for i, (_, a, b) in enumerate(self.data):
+        for _, a, b in self.data:
             pos, cost = OpticalEncoderDataVectorGenerator.calculatePosition(
                     a, b, calibrationData)
             positions.append(pos)

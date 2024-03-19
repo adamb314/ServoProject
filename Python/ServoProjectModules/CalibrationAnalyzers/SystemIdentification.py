@@ -79,7 +79,7 @@ def calcVelFromPos(posData, timeData, dStep):
 
 def calcParamsAndPwmLists(pwmData, velData, dStep, calcPhiAndY, *, nrOfPwmAmpsToCombine=1,
         skipSampleIf=lambda d: False):
-    # pylint: disable=too-many-locals, too-many-statements
+    # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
     index = -1
     tempPwmList = []
     phi2SumList = []
@@ -164,7 +164,7 @@ class SystemIdentificationObject:
     # pylint: disable=too-many-instance-attributes
     def __init__(self, data, *, additionalData=None, ad=None, bd=None, friction=None, pwmOffset=None, dt=None,
                 shouldAbort=lambda:False, updateProgress=lambda v:None):
-        # pylint: disable=too-many-locals, too-many-statements
+        # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
 
         if additionalData is None:
             additionalData = []
@@ -512,6 +512,7 @@ class SystemIdentificationObject:
         return (simVel, realVel, simError, errorSum)
 
     def showAdditionalDiagnosticPlots(self, color='g', skipCallToShow=False):
+        # pylint: disable=too-many-locals
         pwmCompFun = SystemIdentificationObject.getPwmLinearizer(self.servoModelParameters[4])
         linearPwmList = [pwmCompFun.getY(x) for x in self.pwmList]
 
