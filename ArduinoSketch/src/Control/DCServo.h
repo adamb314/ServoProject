@@ -88,7 +88,7 @@ class DCServo
 
     void enableInternalFeedForward(bool enable = true);
 
-    void loadNewReference(float pos, int16_t vel, int16_t feedForwardU = 0);
+    void loadNewReference(float pos, float vel, int16_t feedForwardU = 0);
 
     void triggerReferenceTiming();
 
@@ -109,6 +109,8 @@ class DCServo
     float getBacklashCompensation();
 
     float getMainEncoderPosition();
+
+    float getControlError();
 
     EncoderHandlerInterface::DiagnosticData getMainEncoderDiagnosticData();
 
@@ -146,6 +148,7 @@ class DCServo
     //L[6]: Backlash size
     Eigen::Matrix<float, 7, 1> L;
 
+    uint32_t cycleTime{0};
     uint32_t loopTime{0};
     uint32_t loopNr{0};
     float rawMainPos{0.0f};
@@ -162,7 +165,7 @@ class DCServo
 
     int16_t current{0};
     int16_t pwmControlSignal{0};
-    float kalmanControlSignal{0.0f};
+    int32_t kalmanControlSignal{0};
     SampleAveragingHandler<int32_t, 32> currentAveraging;
     SampleAveragingHandler<int32_t, 32> controlSignalAveraging;
 
@@ -170,6 +173,7 @@ class DCServo
 
     ComplementaryFilter outputEncoderFilter;
 
+    float posDiff{0.0f};
     float Ivel{0.0f};
     float vControlRef{0.0f};
     int32_t pwm{0};

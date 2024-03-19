@@ -234,8 +234,8 @@ void DCServoCommunicator::setControlSpeed(unsigned char controlSpeed,
     this->controlSpeed = controlSpeed;
     this->velControlSpeed = velControlSpeed;
     this->filterSpeed = filterSpeed;
-    inertiaMarg = stdmin::min(stdmin::max(inertiaMarg, 1.0), 1.0 + 255.0 / 128);
-    this->inertiaMarg = static_cast<unsigned char>(stdmin::round((inertiaMarg - 1.0) * 128.0));
+    inertiaMarg = stdmin::min(stdmin::max(inertiaMarg, 1.0f), 1.0f + 255.0f / 128);
+    this->inertiaMarg = static_cast<unsigned char>(stdmin::round((inertiaMarg - 1.0f) * 128.0f));
 }
 
 void DCServoCommunicator::setBacklashControlSpeed(unsigned char backlashCompensationSpeed,
@@ -273,29 +273,18 @@ void DCServoCommunicator::setReference(const float& pos, const float& vel, const
 {
     newPositionReference = true;
     newOpenLoopControlSignal = false;
-    refPos = (pos - offset) / scale * positionUpscaling;
+    refPos = stdmin::round((pos - offset) / scale * positionUpscaling);
+    refVel = stdmin::round(vel / scale * velocityUpscaling);
 
-    int sign = 0;
-    if (vel > 0.0f)
-    {
-        sign = 1;
-    }
-    else if (vel < 0.0f)
-    {
-        sign = -1;
-    }
-    refVel = stdmin::round(vel / scale);
-    refVel = stdmin::max(1, stdmin::abs(refVel)) * sign;
-
-    if (refVel > 4)
+    if (refVel > 4 * velocityUpscaling)
     {
         frictionCompensation = stdmin::abs(frictionCompensation);
     }
-    else if (refVel < -4)
+    else if (refVel < -4 * velocityUpscaling)
     {
         frictionCompensation = -stdmin::abs(frictionCompensation);
     }
-    this->feedforwardU = feedforwardU + frictionCompensation;
+    this->feedforwardU = stdmin::round(feedforwardU + frictionCompensation);
 }
 
 void DCServoCommunicator::setOpenLoopControlSignal(const float& feedforwardU, bool pwmMode)
@@ -405,12 +394,18 @@ DCServoCommunicator::OpticalEncoderChannelData DCServoCommunicator::getOpticalEn
     return opticalEncoderChannelData;
 }
 
-float DCServoCommunicator::getScaling()
+float DCServoCommunicator::getLowLevelControlError() const
+{
+    activeCharReads[12] = true;
+    return scale * lowLevelControlError;
+}
+
+float DCServoCommunicator::getScaling() const
 {
     return scale;
 }
 
-float DCServoCommunicator::getOffset()
+float DCServoCommunicator::getOffset() const
 {
     return offset;
 }
@@ -539,7 +534,7 @@ CommunicationError DCServoCommunicator::run()
     encoderPos = intReadBufferIndex10Upscaling.get() * (1.0f / positionUpscaling);
     backlashCompensation = intReadBufferIndex11Upscaling.get() * (1.0f / positionUpscaling);
 
-    encoderVel = intReadBuffer[4];
+    encoderVel = intReadBuffer[4] * (1.0f / velocityUpscaling);
     controlSignal = intReadBuffer[5];
     current = intReadBuffer[6];
     pwmControlSignal = intReadBuffer[7];
@@ -549,6 +544,8 @@ CommunicationError DCServoCommunicator::run()
     opticalEncoderChannelData.b = intReadBuffer[13];
     opticalEncoderChannelData.minCostIndex = intReadBuffer[14];
     opticalEncoderChannelData.minCost = intReadBuffer[15];
+
+    lowLevelControlError = static_cast<signed char>(charReadBuffer[12]) * 0.001f;
 
     if (!isInitComplete())
     {
@@ -573,6 +570,12 @@ CommunicationError DCServoCommunicator::run()
         if (isInitComplete())
         {
             updateOffset();
+
+            breakingChangeNr = static_cast<unsigned char>(charReadBuffer[15]);
+            if (breakingChangeNr >= 1)
+            {
+                velocityUpscaling = 8;
+            }
         }
     }
 

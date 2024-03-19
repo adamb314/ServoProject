@@ -65,6 +65,15 @@ protected:
     ContinuousValueUpCaster<long int, short int> intArrayIndex0Upscaler;
 
     static constexpr int positionUpscaling = 32;
+    static constexpr int velocityUpscaling = 8;
+
+public:
+    // ----------------------------------------
+    // ---- Communication breaking changes ----
+    // ----------------------------------------
+    // 0 : version <= 4.0
+    // 1 : version >= 4.1 : breaking change is velocityUpscaling = 8 > 1
+    static constexpr uint8_t breakingChangeNr = 1;
 };
 
 class DCServoCommunicationHandlerWithPwmInterface : public DCServoCommunicationHandler

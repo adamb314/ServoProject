@@ -51,9 +51,9 @@ auto KalmanFilter::update(float y) -> decltype(xhat)
     return xhat;
 }
 
-void KalmanFilter::postUpdate(float u)
+void KalmanFilter::postUpdate(int32_t u)
 {
-    float uComp = xhat[2] + u;
+    int32_t uComp = xhat[2] + u;
     xhat[0] += A(0, 1) * xhat[1] + B[0] * uComp;
     xhat[1] = A(1, 1) * xhat[1] + B[1] * uComp;
 }
@@ -65,7 +65,7 @@ auto KalmanFilterApproximation::update(float y) -> decltype(KalmanFilter::update
     return xhat;
 }
 
-void KalmanFilterApproximation::postUpdate(float u)
+void KalmanFilterApproximation::postUpdate(int32_t u)
 {
     xhat[0] += approxA01 * xhat[1];
 }

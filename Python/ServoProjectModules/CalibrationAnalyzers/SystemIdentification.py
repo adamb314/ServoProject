@@ -79,7 +79,7 @@ def calcVelFromPos(posData, timeData, dStep):
 
 def calcParamsAndPwmLists(pwmData, velData, dStep, calcPhiAndY, *, nrOfPwmAmpsToCombine=1,
         skipSampleIf=lambda d: False):
-    # pylint: disable=too-many-locals, too-many-statements
+    # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
     index = -1
     tempPwmList = []
     phi2SumList = []
@@ -164,7 +164,7 @@ class SystemIdentificationObject:
     # pylint: disable=too-many-instance-attributes
     def __init__(self, data, *, additionalData=None, ad=None, bd=None, friction=None, pwmOffset=None, dt=None,
                 shouldAbort=lambda:False, updateProgress=lambda v:None):
-        # pylint: disable=too-many-locals, too-many-statements
+        # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
 
         if additionalData is None:
             additionalData = []
@@ -281,10 +281,10 @@ class SystemIdentificationObject:
                     xPad = np.arange(pwm[-1] + interpolSample, 1023 + extrapolate, interpolSample)
                     compPad = xn + k * (xPad - pwm[-1])
 
-                    xAtZero = -xn / k + pwm[-1]
-                    xPad0 = np.arange(-extrapolate, xAtZero, interpolSample)
+                    xAtUFric = (uFric - xn) / k + pwm[-1]
+                    xPad0 = np.arange(-extrapolate, xAtUFric, interpolSample)
 
-                    compPad0 = xn + k * (xPad0 - pwm[-1])
+                    compPad0 = uFric * (xPad0 / pwm[-1])
                     pwmExt = list(xPad0) + pwmInter + list(xPad)
                     compExt = list(compPad0) + compInter + list(compPad)
 
@@ -512,6 +512,7 @@ class SystemIdentificationObject:
         return (simVel, realVel, simError, errorSum)
 
     def showAdditionalDiagnosticPlots(self, color='g', skipCallToShow=False):
+        # pylint: disable=too-many-locals
         pwmCompFun = SystemIdentificationObject.getPwmLinearizer(self.servoModelParameters[4])
         linearPwmList = [pwmCompFun.getY(x) for x in self.pwmList]
 
@@ -537,6 +538,8 @@ class SystemIdentificationObject:
         pwmFromLinComp[0] = 0
         plt.plot(pwmFromLinComp, linearCompList, '--', color=color)
         plt.plot(self.pwmList, self.pwmCompList, '+', color=color)
+        f = self.servoModelParameters[2]
+        plt.plot([f, 1024], [f, f], ':', color=color, alpha=0.4)
         plt.xlim(-20, 1043)
         plt.ylim(-20, 1043)
 
@@ -717,11 +720,14 @@ class ServoModel:
 
         _, _, self.friction, (_, linearPwmList) = systemModel.getServoSystemModelParameters(dt)
 
+        self.reducedFriction = self.friction * 0.8
+
         self.pwmNonlinearityComp = PwmNonlinearityConfigHandler(pwmCompLookUp=linearPwmList)
 
         self.pwmToStallCurrent, self.backEmfCurrent = systemModel.getCurrentModelParameters()
 
-    def  getControlParametersClassContentStr(self, indent):
+    def getControlParametersClassContentStr(self, indent):
+
         out = ''
         out += indent + '  public:\n'
         out += indent + '    //kalman filter observer vector\n'
@@ -768,7 +774,7 @@ class ServoModel:
         out += indent + '    //system model friction comp value\n'
         out += indent + '    static float getFrictionComp()\n'
         out += indent + '    {\n'
-        out += indent + '        return ' + str(self.friction) + 'f;\n'
+        out += indent + '        return ' + str(self.reducedFriction) + 'f;\n'
         out += indent + '    }\n'
         out += indent + '};'
         return out
@@ -867,12 +873,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             try:
                 with createServoManager(nodeNr, getPortFun()) as servoManager:
                     startPos = servoManager.servoArray[0].getPosition(True)
+                    widget.set_label(f'Locked at {startPos / pi * 180.0:0.1f} degrees')
             except Exception as e:
                 GuiFunctions.exceptionMessage(parent, e)
                 widget.set_active(False)
+                widget.set_label('Lock')
 
         else:
             startPos = None
+            widget.set_label('Lock')
 
     limitMovementButton[1].connect('toggled', onLockPosition)
 
@@ -896,11 +905,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
 
     minPwmScale = GuiFunctions.creatHScale(minPwmValue, 0, 1023, 1, getLowLev=True)
-    minPwmScale = GuiFunctions.addTopLabelTo('<b>Min motor pwm value</b>', minPwmScale[0]), minPwmScale[1]
+    minPwmScale = GuiFunctions.addTopLabelTo(
+                '<b>Min motor pwm value</b>\n Choose the lowest value that results in movement',
+                minPwmScale[0]), minPwmScale[1]
     calibrationBox.pack_start(minPwmScale[0], False, False, 0)
 
     maxPwmScale = GuiFunctions.creatHScale(maxPwmValue, 0, 1023, 1, getLowLev=True)
-    maxPwmScale = GuiFunctions.addTopLabelTo('<b>Max motor pwm value</b>', maxPwmScale[0]), maxPwmScale[1]
+    maxPwmScale = GuiFunctions.addTopLabelTo(
+                '<b>Max motor pwm value</b>\n Choose the highest value possible',
+                maxPwmScale[0]), maxPwmScale[1]
     calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
@@ -1149,7 +1162,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             response = dialog.run()
             dialog.destroy()
 
-    def startCalibrationRun(nodeNr, port):
+    def startCalibrationRun(nodeNr, port, loadDataFileInstead):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
@@ -1179,22 +1192,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 out = []
 
-                if os.path.isfile('sysTestDataToLoad.txt') and t == 0.0:
-                    dialog = Gtk.MessageDialog(
-                            transient_for=parent,
-                            flags=0,
-                            message_type=Gtk.MessageType.INFO,
-                            buttons=Gtk.ButtonsType.YES_NO,
-                            text='Found file: "sysTestDataToLoad.txt"!\n'
-                                'Should this file be loaded instead of\n'
-                                'running a new calibration?',
-                    )
-                    response = dialog.run()
-                    dialog.destroy()
-
-                    if response == Gtk.ResponseType.YES:
-                        out = np.loadtxt('sysTestDataToLoad.txt')
-                        doneRunning = True
+                if loadDataFileInstead:
+                    out = np.loadtxt('sysTestDataToLoad.txt')
+                    doneRunning = True
 
                 def readResultHandlerFunction(dt, servoManager):
                     # pylint: disable=too-many-branches
@@ -1384,9 +1384,25 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             calibrationBox.show_all()
 
+            loadDataFileInstead = False
+            if os.path.isfile('sysTestDataToLoad.txt'):
+                dialog = Gtk.MessageDialog(
+                        transient_for=parent,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO,
+                        buttons=Gtk.ButtonsType.YES_NO,
+                        text='Found file: "sysTestDataToLoad.txt"!\n'
+                            'Should this file be loaded instead of\n'
+                            'running a new calibration?',
+                )
+                response = dialog.run()
+                dialog.destroy()
+
+                loadDataFileInstead = response == Gtk.ResponseType.YES
+
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(), loadDataFileInstead))
             testThread.start()
         else:
             with threadMutex:

@@ -10,7 +10,6 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, vecSize>
 {
     sensor1Scaler.init(this->aVec);
     sensor2Scaler.init(this->bVec);
-    initWeights();
 }
 
 OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aVec, const std::array<uint16_t, 512>& bVec,
@@ -32,30 +31,6 @@ OpticalEncoderHandler::OpticalEncoderHandler(const std::array<uint16_t, 512>& aV
 
     sensor1Scaler.init(this->aVec);
     sensor2Scaler.init(this->bVec);
-    initWeights();
-}
-
-#include <cmath>
-void OpticalEncoderHandler::initWeights()
-{
-    auto minAIt = std::min_element(std::begin(aVec), std::end(aVec));
-    auto maxBIt = std::min_element(std::begin(bVec), std::end(bVec));
-
-    int minAIndex = std::distance(std::begin(aVec), minAIt);
-    int maxBIndex = std::distance(std::begin(bVec), maxBIt);
-    int dirSign = adam_std::sign(adam_std::wrapAroundDist<vecSize>(maxBIndex - minAIndex));
-
-    float minWeight = 0.05f;
-    float c = minWeight / (1.0f - minWeight);
-
-    for (size_t i = 0; i != vecSize; ++i)
-    {
-        float temp = std::sin(dirSign * (i - static_cast<float>(minAIndex)) * 2.0f * M_PI / vecSize);
-        temp = temp * temp;
-
-        aWeights[i] = static_cast<uint16_t>((temp * (1.0f - c) + c) / (1.0f + c) * 256.0f);
-        bWeights[i] = static_cast<uint16_t>(((1.0f - temp) * (1.0f - c) + c) / (1.0f + c) * 256.0f);
-    }
 }
 
 OpticalEncoderHandler::~OpticalEncoderHandler()
@@ -129,8 +104,7 @@ float OpticalEncoderHandler::getValue(uint16_t sensor1Value, uint16_t sensor2Val
 
     int32_t newPos;
     uint32_t cost;
-    std::tie(newPos, cost) = calcPosition(sensor1Value, sensor2Value, predictNextPos);
-    predictNextPos = newPos;
+    std::tie(newPos, cost) = calcPosition(sensor1Value, sensor2Value);
 
     sensor1Scaler.update(newPos, diagnosticData.a);
     sensor2Scaler.update(newPos, diagnosticData.b);
@@ -182,7 +156,7 @@ void OpticalEncoderHandler::configurePullUpDown(int16_t portGroup, int16_t n, bo
 }
 
 std::tuple<int32_t, uint32_t> OpticalEncoderHandler::calcPosition(
-        uint16_t sensor1Value, uint16_t sensor2Value, int32_t predictNextPos)
+        uint16_t sensor1Value, uint16_t sensor2Value)
 {
     using namespace adam_std;
 
@@ -199,32 +173,14 @@ std::tuple<int32_t, uint32_t> OpticalEncoderHandler::calcPosition(
             return tempA + tempB;
         };
 
-    auto calcCostWithWeights = [&](int i, uint16_t a, uint16_t b)
-        {
-            uint16_t aWeight = aWeights[i];
-            uint16_t bWeight = bWeights[i];
+    int stepSize = vecSize / 5;
 
-            uint32_t tempA;
-            tempA = aVec[i] - a;
-            tempA = tempA * tempA * aWeight;
-
-            uint32_t tempB;
-            tempB = bVec[i] - b;
-            tempB = tempB * tempB * bWeight;
-
-            auto out = tempA + tempB;
-
-            return out / 256;
-        };
-
-    int stepSize = vecSize / 2;
-
-    int bestI = predictNextPos;
+    int bestI = 0;
     uint32_t bestCost = calcCost(bestI, sensor1Value, sensor2Value);
 
     int i = bestI + stepSize;
     uint32_t cost;
-    while (i < vecSize + bestI)
+    while (i < vecSize)
     {
         cost = calcCost(wrapAround<vecSize>((int)i), sensor1Value, sensor2Value);
 
@@ -237,35 +193,15 @@ std::tuple<int32_t, uint32_t> OpticalEncoderHandler::calcPosition(
 
     bestI = wrapAround<vecSize>(bestI);
 
-    while (stepSize >= vecSize / 16)
+    while (stepSize != 1)
     {
-        stepSize = stepSize / 2;
+        stepSize = (stepSize + 1) / 2;
 
         int iPos = wrapAround<vecSize>(bestI + stepSize);
         int costPos = calcCost(iPos, sensor1Value, sensor2Value);
 
         int iNeg = wrapAround<vecSize>(bestI - stepSize);
         int costNeg = calcCost(iNeg, sensor1Value, sensor2Value);
-
-        bool temp = costPos < costNeg;
-        iPos = chooseOne(iPos, iNeg, temp);
-        costPos = chooseOne(costPos, costNeg, temp);
-
-        temp = costPos < bestCost;
-        bestCost = chooseOne(costPos, bestCost, temp);
-        bestI = chooseOne(iPos, bestI, temp);
-    }
-
-    while (stepSize != 1)
-    {
-        static_assert((vecSize & (vecSize - 1)) == 0, "vecSize is not a power of 2");
-        stepSize = stepSize / 2;
-
-        int iPos = wrapAround<vecSize>(bestI + stepSize);
-        int costPos = calcCostWithWeights(iPos, sensor1Value, sensor2Value);
-
-        int iNeg = wrapAround<vecSize>(bestI - stepSize);
-        int costNeg = calcCostWithWeights(iNeg, sensor1Value, sensor2Value);
 
         bool temp = costPos < costNeg;
         iPos = chooseOne(iPos, iNeg, temp);

@@ -4,7 +4,7 @@ ReferenceInterpolator::ReferenceInterpolator()
 {
 }
 
-void ReferenceInterpolator::loadNew(float position, float velocity, float feedForward)
+void ReferenceInterpolator::loadNew(float position, float velocity, int32_t feedForward)
 {
     if (refInvalid)
     {
@@ -130,7 +130,7 @@ void ReferenceInterpolator::stepAndUpdateInter()
     }
 }
 
-std::tuple<float, float, float> ReferenceInterpolator::get()
+std::tuple<float, float, int32_t> ReferenceInterpolator::get()
 {
     return std::make_tuple(interPos, interVel, interFeed);
 }

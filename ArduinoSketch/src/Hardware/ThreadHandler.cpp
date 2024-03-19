@@ -192,6 +192,7 @@ bool Thread::higherPriorityThan(const Thread& other)
 void Thread::runThread()
 {
     run();
+    timeUntillRun += period;
     if (firstCodeBlock())
     {
         runAtTimestamp = startOffset + period;
@@ -509,7 +510,14 @@ void ThreadHandler::interruptRun()
             currentThread = threadToRun;
             blocker.unlock();
 
-            threadToRun->runThread();
+            while (true)
+            {
+                threadToRun->runThread();
+                if (!threadToRun->pendingRun())
+                {
+                    break;
+                }
+            }
 
             blocker.lock();
             currentThread = temp2;

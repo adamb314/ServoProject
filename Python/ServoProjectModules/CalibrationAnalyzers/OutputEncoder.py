@@ -17,7 +17,9 @@ class OutputEncoderCalibrationGenerator:
         minPos = min(self.data[:, 1])
         maxPos = max(self.data[:, 1])
 
-        posListSize = int(4096 / 8)
+        self.posRes = 4
+
+        posListSize = int(4096 / self.posRes)
         if not wrapAround:
             posListSize += 1
 
@@ -25,13 +27,13 @@ class OutputEncoderCalibrationGenerator:
         for i in range(0, posListSize):
             posList.append([])
 
-        lastPos = int(round((self.data[0, 1] % 4096) / 8))
+        lastPos = int(round((self.data[0, 1] % 4096) / self.posRes))
         inSequence = []
         for d in self.data:
             if d[0] < 1.0:
                 continue
             if d[1] != maxPos and d[1] != minPos:
-                pos = int(round((d[1] % 4096) / 8))
+                pos = int(round((d[1] % 4096) / self.posRes))
                 if pos == posListSize:
                     pos = posListSize - 1
 
@@ -50,14 +52,14 @@ class OutputEncoderCalibrationGenerator:
                 d.sort(key=lambda dd: -dd[1])
                 listOfMeans = [dd[0] / dd[1] for dd in d]
                 mean = sum(listOfMeans) / len(listOfMeans)
-                eps = 0.0001
+                eps = 1.0
                 underMean = [dd for dd in listOfMeans if dd < mean - eps]
                 overMean = [dd for dd in listOfMeans if dd > mean + eps]
                 l = min(len(underMean), len(overMean))
-                if l != 0:
+                if l == 0:
+                    self.meanList.append(None)
+                else:
                     self.meanList.append((sum(underMean[0:l]) + sum(overMean[0:l])) / (2 * l))
-                elif len(underMean) == 0 and len(overMean) == 0:
-                    self.meanList.append(mean)
 
         i = 0
         if wrapAround:
@@ -123,7 +125,7 @@ class OutputEncoderCalibrationGenerator:
 
     _compVecPattern = re.compile(
             r'(?P<beg>.*createOutputEncoderHandler\(\)\s*\{(.*\n)*?\s*(constexpr)?\s+(static)?\s+'
-            r'std\s*::\s*array\s*<\s*int16_t\s*,\s*513\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]+)\s*\};')
+            r'std\s*::\s*array\s*<\s*int16_t\s*,\s*)\d+(?P<end>\s*>\s*compVec\s*=\s*)\{\s*(?P<vec>[^\}]+)\s*\};')
 
     @staticmethod
     def checkForPreviousCalibration(configFileAsString, configClassName):
@@ -140,7 +142,7 @@ class OutputEncoderCalibrationGenerator:
     def resetPreviousCalibration(configFileAsString, configClassName):
         configClassString = getConfigClassString(configFileAsString, configClassName)
         configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern,
-                r'\g<beg>{0};', configClassString)
+                r'\g<beg>1025\g<end>{0};', configClassString)
         configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
 
         return configFileAsString
@@ -149,7 +151,7 @@ class OutputEncoderCalibrationGenerator:
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
-        x = range(0, 4096 + 8, 8)
+        x = [self.posRes * i for i in range(0, len(self.meanList))]
         ax.plot(self.data[:, 1] % 4096, self.data[:, 2], 'b+', alpha=0.25)
         ax.plot(x, self.meanList, 'g-+')
 
@@ -194,7 +196,8 @@ class OutputEncoderCalibrationGenerator:
 
         temp = OutputEncoderCalibrationGenerator._compVecPattern.search(configClassString)
         if temp is not None:
-            configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern, r'\g<beg>' +
+            configClassString = re.sub(OutputEncoderCalibrationGenerator._compVecPattern,
+                    r'\g<beg>' + f'{len(self.meanList)}'+ r'\g<end>' +
                     intArrayToString(self.meanList), configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
@@ -204,7 +207,7 @@ class OutputEncoderCalibrationGenerator:
 
     def getGeneratedVector(self):
         out = ''
-        out += 'std::array<int16_t, 513 > compVec = ' + intArrayToString(self.meanList)
+        out += f'std::array<int16_t, {len(self.meanList)} > compVec = ' + intArrayToString(self.meanList)
 
         return out
 
@@ -245,6 +248,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     advancedParametersButton = GuiFunctions.createButton('Set advanced parameters', getLowLev=True)
     calibrationBox.pack_start(advancedParametersButton[0], False, False, 0)
 
+    calibrationLevelOptions = ('Standard (~2 min)', 'Fine (~4 min)', 'Ultra (~8 min)')
+    calibrationLevelComboBox = GuiFunctions.creatComboBox(calibrationLevelOptions[0],
+            calibrationLevelOptions, getLowLev=True)
+    calibrationLevelComboBox = (GuiFunctions.addTopLabelTo('<b>Position resolution</b>', calibrationLevelComboBox[0]),
+                            calibrationLevelComboBox[1])
+    calibrationBox.pack_start(calibrationLevelComboBox[0], False, False, 0)
+
     def onControlSpeedScaleChange(widget):
         contorlParameters.setMainSpeed(controlSpeedScale[1].get_value())
 
@@ -267,11 +277,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     testThread = None
 
     changeTorqueDirTime = 6.0
-    runTime = 120.0 + changeTorqueDirTime
+    standardRunTime = 120.0
+    runTime = standardRunTime + changeTorqueDirTime
 
     def resetGuiAfterCalibration():
         controlSpeedScale[1].set_sensitive(True)
         advancedParametersButton[1].set_sensitive(True)
+        calibrationLevelComboBox[1].set_sensitive(True)
         startButton[1].set_label('Start calibration')
         startButton[1].set_sensitive(True)
         calibrationBox.remove(recordingProgressBar[0])
@@ -416,13 +428,17 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
     simulationConfig = False
 
-    def startCalibrationRun(nodeNr, port):
+    def startCalibrationRun(nodeNr, port, loadDataFileInstead):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
+        nonlocal runTime
 
         try:
+            runTime = standardRunTime * 2**calibrationLevelComboBox[1].get_active() + changeTorqueDirTime
+
             controlSpeedScale[1].set_sensitive(False)
             advancedParametersButton[1].set_sensitive(False)
+            calibrationLevelComboBox[1].set_sensitive(False)
 
             def initFun(servoArray):
                 controlSpeed, velControlSpeed, filterSpeed, inertiaMarg = contorlParameters.getValues()
@@ -450,22 +466,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     out.append([t, (minPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
                     out.append([t, (maxPos - servo.getOffset()) / servo.getScaling(), 0.0 / servo.getScaling()])
 
-                if os.path.isfile('outputEncoderDataToLoad.txt') and encPos is None:
-                    dialog = Gtk.MessageDialog(
-                            transient_for=parent,
-                            flags=0,
-                            message_type=Gtk.MessageType.INFO,
-                            buttons=Gtk.ButtonsType.YES_NO,
-                            text='Found file: "outputEncoderDataToLoad.txt"!\n'
-                                'Should this file be loaded instead of\n'
-                                'running a new calibration?',
-                    )
-                    response = dialog.run()
-                    dialog.destroy()
-
-                    if response == Gtk.ResponseType.YES:
-                        out = np.loadtxt('outputEncoderDataToLoad.txt')
-                        doneRunning = True
+                if loadDataFileInstead:
+                    out = np.loadtxt('outputEncoderDataToLoad.txt')
+                    doneRunning = True
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     nonlocal t
@@ -641,9 +644,25 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             calibrationBox.show_all()
 
+            loadDataFileInstead = False
+            if os.path.isfile('outputEncoderDataToLoad.txt'):
+                dialog = Gtk.MessageDialog(
+                        transient_for=parent,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO,
+                        buttons=Gtk.ButtonsType.YES_NO,
+                        text='Found file: "outputEncoderDataToLoad.txt"!\n'
+                            'Should this file be loaded instead of\n'
+                            'running a new calibration?',
+                )
+                response = dialog.run()
+                dialog.destroy()
+
+                loadDataFileInstead = response == Gtk.ResponseType.YES
+
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(), loadDataFileInstead,))
             testThread.start()
         else:
             with threadMutex:

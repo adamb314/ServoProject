@@ -663,6 +663,8 @@ class DCServoCommunicator:
         self.loopTime = 0
         self.opticalEncoderChannelData = self.OpticalEncoderChannelData()
 
+        self.lowLevelControlError = 0.0
+
         self.refPos = 0
         self.comDelayRefPos = ComDelayInt(delay=3, initValue=0)
         self.refVel = 0
@@ -675,6 +677,14 @@ class DCServoCommunicator:
         self.scale = 1.0
 
         self.positionUpscaling = 32
+        self.velocityUpscaling = 1
+
+        # ----------------------------------------
+        # ---- Communication breaking changes ----
+        # ----------------------------------------
+        # 0 : version <= 4.0
+        # 1 : version >= 4.1 : breaking change is velocityUpscaling = 8 > 1
+        self.breakingChangeNr = None
 
     def setOffsetAndScaling(self, scale, offset, startPosition = 0):
         self.scale = scale
@@ -717,12 +727,11 @@ class DCServoCommunicator:
         self.newPositionReference = True
         self.newOpenLoopControlSignal = False
         self.refPos = round((pos - self.offset) / self.scale * self.positionUpscaling)
-        self.refVel = round(vel / self.scale)
-        self.refVel = max(1, abs(self.refVel)) * (1 if self.refVel > 0 else (-1 if self.refVel < 0 else 0))
+        self.refVel = round(vel / self.scale * self.velocityUpscaling)
 
-        if self.refVel > 4:
+        if self.refVel > 4 * self.velocityUpscaling:
             self.frictionCompensation = abs(self.frictionCompensation)
-        elif self.refVel < -4:
+        elif self.refVel < -4 * self.velocityUpscaling:
             self.frictionCompensation = -abs(self.frictionCompensation)
         self.feedforwardU = round(feedforwardU + self.frictionCompensation)
 
@@ -800,6 +809,10 @@ class DCServoCommunicator:
         self.activeIntReads[14] = True
         self.activeIntReads[15] = True
         return self.opticalEncoderChannelData
+
+    def getLowLevelControlError(self):
+        self.activeCharReads[12] = True
+        return self.scale * self.lowLevelControlError
 
     def getScaling(self):
         return self.scale
@@ -892,7 +905,7 @@ class DCServoCommunicator:
         self.encoderPos = self.intReadBufferIndex10Upscaling.get() * (1.0 / self.positionUpscaling)
         self.backlashCompensation = self.intReadBufferIndex11Upscaling.get() * (1.0 / self.positionUpscaling)
 
-        self.encoderVel = self.intReadBuffer[4]
+        self.encoderVel = self.intReadBuffer[4] * (1.0 / self.velocityUpscaling)
         self.controlSignal = self.intReadBuffer[5]
         self.current = self.intReadBuffer[6]
         self.pwmControlSignal = self.intReadBuffer[7]
@@ -902,6 +915,8 @@ class DCServoCommunicator:
         self.opticalEncoderChannelData.b = self.intReadBuffer[13]
         self.opticalEncoderChannelData.minCostIndex = self.intReadBuffer[14]
         self.opticalEncoderChannelData.minCost = self.intReadBuffer[15]
+
+        self.lowLevelControlError = unsignedToSignedChar(self.charReadBuffer[12]) * 0.001
 
         # handle initialization
         if not self.isInitComplete():
@@ -919,6 +934,10 @@ class DCServoCommunicator:
 
             if self.isInitComplete():
                 self._updateOffset()
+
+                self.breakingChangeNr = self.charReadBuffer[15]
+                if self.breakingChangeNr >= 1:
+                    self.velocityUpscaling = 8
 
     def _updateOffset(self):
         pos = self.getPosition() / self.scale

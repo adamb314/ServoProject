@@ -28,13 +28,16 @@ class OpticalEncoderDataVectorGenerator:
             r'\d+(?P<end>\s*>\s*bVec\s*=\s*)\{(?P<vec>[\d\s,]*)\};')
 
     def __init__(self, data, configFileAsString='', configClassName='', *,
-            constVelIndex=10000, shouldAbort=None, updateProgress=None):
-        # pylint: disable=too-many-locals, too-many-branches, too-many-statements
+            constVelIndex=10000, fftFilterLevel = 4, shouldAbort=None, updateProgress=None):
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements, too-many-arguments
 
         self.data = data[:, 0:3]
         self.constVelIndex = constVelIndex
 
         self.shouldAbort = shouldAbort
+        if self.shouldAbort is None:
+            self.shouldAbort = lambda: False
+
         self.updateProgress = updateProgress
         if self.updateProgress is None:
             self.updateProgress = lambda _ : None
@@ -72,10 +75,10 @@ class OpticalEncoderDataVectorGenerator:
 
             return np.array([rescale(i, v) for i, v in enumerate(vec)])
 
-        self.data[constVelIndex:, 1] = removeSensorTrends(self.data[constVelIndex:, 1], trendLength=2000)
-        self.data[constVelIndex:, 2] = removeSensorTrends(self.data[constVelIndex:, 2], trendLength=2000)
+        self.data[constVelIndex:, 1] = removeSensorTrends(self.data[constVelIndex:, 1], trendLength=4000)
+        self.data[constVelIndex:, 2] = removeSensorTrends(self.data[constVelIndex:, 2], trendLength=4000)
 
-        self.updateProgress(0.1)
+        self.updateProgress(0.02)
 
         def detectInvertedRotation(data):
             a0 = data[0, 1]
@@ -121,7 +124,7 @@ class OpticalEncoderDataVectorGenerator:
 
         invertedDir = detectInvertedRotation(self.data[0:constVelIndex])
 
-        self.updateProgress(0.2)
+        self.updateProgress(0.05)
 
         def filterOutStationarySegments(data):
             def calcCov(a1, b1, a0, b0):
@@ -144,45 +147,129 @@ class OpticalEncoderDataVectorGenerator:
 
         self.nonStationaryData = filterOutStationarySegments(self.data[constVelIndex:])
 
-        self.updateProgress(0.3)
+        self.updateProgress(0.1)
 
-        self.fullLengthAVector, self.fullLengthBVector = self.genVec(self.nonStationaryData)
+        def getMinMaxDiff(vec):
+            minVal = min(vec)
+            maxVal = max(vec)
+            return maxVal - minVal
 
-        self.updateProgress(0.7)
+        startSortFromChA = (
+                getMinMaxDiff([d[1] for d in self.nonStationaryData]) >=
+                getMinMaxDiff([d[2] for d in self.nonStationaryData]))
+
+        self.fullLengthAVector, self.fullLengthBVector = self.genVec(self.nonStationaryData, cutRatio=0.25,
+                startSortFromChA=startSortFromChA)
+
+        halfLengthAVectors = []
+        halfLengthBVectors = []
+        nrOfHalfLengthVecs = 128
+        for i in range(0, nrOfHalfLengthVecs):
+            if self.shouldAbort():
+                return
+            halfLengthAVector, halfLengthBVector = self.genVec(
+                    [d0 if random.random() < 0.5 else d1 for d0, d1 in
+                        zip(self.nonStationaryData[1::2], self.nonStationaryData[0::2])],
+                    cutRatio=0.25 if i == 0 else 0.25 + 0.04 * (2.0 * random.random() - 1.0),
+                    startSortFromChA=startSortFromChA
+                )
+
+            halfLengthAVectors.append(halfLengthAVector)
+            halfLengthBVectors.append(halfLengthBVector)
+
+            self.updateProgress(0.1 + 0.5 * (i+1) / nrOfHalfLengthVecs)
 
         if invertedDir:
             self.fullLengthAVector = self.fullLengthAVector[::-1]
             self.fullLengthBVector = self.fullLengthBVector[::-1]
+            for i, _ in enumerate(halfLengthAVectors):
+                halfLengthAVectors[i] = halfLengthAVectors[i][::-1]
+                halfLengthBVectors[i] = halfLengthBVectors[i][::-1]
+
+        def shringkVectorByMean(vec, outputSize, meanWindow):
+            step = len(vec) / outputSize
+            return [np.mean(wrapAroundSegment(vec, i*step, meanWindow*step))
+                    for i in range(0, outputSize)]
+
+        def fftFilterVector(vec, coorseSize, outputSize):
+            vecCoorse = [vec[int(i * len(vec)/coorseSize)] for i in range(0, coorseSize)]
+
+            x = [(i+0.0) * outputSize/len(vecCoorse) for i, _ in enumerate(vecCoorse)]
+            outputX = np.arange(0, outputSize)
+
+            out = fftFilter(x, vecCoorse, upSampleTt=outputX)
+
+            return list(out)
 
         outputSize = 2048
-        step = len(self.fullLengthAVector) / outputSize
-        self.aVec = [np.mean(wrapAroundSegment(self.fullLengthAVector, i*step, step))
-                for i in range(0, outputSize)]
-        self.bVec = [np.mean(wrapAroundSegment(self.fullLengthBVector, i*step, step))
-                for i in range(0, outputSize)]
-
-        self.oldAVec = None
-        self.oldBVec = None
+        coorseSize = outputSize//fftFilterLevel
+        aVecTemp = shringkVectorByMean(self.fullLengthAVector, outputSize, outputSize//coorseSize)
+        bVecTemp = shringkVectorByMean(self.fullLengthBVector, outputSize, outputSize//coorseSize)
+        self.aVecFromFullLength = fftFilterVector(aVecTemp, coorseSize, outputSize)
+        self.bVecFromFullLength = fftFilterVector(bVecTemp, coorseSize, outputSize)
 
         def getShift(aVec, bVec, refAVec, refBVec):
-            aWeights = [1] * len(aVec)
-            bWeights = [1] * len(aVec)
-
-            calibrationData = (aVec, bVec, aWeights, bWeights)
+            calibrationData = (aVec, bVec)
 
             posDiffs = [
                 (i - OpticalEncoderDataVectorGenerator.calculatePosition(
-                    refAVec[i], refBVec[i], calibrationData)[0])%len(aVec)
-                for i in range(0, len(aVec), 128)]
+                    refAVec[i], refBVec[i], calibrationData)[0] + len(aVec)/2)%len(aVec) - len(aVec)/2
+                for i in range(0, len(aVec), 16)]
 
             shift = int(round(sum(posDiffs) / len(posDiffs)))
             return shift
 
         def shiftVec(vec, shift):
-            temp = []
-            for d in vec:
-                temp.append(d)
+            temp = list(vec)
             return temp[-shift:] + temp[0:-shift]
+
+        self.listOfAVecFromHalfOfData = []
+        self.listOfBVecFromHalfOfData = []
+        for i, (aVec, bVec) in enumerate(zip(halfLengthAVectors, halfLengthBVectors)):
+            if self.shouldAbort():
+                return
+
+            aVecOutputSize = shringkVectorByMean(aVec, outputSize, outputSize//coorseSize)
+            bVecOutputSize = shringkVectorByMean(bVec, outputSize, outputSize//coorseSize)
+
+            if not i == 0:
+                bestFittShift = getShift(aVecOutputSize, bVecOutputSize,
+                        self.listOfAVecFromHalfOfData[0], self.listOfBVecFromHalfOfData[0])
+
+                aVecOutputSize = shiftVec(aVecOutputSize, bestFittShift)
+                bVecOutputSize = shiftVec(bVecOutputSize, bestFittShift)
+
+            self.listOfAVecFromHalfOfData.append(aVecOutputSize)
+            self.listOfBVecFromHalfOfData.append(bVecOutputSize)
+
+            self.updateProgress(0.6 + 0.4 * (i+1) / nrOfHalfLengthVecs)
+
+
+        def elementMean(vecs):
+            out = np.array(vecs[0])
+            for d in vecs[1:]:
+                out += np.array(d)
+
+            out /= len(vecs)
+            return list(out)
+
+        meanAVec = elementMean(self.listOfAVecFromHalfOfData)
+        meanBVec = elementMean(self.listOfBVecFromHalfOfData)
+        self.aVec = fftFilterVector(meanAVec, coorseSize, outputSize)
+        self.bVec = fftFilterVector(meanBVec, coorseSize, outputSize)
+
+        self.oldAVec = None
+        self.oldBVec = None
+
+        def rescaleVec(vec, minRef, maxRef):
+            minVal = min(vec)
+            maxVal = max(vec)
+            valDiff = maxVal - minVal
+            refDiff = maxRef - minRef
+            def rescaleVal(val):
+                return refDiff / valDiff * (val - maxVal) + maxRef
+
+            return np.array([rescaleVal(v) for v in vec])
 
         configClassString = getConfigClassString(configFileAsString, configClassName)
 
@@ -205,6 +292,9 @@ class OpticalEncoderDataVectorGenerator:
                     self.oldBVec = None
 
         if self.oldAVec is not None and self.oldBVec is not None:
+            self.oldAVec = rescaleVec(self.oldAVec, min(self.aVec), max(self.aVec))
+            self.oldBVec = rescaleVec(self.oldBVec, min(self.bVec), max(self.bVec))
+
             bestFittShift = getShift(self.aVec, self.bVec, self.oldAVec, self.oldBVec)
             self.aVecShifted = shiftVec(self.aVec, bestFittShift)
             self.bVecShifted = shiftVec(self.bVec, bestFittShift)
@@ -214,22 +304,46 @@ class OpticalEncoderDataVectorGenerator:
 
         self.updateProgress(1.0)
 
-    def genVec(self, data):
-        # pylint: disable=too-many-locals, too-many-statements
-        dataSumDiff = [(d[0], d[1]-d[2], d[1]+d[2]) for d in data]
+    def genVec(self, data, *, cutRatio, startSortFromChA):
+        # pylint: disable=too-many-locals
+        data = data[:]
+        if startSortFromChA:
+            dataSumDiff = [(d[0], d[1], d[2]) for d in data]
+
+        else:
+            dataSumDiff = [(d[0], d[2], d[1]) for d in data]
+
         sortedDataByA = sorted(dataSumDiff, key=lambda d: d[1])
 
-        cutI = int(round(len(sortedDataByA)/4))
+        self.sortedDataByA = sortedDataByA
+
+        cutI = int(round(len(sortedDataByA) * cutRatio))
+
+        def getAvarageLinearTrend(data, averagingSize):
+            temp = data[0:averagingSize]
+            mean0 = sum(temp) / len(temp)
+            temp = data[-averagingSize:]
+            mean1 = sum(temp) / len(temp)
+
+            mean = (mean0 + mean1) / 2
+            meanK = (mean1 - mean0) / (len(data) - averagingSize)
+            meanM = mean - meanK * (len(data) - averagingSize) / 2
+
+            return lambda i: meanM + meanK * i
+
         dataMinMaxB = sortedDataByA[cutI:-cutI]
-        meanB = sum((b for _, _, b in dataMinMaxB)) / len(dataMinMaxB)
-        dataMinB = [d for d in dataMinMaxB if d[2] < meanB]
-        dataMaxB = [d for d in dataMinMaxB if d[2] >= meanB]
+        meanB = getAvarageLinearTrend([b for _, _, b in dataMinMaxB], len(dataMinMaxB) // 10)
+        dataMinB = [d for i, d in enumerate(dataMinMaxB) if d[2] < meanB(i)]
+        dataMaxB = [d for i, d in enumerate(dataMinMaxB) if d[2] >= meanB(i)]
 
         dataMinMaxA = sortedDataByA[0:cutI] + sortedDataByA[-cutI:]
         dataMinMaxA = sorted(dataMinMaxA, key=lambda d: d[2])
         meanA = sum((a for _, a, _ in dataMinMaxA)) / len(dataMinMaxA)
         dataMinA = [d for d in dataMinMaxA if d[1] < meanA]
         dataMaxA = [d for d in dataMinMaxA if d[1] >= meanA]
+
+        self.dataMinMaxA = dataMinMaxA
+        self.dataMinMaxB = dataMinMaxB
 
         subDataLengths = []
         dataSumDiff = dataMinA
@@ -241,72 +355,44 @@ class OpticalEncoderDataVectorGenerator:
         dataSumDiff += dataMinB[::-1]
         subDataLengths.append(len(dataSumDiff))
 
-        data = [(d[0], (d[2]+d[1])/2, (d[2]-d[1])/2) for d in dataSumDiff]
-
-        l = len(data)
-        data = data[-l//8:] + data[0:-l//8]
-        #data = data[l//8:] + data[0:l//8]
-        #data = data[::-1]
+        if startSortFromChA:
+            data = [(d[0], d[1], d[2]) for d in dataSumDiff]
+        else:
+            data = [(d[0], d[2], d[1]) for d in dataSumDiff[::-1]]
 
         aVec = [a for _, a, _ in data]
         bVec = [b for _, _, b in data]
 
-        return (np.array(aVec), np.array(bVec))
-
-    @staticmethod
-    def calcSensorWeights(aVec, bVec):
-        vecSize = len(aVec)
-
-        minAIndex = aVec.index(min(aVec))
-        maxBIndex = bVec.index(max(bVec))
-
-        dirSign = sign((maxBIndex - minAIndex + vecSize/2) % vecSize - vecSize/2)
-        sinSquers = [(math.sin(dirSign * (i - minAIndex)/1024*math.pi))**2
-                    for i in range(0, vecSize)]
-
-        minWeight = 0.2
-        c = minWeight / (1 - minWeight)
-        aWeights = [(w*(1-c) + c) / (1 + c) for w in sinSquers]
-        bWeights = [((1 - w)*(1-c) + c) / (1 + c) for w in sinSquers]
-
-        return aWeights, bWeights
+        return (aVec, bVec)
 
     @staticmethod
     def calculatePosition(ca, cb, calibrationData):
         # pylint: disable=too-many-locals, too-many-statements
-        aVec, bVec, aWeights, bWeights = calibrationData
+        aVec, bVec = calibrationData
         vecSize = len(aVec)
 
         def calcWrapAroundIndex(i):
             return i % vecSize
 
-        def calcCost(i, a, b, aVec, bVec, *, enableWeights=False):
-            aWeight = aWeights[i]
-            bWeight = bWeights[i]
-            if not enableWeights:
-                aWeight = 1
-                bWeight = 1
-
+        def calcCost(i, a, b, aVec, bVec):
             tempA = aVec[i] - a
             tempA = tempA * tempA
-            tempA *= aWeight
 
             tempB = bVec[i] - b
             tempB = tempB * tempB
-            tempB *= bWeight
 
             return tempA + tempB
 
         sensor1Value = ca
         sensor2Value = cb
 
-        stepSize = vecSize // 2
+        stepSize = vecSize // 5
 
         bestI = 0
-        bestCost = calcCost(bestI, sensor1Value, sensor2Value, aVec, bVec)
+        bestCost = calcCost(calcWrapAroundIndex(bestI), sensor1Value, sensor2Value, aVec, bVec)
 
         i = bestI + stepSize
-        while i < vecSize + bestI:
+        while i < vecSize:
             cost = calcCost(calcWrapAroundIndex(i), sensor1Value, sensor2Value, aVec, bVec)
 
             if cost < bestCost:
@@ -322,15 +408,11 @@ class OpticalEncoderDataVectorGenerator:
         while stepSize != 1:
             i = bestI
 
-            stepSize = int(stepSize / 2)
-            if stepSize == 0:
-                stepSize = 1
-
-            enableWeights = stepSize < vecSize//32
+            stepSize = int((stepSize + 1) / 2)
 
             i = calcWrapAroundIndex(i + stepSize * checkDir)
 
-            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec, enableWeights=enableWeights)
+            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
             if cost < bestCost:
                 bestI = i
@@ -342,7 +424,7 @@ class OpticalEncoderDataVectorGenerator:
 
             i = calcWrapAroundIndex(i - 2 * stepSize * checkDir)
 
-            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec, enableWeights=enableWeights)
+            cost = calcCost(i, sensor1Value, sensor2Value, aVec, bVec)
 
             if cost < bestCost:
                 bestI = i
@@ -360,9 +442,7 @@ class OpticalEncoderDataVectorGenerator:
         chADiffs = []
         chBDiffs = []
 
-        aWeights, bWeights = OpticalEncoderDataVectorGenerator.calcSensorWeights(self.aVec, self.bVec)
-
-        calibrationData = (self.aVec, self.bVec, aWeights, bWeights)
+        calibrationData = (self.aVec, self.bVec)
         for _, a, b in self.data:
             pos, cost = OpticalEncoderDataVectorGenerator.calculatePosition(
                     a, b, calibrationData)
@@ -382,6 +462,7 @@ class OpticalEncoderDataVectorGenerator:
         return t, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs)
 
     def showAdditionalDiagnosticPlots(self):
+        # pylint: disable=too-many-locals, too-many-statements
         fig = plt.figure(1)
         fig.suptitle('Full length sensor characteristic vector')
         x = np.arange(len(self.fullLengthAVector)) * len(self.aVec) / len(self.fullLengthAVector)
@@ -390,10 +471,17 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(self.aVec, 'm-')
         plt.plot(self.bVec, 'c-')
 
+        def calcDiff(vec1, vec2):
+            return [d1 - d0 for d1, d0 in zip(vec1, vec2)]
+
+        def calcElementChange(vec):
+            return calcDiff(vec[1:], vec[0:-1])
 
         fig = plt.figure(2)
-        plt.plot([d1 - d0 for d1, d0 in zip(self.fullLengthAVector[1:], self.fullLengthAVector[0:-1])], 'r+')
-        plt.plot([d1 - d0 for d1, d0 in zip(self.fullLengthBVector[1:], self.fullLengthBVector[0:-1])], 'g+')
+        plt.plot(x[1:], calcElementChange(self.fullLengthAVector), 'r+')
+        plt.plot(x[1:], calcElementChange(self.fullLengthBVector), 'g+')
+        plt.plot(calcElementChange(self.aVec), 'm-')
+        plt.plot(calcElementChange(self.bVec), 'c-')
 
         t, positions, velocities, minCosts, (chA, chB, chADiffs, chBDiffs) = self.getAdditionalDiagnostics()
 
@@ -439,9 +527,41 @@ class OpticalEncoderDataVectorGenerator:
         plt.plot(positions, chADiffs, 'r+', alpha=0.5)
         plt.plot(positions, chBDiffs, 'g+', alpha=0.5)
 
+        fig = plt.figure(11)
+        l = len(self.listOfAVecFromHalfOfData)
+        for i, d in enumerate(zip(self.listOfAVecFromHalfOfData, self.listOfBVecFromHalfOfData)):
+            plt.plot(d[0], '+', color=(i/l, 0, 0))
+            plt.plot(d[1], '+', color=(0, i/l, 0))
+
+        plt.plot(self.aVec, 'm-')
+        plt.plot(self.bVec, 'c-')
+
+        fig = plt.figure(12)
+        l = len(self.listOfAVecFromHalfOfData)
+        plt.plot(calcDiff(self.aVecFromFullLength, self.aVec), 'r-')
+        plt.plot(calcDiff(self.bVecFromFullLength, self.bVec), 'g-')
+
+        if self.oldAVec is not None and self.oldBVec is not None:
+            fig = plt.figure(13)
+            plt.plot(calcDiff(self.aVecShifted, self.oldAVec), 'r-')
+            plt.plot(calcDiff(self.bVecShifted, self.oldBVec), 'g-')
+
+        fig = plt.figure(14)
+        plt.plot([v for _, v, _ in self.sortedDataByA], 'r+')
+        plt.plot([v for _, _, v in self.sortedDataByA], 'g+')
+
+        fig = plt.figure(15)
+        plt.plot([v for _, v, _ in self.dataMinMaxA], 'r+')
+        plt.plot([v for _, _, v in self.dataMinMaxA], 'g+')
+
+        fig = plt.figure(16)
+        plt.plot([v for _, v, _ in self.dataMinMaxB], 'r+')
+        plt.plot([v for _, _, v in self.dataMinMaxB], 'g+')
+
         plt.show()
 
     def plotGeneratedVectors(self, box):
+        # pylint: disable=too-many-locals, too-many-statements
         fig = Figure(figsize=(5, 4), dpi=100)
         ax = fig.add_subplot()
 
@@ -459,6 +579,52 @@ class OpticalEncoderDataVectorGenerator:
 
         canvas = FigureCanvas(fig)
         canvas.set_size_request(600, 400)
+
+        zoomWindowX = 100
+        zoomWindowY = 2**10
+        defaultXLims = [-100, len(self.aVecShifted) + 100]
+        xLims = defaultXLims
+        ax.set_xlim(xLims[0], xLims[1])
+
+        defaultYLims = [0, 2**14]
+        yLims = defaultYLims
+        ax.set_ylim(yLims[0], yLims[1])
+
+        def onRelease(event):
+            nonlocal xLims
+            nonlocal yLims
+
+            xLims = defaultXLims
+            ax.set_xlim(xLims[0], xLims[1])
+            yLims = defaultYLims
+            ax.set_ylim(yLims[0], yLims[1])
+            canvas.draw()
+
+        def onMove(event):
+            nonlocal xLims
+            nonlocal yLims
+
+            if event.button != 1:
+                onRelease(event)
+                return
+
+            x = event.xdata
+            y = event.ydata
+            if not x is None and not y is None:
+                xt = (x - xLims[0]) / (xLims[1] - xLims[0])
+                x = defaultXLims[0] + xt * (defaultXLims[1] - defaultXLims[0])
+                xLims = [x - zoomWindowX / 2, x + zoomWindowX / 2]
+                ax.set_xlim(xLims[0], xLims[1])
+
+                yt = (y - yLims[0]) / (yLims[1] - yLims[0])
+                y = defaultYLims[0] + yt * (defaultYLims[1] - defaultYLims[0])
+                yLims = [y - zoomWindowY / 2, y + zoomWindowY / 2]
+                ax.set_ylim(yLims[0], yLims[1])
+                canvas.draw()
+
+        canvas.mpl_connect('button_press_event', onMove)
+        canvas.mpl_connect('button_release_event', onRelease)
+        canvas.mpl_connect('motion_notify_event', onMove)
         box.add(canvas)
 
         label = Gtk.Label(label=labelStr)
@@ -510,6 +676,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             limitMovementButton[1])
     calibrationBox.pack_start(limitMovementButton[0], False, False, 0)
 
+    enableForceCompButton = GuiFunctions.createToggleButton('Enable', getLowLev=True)
+    enableForceCompButton = (GuiFunctions.addTopLabelTo(
+                '<b>Motor cogging compensation</b>\n May enable a lower constant velocity',
+                enableForceCompButton[0]),
+            enableForceCompButton[1])
+    calibrationBox.pack_start(enableForceCompButton[0], False, False, 0)
+
     startPos = None
 
     def onLockPosition(widget):
@@ -518,21 +691,32 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             try:
                 with createServoManager(nodeNr, getPortFun()) as servoManager:
                     startPos = servoManager.servoArray[0].getPosition(True)
+                    widget.set_label(f'Locked at {startPos / pi * 180.0:0.1f} degrees')
             except Exception as e:
                 GuiFunctions.exceptionMessage(parent, e)
                 widget.set_active(False)
+                widget.set_label('Lock')
 
         else:
             startPos = None
+            widget.set_label('Lock')
 
     limitMovementButton[1].connect('toggled', onLockPosition)
 
+    testPwmValue = 0
     pwmValue = 0
-    pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+    pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 1, getLowLev=True)
     pwmScale = (GuiFunctions.addTopLabelTo(
                 '<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]),
             pwmScale[1])
     calibrationBox.pack_start(pwmScale[0], False, False, 0)
+
+    startPwmValue = 0
+    startPwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 1, getLowLev=True)
+    startPwmScale = (GuiFunctions.addTopLabelTo(
+                '<b>Start motor pwm value</b>\n Choose a value that makes the motor start rotating', startPwmScale[0]),
+            startPwmScale[1])
+    calibrationBox.pack_start(startPwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)
     calibrationBox.pack_start(testButton[0], False, False, 0)
@@ -554,11 +738,29 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     threadMutex = threading.Lock()
     def updatePwmValue(widget):
         nonlocal pwmValue
+        nonlocal testPwmValue
 
         with threadMutex:
             pwmValue = widget.get_value()
+            testPwmValue = pwmValue
+
+        if pwmValue > startPwmScale[1].get_value():
+            startPwmScale[1].set_value(pwmValue)
 
     pwmScale[1].connect('value-changed', updatePwmValue)
+
+    def updateStartPwmValue(widget):
+        nonlocal startPwmValue
+        nonlocal testPwmValue
+
+        with threadMutex:
+            startPwmValue = widget.get_value()
+            testPwmValue = startPwmValue
+
+        if startPwmValue < pwmScale[1].get_value():
+            pwmScale[1].set_value(startPwmValue)
+
+    startPwmScale[1].connect('value-changed', updateStartPwmValue)
 
     def resetGuiAfterCalibration():
         testButton[1].set_label('Test pwm value')
@@ -569,7 +771,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         calibrationBox.remove(analyzingProgressBar[0])
         calibrationBox.remove(statusLabel)
         pwmScale[1].set_sensitive(True)
+        startPwmScale[1].set_sensitive(True)
         limitMovementButton[1].set_sensitive(True)
+        enableForceCompButton[1].set_sensitive(True)
 
     def updateStatusLabel(statusStr):
         statusLabel.set_label(statusStr)
@@ -594,7 +798,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     pwm = 0
                     with threadMutex:
-                        pwm = pwmValue
+                        pwm = testPwmValue
 
                     pos = servo.getPosition(True)
 
@@ -607,7 +811,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                             pwmDir *= -1
 
                     if pwm != 0.0:
-                        servo.setOpenLoopControlSignal(pwm * pwmDir, True)
+                        servo.setOpenLoopControlSignal(pwm * pwmDir,
+                            not enableForceCompButton[1].get_active())
 
                 out = []
 
@@ -716,6 +921,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         if widget.get_label() == 'Test pwm value':
             startButton[1].set_sensitive(False)
             limitMovementButton[1].set_sensitive(False)
+            enableForceCompButton[1].set_sensitive(False)
             calibrationBox.pack_start(statusLabel, False, False, 0)
 
             calibrationBox.show_all()
@@ -738,12 +944,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     def updateAnalyzingProgressBar(fraction):
         analyzingProgressBar[1].set_fraction(fraction)
 
-    def startCalibrationRun(nodeNr, port):
+    def startCalibrationRun(nodeNr, port, loadDataFileInstead):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
 
+        cycleTime = 0.0042
         try:
-            with createServoManager(nodeNr, port, dt=0.0042) as servoManager:
+            with createServoManager(nodeNr, port, dt=cycleTime) as servoManager:
 
                 def handleResults(opticalEncoderDataVectorGenerator):
                     dialog = Gtk.MessageDialog(
@@ -821,6 +1028,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     dialog.destroy()
 
                 t = 0.0
+                waitTimeForConstSpeed = 0.5
+                startRampupTime = 4.0
                 dirChangeWait = 0.0
                 doneRunning = False
                 pwmDir = 1
@@ -835,50 +1044,42 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     servo = servoManager.servoArray[0]
 
-                    pwm = 0
-                    with threadMutex:
-                        pwm = pwmValue
-
                     pos = servo.getPosition(True)
 
                     if startPos is not None:
                         if pos - startPos < -1:
-                            dirChangeWait = 1.0
+                            dirChangeWait = waitTimeForConstSpeed
                             if moveDir != -1:
                                 moveDir = -1
                                 pwmDir *= -1
                         elif pos - startPos > 1:
-                            dirChangeWait = 1.0
+                            dirChangeWait = waitTimeForConstSpeed
                             if moveDir != 1:
                                 moveDir = 1
                                 pwmDir *= -1
 
-                    if t > (runTime - 10) * 0.5 and moveDir == 0:
+                    constVelTime = startRampupTime + waitTimeForConstSpeed
+                    if t - constVelTime > (runTime - constVelTime) / 2 and moveDir == 0:
                         moveDir = 1
                         pwmDir *= -1
-                        dirChangeWait = 2.0
+                        dirChangeWait = waitTimeForConstSpeed
+
+                    pwm = 0
+                    with threadMutex:
+                        if t < startRampupTime or dirChangeWait > waitTimeForConstSpeed / 2:
+                            pwm = startPwmValue
+                        else:
+                            pwm = pwmValue
 
                     if pwm != 0.0:
-                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 0.25 * t), True)
+                        servo.setOpenLoopControlSignal(pwm * pwmDir * min(1.0, 1.0 / startRampupTime * t),
+                            not enableForceCompButton[1].get_active())
 
                 out = []
 
-                if os.path.isfile('optEncTestDataToLoad.txt') and t == 0.0:
-                    dialog = Gtk.MessageDialog(
-                            transient_for=parent,
-                            flags=0,
-                            message_type=Gtk.MessageType.INFO,
-                            buttons=Gtk.ButtonsType.YES_NO,
-                            text='Found file: "optEncTestDataToLoad.txt"!\n'
-                                'Should this file be loaded instead of\n'
-                                'running a new calibration?',
-                    )
-                    response = dialog.run()
-                    dialog.destroy()
-
-                    if response == Gtk.ResponseType.YES:
-                        out = np.loadtxt('optEncTestDataToLoad.txt')
-                        doneRunning = True
+                if loadDataFileInstead:
+                    out = np.loadtxt('optEncTestDataToLoad.txt')
+                    doneRunning = True
 
                 def readResultHandlerFunction(dt, servoManager):
                     nonlocal t
@@ -944,12 +1145,14 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                         with open(configFilePath, "r", encoding='utf-8') as configFile:
                             configFileAsString = configFile.read()
 
+                        constVelIndex = int(round((startRampupTime + waitTimeForConstSpeed) / cycleTime))
                         opticalEncoderDataVectorGenerator = OpticalEncoderDataVectorGenerator(
-                                data, configFileAsString, configClassName, constVelIndex=4000,
+                                data, configFileAsString, configClassName, constVelIndex=constVelIndex,
                                 shouldAbort=shouldAbort,
                                 updateProgress=updateProgress)
 
-                        GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
+                        if not shouldAbort():
+                            GLib.idle_add(handleResults, opticalEncoderDataVectorGenerator)
                     except Exception as e:
                         GLib.idle_add(handleAnalyzeError, format(e))
 
@@ -971,13 +1174,31 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             calibrationBox.pack_start(recordingProgressBar[0], False, False, 0)
             calibrationBox.pack_start(analyzingProgressBar[0], False, False, 0)
             pwmScale[1].set_sensitive(False)
+            startPwmScale[1].set_sensitive(False)
             limitMovementButton[1].set_sensitive(False)
+            enableForceCompButton[1].set_sensitive(False)
 
             calibrationBox.show_all()
 
+            loadDataFileInstead = False
+            if os.path.isfile('optEncTestDataToLoad.txt'):
+                dialog = Gtk.MessageDialog(
+                        transient_for=parent,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO,
+                        buttons=Gtk.ButtonsType.YES_NO,
+                        text='Found file: "optEncTestDataToLoad.txt"!\n'
+                            'Should this file be loaded instead of\n'
+                            'running a new calibration?',
+                )
+                response = dialog.run()
+                dialog.destroy()
+
+                loadDataFileInstead = response == Gtk.ResponseType.YES
+
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(), loadDataFileInstead,))
             testThread.start()
         else:
             with threadMutex:

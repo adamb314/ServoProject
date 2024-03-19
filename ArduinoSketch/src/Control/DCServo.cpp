@@ -1,4 +1,5 @@
 #include "DCServo.h"
+#include "../Hardware/FailSafeHandler.h"
 
 DCServo::DCServo(std::unique_ptr<CurrentController> currentController,
             std::unique_ptr<EncoderHandlerInterface> mainEncoderHandler,
@@ -18,7 +19,7 @@ void DCServo::init()
 {
     InterruptTimer::getInstance()->enableTimerSyncEvents(false);
 
-    uint32_t cycleTime = controlConfig->getCycleTimeUs();
+    cycleTime = controlConfig->getCycleTimeUs();
 
     refInterpolator.setGetTimeInterval(cycleTime);
     refInterpolator.setLoadTimeInterval(18000);
@@ -61,7 +62,17 @@ void DCServo::init()
     threads.push_back(createThread(1, cycleTime, 0,
         [&]()
         {
+            uint32_t loopStartTime = ThreadHandler::getInstance()->getTimingError();
             controlLoop();
+            uint32_t loopEndTime = ThreadHandler::getInstance()->getTimingError();
+
+            loopTime = std::max(loopTime, loopEndTime);
+            loopNr += 1;
+
+            if (loopEndTime - loopStartTime > cycleTime)
+            {
+                FailSafeHandler::getInstance()->goToFailSafe();
+            }
         }));
 }
 
@@ -120,7 +131,7 @@ void DCServo::enableInternalFeedForward(bool enable)
     internalFeedForwardEnabled = enable;
 }
 
-void DCServo::loadNewReference(float pos, int16_t vel, int16_t feedForwardU)
+void DCServo::loadNewReference(float pos, float vel, int16_t feedForwardU)
 {
     ThreadInterruptBlocker blocker;
     refInterpolator.loadNew(pos, vel, feedForwardU);
@@ -196,6 +207,12 @@ EncoderHandlerInterface::DiagnosticData DCServo::getMainEncoderDiagnosticData()
     return mainEncoderHandler->getDiagnosticData();
 }
 
+float DCServo::getControlError()
+{
+    ThreadInterruptBlocker blocker;
+    return posDiff;
+}
+
 void DCServo::controlLoop()
 {
     mainEncoderHandler->triggerSample();
@@ -206,10 +223,10 @@ void DCServo::controlLoop()
 
     float posRef;
     float velRef;
-    float feedForwardU;
+    int32_t feedForwardU;
     float nextPosRef;
     float nextVelRef;
-    float nextFeedForwardU;
+    int32_t nextFeedForwardU;
 
     int32_t controlSignal = 0;
 
@@ -243,7 +260,7 @@ void DCServo::controlLoop()
     {
         if (!openLoopControlMode)
         {
-            float posDiff = posRef - outputPosOffset - x[0];
+            posDiff = posRef - outputPosOffset - x[0];
 
             vControlRef = L[0] * posDiff + velRef;
             controlConfig->limitVelocity(vControlRef);
@@ -257,13 +274,12 @@ void DCServo::controlLoop()
 
             kalmanControlSignal = controlSignal;
 
-            controlSignal += adam_std::clamp_cast<int16_t>(feedForwardU);
+            controlSignal += feedForwardU;
 
             uint16_t rawEncPos = mainEncoderHandler->getUnscaledRawValue();
             bool brake;
             std::tie(pwm, brake) = controlConfig->applyForceCompensations(controlSignal, rawEncPos, velRef, vControlRef);
-            brake |= std::abs(velRef) <= 1;
-            brake &= std::abs(velRef) <= 4;
+            brake |= std::abs(x[1]) <= 1;
             currentController->addDamping(brake);
             currentController->setReference(pwm);
 
@@ -309,7 +325,7 @@ void DCServo::controlLoop()
         loadNewReference(rawOutputPos, 0.0f, 0.0f);
         Ivel = 0.0f;
         outputPosOffset = rawOutputPos - rawMainPos;
-        backlashControlGainDelayCounter = 0.0f;
+        backlashControlGainDelayCounter = 0;
         controlSignal = 0.0f;
         kalmanControlSignal = controlSignal;
         currentController->addDamping(false);
@@ -343,31 +359,21 @@ void DCServo::controlLoop()
             backlashControlGainDelayCounter = backlashControlGainCycleDelay;
             backlashControlGain = L[4] * (10 * 100 +
                     90 * std::max((int32_t)0, 100 - static_cast<int32_t>(L[5]) * std::abs(static_cast<int32_t>(velRef))));
+
+            int newForceDir = forceDir;
+            newForceDir = adam_std::chooseOne(1, newForceDir, feedForwardU > 1);
+            newForceDir = adam_std::chooseOne(-1, newForceDir, feedForwardU < -1);
+            if (newForceDir != forceDir)
+            {
+                outputPosOffset -= newForceDir * backlashSize;
+            }
+            forceDir = newForceDir;
         }
         backlashControlGainDelayCounter--;
-
-        int newForceDir = forceDir;
-        if (feedForwardU > 1.0f)
-        {
-            newForceDir = 1;
-        }
-        else if (feedForwardU < -1.0f)
-        {
-            newForceDir = -1;
-        }
-
-        if (newForceDir != forceDir)
-        {
-            outputPosOffset -= newForceDir * L[6];
-        }
-        forceDir = newForceDir;
 
         float backlashCompensationDiff = backlashControlGain * (posRef - rawOutputPos);
         outputPosOffset -= backlashCompensationDiff;
     }
-
-    loopTime = std::max(loopTime, ThreadHandler::getInstance()->getTimingError());
-    loopNr += 1;
 }
 
 void DCServo::calculateAndUpdateLVector()
@@ -415,6 +421,8 @@ void DCServo::calculateAndUpdateLVector()
 
     ThreadInterruptBlocker blocker;
     L = tempL;
+
+    backlashControlGain = L[4] * 100 * 100;
     kalmanFilter->setNewKVector(K);
     if (backlashControlPole != 0.0f)
     {
@@ -524,7 +532,7 @@ std::tuple<int32_t, bool> DefaultControlConfiguration::applyForceCompensations(
     out += posDepForceCompVec[i];
     out += posDepFrictionCompVec[i] * fricCompDir;
 
-    bool brake = fricCompDir == 0;
+    bool brake = std::abs(vel) <= 1 | velRef == 0.0f;
 
     return std::make_tuple(out, brake);
 }

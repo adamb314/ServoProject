@@ -20,8 +20,8 @@ class CoggingTorqueCalibrationGenerator:
         # pylint: disable=too-many-locals, too-many-statements
         self.data = data
 
-        self.positions = np.array(data[:, 6])
-        self.forces = np.array(data[:,5])
+        self.positions = np.array(data[:, 3])
+        self.forces = np.array(data[:,2])
 
         self.posRes = int(round(posRes))
 
@@ -74,6 +74,7 @@ class CoggingTorqueCalibrationGenerator:
         y = np.array([calcSpikeResistantAvarage(list(ls) + list(hs), excluded=0.25)
                 for ls, hs in zip(self.lowFriction, self.highFriction)])
         self.friction = fftFilter(x, y, max(ff), upSampleTt=outputX)
+        self.reducedFriction = [v * 0.80 for v in self.friction]
 
         self.oldCogging = None
         self.oldFriction = None
@@ -130,27 +131,18 @@ class CoggingTorqueCalibrationGenerator:
 
         t = data[:, 0] - data[0, 0]
         fig = plt.figure(1)
-        fig.suptitle('Position')
-        plt.plot(t, data[:, 1], 'g')
+        fig.suptitle('Low level error over motor position')
+        plt.plot(self.positions, data[:, 1], 'b+', alpha=0.25)
 
         fig = plt.figure(2)
-        fig.suptitle('Velocity')
-        plt.plot(t, data[:, 2])
+        fig.suptitle('Low level error at motor')
+        plt.plot(t, data[:, 1])
 
         fig = plt.figure(3)
-        fig.suptitle('Motor pos diff over motor position')
-        plt.plot(self.positions[0:-1],
-                [(d1 - d0 + 1024)%2048-1024 for d1, d0 in zip(self.positions[1:], self.positions[0:-1])], '+')
+        fig.suptitle('Control signal')
+        plt.plot(t, data[:, 2])
 
         fig = plt.figure(4)
-        fig.suptitle('Error at motor')
-        plt.plot(t, data[:, 4])
-
-        fig = plt.figure(5)
-        fig.suptitle('Control signal')
-        plt.plot(t, data[:, 5])
-
-        fig = plt.figure(6)
         fig.suptitle('Cogging over motor position')
 
         lowCogging = [samples[0:len(samples)//2] for samples in self.samplesList]
@@ -168,7 +160,7 @@ class CoggingTorqueCalibrationGenerator:
             plt.plot(x, self.oldCogging, 'c')
         plt.plot(x, self.cogging, 'g')
 
-        fig = plt.figure(7)
+        fig = plt.figure(5)
         fig.suptitle('Friction over motor position')
 
         x = np.arange(0, 2048, self.posRes)
@@ -179,7 +171,7 @@ class CoggingTorqueCalibrationGenerator:
         x = np.arange(0, 2048, 4)
         if self.oldFriction is not None:
             plt.plot(x, self.oldFriction, 'c')
-        plt.plot(x, self.friction, 'g')
+        plt.plot(x, self.reducedFriction, 'g')
 
         plt.show()
 
@@ -219,7 +211,7 @@ class CoggingTorqueCalibrationGenerator:
             configClassString = re.sub(CoggingTorqueCalibrationGenerator._posForcePattern,
                     r'\g<beg>' + intArrayToString(self.cogging), configClassString)
             configClassString = re.sub(CoggingTorqueCalibrationGenerator._posFricPattern,
-                    r'\g<beg>' + intArrayToString(self.friction), configClassString)
+                    r'\g<beg>' + intArrayToString(self.reducedFriction), configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -229,7 +221,8 @@ class CoggingTorqueCalibrationGenerator:
     def getGeneratedVectors(self):
         out = ''
         out += 'constexpr static std::array<int16_t, 512> posDepForceCompVec = ' + intArrayToString(self.cogging)
-        out += '\nconstexpr static std::array<int16_t, 512> posDepFrictionCompVec = ' + intArrayToString(self.friction)
+        out += '\nconstexpr static std::array<int16_t, 512> posDepFrictionCompVec = ' + intArrayToString(
+                self.reducedFriction)
 
         return out
 
@@ -339,54 +332,54 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         if response == Gtk.ResponseType.YES:
             coggingTorqueCalibrationGenerator.showAdditionalDiagnosticPlots()
 
+        dialog = Gtk.MessageDialog(
+                transient_for=parent,
+                flags=0,
+                message_type=Gtk.MessageType.INFO,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text='Cogging torque calibration done!',
+        )
+        dialog.format_secondary_text(
+            "Should the configuration be updated with the green compensation vectors?"
+        )
+        coggingTorqueCalibrationGenerator.plotGeneratedVector(dialog.get_message_area())
+        dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
+        response = dialog.run()
+        dialog.destroy()
+
+        if response == Gtk.ResponseType.YES:
+            configFileAsString = coggingTorqueCalibrationGenerator.writeVectorToConfigFileString(
+                    configFileAsString, configClassName)
+
+            if configFileAsString != '':
+                with open(configFilePath, "w", encoding='utf-8') as configFile:
+                    configFile.write(configFileAsString)
+                    GuiFunctions.transferToTargetMessage(parent)
+
+                    return
+
             dialog = Gtk.MessageDialog(
                     transient_for=parent,
                     flags=0,
-                    message_type=Gtk.MessageType.INFO,
-                    buttons=Gtk.ButtonsType.YES_NO,
-                    text='Cogging torque calibration done!',
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text='Configuration format error!',
             )
             dialog.format_secondary_text(
-                "Should the configuration be updated with the green compensation vectors?"
+                "Please past in the new compensation vector manually"
             )
-            coggingTorqueCalibrationGenerator.plotGeneratedVector(dialog.get_message_area())
-            dialog.get_widget_for_response(Gtk.ResponseType.YES).grab_focus()
+            box = dialog.get_message_area()
+            vecEntry = Gtk.Entry()
+            vecEntry.set_text(coggingTorqueCalibrationGenerator.getGeneratedVectors())
+            box.add(vecEntry)
+            box.show_all()
             response = dialog.run()
             dialog.destroy()
-
-            if response == Gtk.ResponseType.YES:
-                configFileAsString = coggingTorqueCalibrationGenerator.writeVectorToConfigFileString(
-                        configFileAsString, configClassName)
-
-                if configFileAsString != '':
-                    with open(configFilePath, "w", encoding='utf-8') as configFile:
-                        configFile.write(configFileAsString)
-                        GuiFunctions.transferToTargetMessage(parent)
-
-                        return
-
-                dialog = Gtk.MessageDialog(
-                        transient_for=parent,
-                        flags=0,
-                        message_type=Gtk.MessageType.ERROR,
-                        buttons=Gtk.ButtonsType.OK,
-                        text='Configuration format error!',
-                )
-                dialog.format_secondary_text(
-                    "Please past in the new compensation vector manually"
-                )
-                box = dialog.get_message_area()
-                vecEntry = Gtk.Entry()
-                vecEntry.set_text(coggingTorqueCalibrationGenerator.getGeneratedVectors())
-                box.add(vecEntry)
-                box.show_all()
-                response = dialog.run()
-                dialog.destroy()
 
     posOffset = None
     lastRefP = None
 
-    def startCalibrationRun(nodeNr, port):
+    def startCalibrationRun(nodeNr, port, loadDataFileInstead):
         # pylint: disable=too-many-locals, too-many-statements
         nonlocal runThread
         nonlocal posOffset
@@ -398,7 +391,7 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                 servoArray[0].setControlSpeed(controlSpeed, velControlSpeed, filterSpeed, inertiaMarg)
                 servoArray[0].setBacklashControlSpeed(0.0, 3.0, 0.0)
 
-            with createServoManager(nodeNr, port, dt=0.018, initFunction=initFun) as servoManager:
+            with createServoManager(nodeNr, port, dt=0.006, initFunction=initFun) as servoManager:
                 t = 0.0
                 doneRunning = False
 
@@ -426,22 +419,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                 abortCalibration = False
 
-                if os.path.isfile('motorCoggingTorqueToLoad.txt') and t == 0.0:
-                    dialog = Gtk.MessageDialog(
-                            transient_for=parent,
-                            flags=0,
-                            message_type=Gtk.MessageType.INFO,
-                            buttons=Gtk.ButtonsType.YES_NO,
-                            text='Found file: "motorCoggingTorqueToLoad.txt"!\n'
-                                'Should this file be loaded instead of\n'
-                                'running a new calibration?',
-                    )
-                    response = dialog.run()
-                    dialog.destroy()
-
-                    if response == Gtk.ResponseType.YES:
-                        out = np.loadtxt('motorCoggingTorqueToLoad.txt')
-                        doneRunning = True
+                if loadDataFileInstead:
+                    out = np.loadtxt('motorCoggingTorqueToLoad.txt')
+                    doneRunning = True
 
                 def sendCommandHandlerFunction(dt, servoManager):
                     nonlocal testState
@@ -503,17 +483,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
                     servo = servoManager.servoArray[0]
 
-                    p = servo.getPosition(True)
-                    v = servo.getVelocity()
                     u = servo.getPwmControlSignal()
-                    error = servo.getControlError(True)
-                    motorError = servo.getControlError(False)
                     optData = servo.getOpticalEncoderChannelData()
+                    lowLevelError = servo.getLowLevelControlError()
 
                     if testState in (1, 2) and abs(refV) >= maxRecordVel * 0.4:
-                        out.append([time.time(), p, v,
-                                error,
-                                motorError,
+                        out.append([time.time(),
+                                lowLevelError,
                                 u,
                                 optData.minCostIndex])
 
@@ -558,9 +534,25 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
 
             calibrationBox.show_all()
 
+            loadDataFileInstead = False
+            if os.path.isfile('motorCoggingTorqueToLoad.txt'):
+                dialog = Gtk.MessageDialog(
+                        transient_for=parent,
+                        flags=0,
+                        message_type=Gtk.MessageType.INFO,
+                        buttons=Gtk.ButtonsType.YES_NO,
+                        text='Found file: "motorCoggingTorqueToLoad.txt"!\n'
+                            'Should this file be loaded instead of\n'
+                            'running a new calibration?',
+                )
+                response = dialog.run()
+                dialog.destroy()
+
+                loadDataFileInstead = response == Gtk.ResponseType.YES
+
             with threadMutex:
                 runThread = True
-            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(),))
+            testThread = threading.Thread(target=startCalibrationRun, args=(nodeNr, getPortFun(), loadDataFileInstead,))
             testThread.start()
         else:
             with threadMutex:

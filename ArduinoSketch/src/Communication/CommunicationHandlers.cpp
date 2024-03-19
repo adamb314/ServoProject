@@ -54,7 +54,8 @@ void DCServoCommunicationHandler::onReceiveCompleteEvent()
     if (CommunicationNode::intArrayChanged[0])
     {
         intArrayIndex0Upscaler.update(CommunicationNode::intArray[0]);
-        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0f / positionUpscaling), CommunicationNode::intArray[1], CommunicationNode::intArray[2]);
+        dcServo->loadNewReference(intArrayIndex0Upscaler.get() * (1.0f / positionUpscaling),
+                CommunicationNode::intArray[1] * (1.0f / velocityUpscaling), CommunicationNode::intArray[2]);
 
         CommunicationNode::intArrayChanged[0] = false;
         dcServo->openLoopMode(false);
@@ -95,7 +96,7 @@ void DCServoCommunicationHandler::onComCycleEvent()
         long int pos = dcServo->getPosition() * positionUpscaling;
         CommunicationNode::intArray[3] = pos;
         CommunicationNode::charArray[9] = static_cast<char>(pos >> 16);
-        CommunicationNode::intArray[4] = dcServo->getVelocity();
+        CommunicationNode::intArray[4] = dcServo->getVelocity() * velocityUpscaling;
         CommunicationNode::intArray[5] = dcServo->getControlSignal();
         CommunicationNode::intArray[6] = dcServo->getCurrent();
         CommunicationNode::intArray[7] = dcServo->getPwmControlSignal();
@@ -111,6 +112,10 @@ void DCServoCommunicationHandler::onComCycleEvent()
         CommunicationNode::intArray[15] = opticalEncoderChannelData.d;
 
         CommunicationNode::charArray[11] = static_cast<char>(dcServo->getLoopNr());
+
+        CommunicationNode::charArray[12] = adam_std::clamp_cast<signed char>(dcServo->getControlError() * 1000);
+
+        CommunicationNode::charArray[15] = breakingChangeNr;
 
         dcServo->triggerReferenceTiming();
     }

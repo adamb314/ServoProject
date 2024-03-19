@@ -135,10 +135,8 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             plt.plot(np.array(data[:, 6]), data[:, 5], 'g+')
 
             fig = plt.figure(7)
-            fig.suptitle('Motor pos diff over motor position')
-            motorPos = data[:, 6]
-            plt.plot(motorPos[0:-1],
-                [(d1 - d0 + 1024)%2048-1024 for d1, d0 in zip(motorPos[1:], motorPos[0:-1])], '+')
+            fig.suptitle('Low level error over motor position')
+            plt.plot(data[:, 6], data[:, 7], '+')
 
             plt.show()
 
@@ -201,12 +199,13 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
                     error = servo.getControlError(True)
                     motorError = servo.getControlError(False)
                     optData = servo.getOpticalEncoderChannelData()
+                    lowLevelError = servo.getLowLevelControlError()
                     out.append([time.time(), p, v,
                             error,
                             motorError,
                             u,
                             optData.minCostIndex,
-                            optData.minCost,
+                            lowLevelError,
                             refPos + posOffset,
                             vRef])
 
