@@ -79,7 +79,7 @@ def calcVelFromPos(posData, timeData, dStep):
 
 def calcParamsAndPwmLists(pwmData, velData, dStep, calcPhiAndY, *, nrOfPwmAmpsToCombine=1,
         skipSampleIf=lambda d: False):
-    # pylint: disable=too-many-locals, too-many-statements
+    # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
     index = -1
     tempPwmList = []
     phi2SumList = []
@@ -164,7 +164,7 @@ class SystemIdentificationObject:
     # pylint: disable=too-many-instance-attributes
     def __init__(self, data, *, additionalData=None, ad=None, bd=None, friction=None, pwmOffset=None, dt=None,
                 shouldAbort=lambda:False, updateProgress=lambda v:None):
-        # pylint: disable=too-many-locals, too-many-statements
+        # pylint: disable=too-many-locals, too-many-statements, too-many-arguments
 
         if additionalData is None:
             additionalData = []
@@ -512,6 +512,7 @@ class SystemIdentificationObject:
         return (simVel, realVel, simError, errorSum)
 
     def showAdditionalDiagnosticPlots(self, color='g', skipCallToShow=False):
+        # pylint: disable=too-many-locals
         pwmCompFun = SystemIdentificationObject.getPwmLinearizer(self.servoModelParameters[4])
         linearPwmList = [pwmCompFun.getY(x) for x in self.pwmList]
 
@@ -719,11 +720,14 @@ class ServoModel:
 
         _, _, self.friction, (_, linearPwmList) = systemModel.getServoSystemModelParameters(dt)
 
+        self.reducedFriction = self.friction * 0.8
+
         self.pwmNonlinearityComp = PwmNonlinearityConfigHandler(pwmCompLookUp=linearPwmList)
 
         self.pwmToStallCurrent, self.backEmfCurrent = systemModel.getCurrentModelParameters()
 
-    def  getControlParametersClassContentStr(self, indent):
+    def getControlParametersClassContentStr(self, indent):
+
         out = ''
         out += indent + '  public:\n'
         out += indent + '    //kalman filter observer vector\n'
@@ -770,7 +774,7 @@ class ServoModel:
         out += indent + '    //system model friction comp value\n'
         out += indent + '    static float getFrictionComp()\n'
         out += indent + '    {\n'
-        out += indent + '        return ' + str(self.friction) + 'f;\n'
+        out += indent + '        return ' + str(self.reducedFriction) + 'f;\n'
         out += indent + '    }\n'
         out += indent + '};'
         return out
@@ -869,12 +873,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             try:
                 with createServoManager(nodeNr, getPortFun()) as servoManager:
                     startPos = servoManager.servoArray[0].getPosition(True)
+                    widget.set_label(f'Locked at {startPos / pi * 180.0:0.1f} degrees')
             except Exception as e:
                 GuiFunctions.exceptionMessage(parent, e)
                 widget.set_active(False)
+                widget.set_label('Lock')
 
         else:
             startPos = None
+            widget.set_label('Lock')
 
     limitMovementButton[1].connect('toggled', onLockPosition)
 
@@ -898,11 +905,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
     calibrationBox.pack_start(motorSettleTimeScale[0], False, False, 0)
 
     minPwmScale = GuiFunctions.creatHScale(minPwmValue, 0, 1023, 1, getLowLev=True)
-    minPwmScale = GuiFunctions.addTopLabelTo('<b>Min motor pwm value</b>', minPwmScale[0]), minPwmScale[1]
+    minPwmScale = GuiFunctions.addTopLabelTo(
+                '<b>Min motor pwm value</b>\n Choose the lowest value that results in movement',
+                minPwmScale[0]), minPwmScale[1]
     calibrationBox.pack_start(minPwmScale[0], False, False, 0)
 
     maxPwmScale = GuiFunctions.creatHScale(maxPwmValue, 0, 1023, 1, getLowLev=True)
-    maxPwmScale = GuiFunctions.addTopLabelTo('<b>Max motor pwm value</b>', maxPwmScale[0]), maxPwmScale[1]
+    maxPwmScale = GuiFunctions.addTopLabelTo(
+                '<b>Max motor pwm value</b>\n Choose the highest value possible',
+                maxPwmScale[0]), maxPwmScale[1]
     calibrationBox.pack_start(maxPwmScale[0], False, False, 0)
 
     testButton = GuiFunctions.createButton('Test pwm value', getLowLev=True)

@@ -20,5 +20,4 @@ PcbDesignes/ServoBrushed
 
 ### Build instructions
 
-[<img width="500px" src="readmeResources/VideoTutorialImage.png">](https://youtu.be/ECLrLupFW10?t=94)
-[Video Tutorial](https://youtu.be/ECLrLupFW10?t=94)
+[![Build Video](https://img.youtube.com/vi/ECLrLupFW10/0.jpg)](https://youtu.be/ECLrLupFW10?t=94)

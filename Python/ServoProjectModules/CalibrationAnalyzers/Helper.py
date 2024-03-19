@@ -11,11 +11,15 @@ import re
 import numpy as np
 import scipy.signal
 
+import matplotlib
+
+#commented out because of conflict with pytest
+#---------------------------------------------
 #workaround for matplotlib version 3.5.1
 #trying to use TkAgg even though gtk3 is active
-import matplotlib
-if matplotlib.get_backend() == 'TkAgg':
-    matplotlib.use('GTK3Cairo')
+#if matplotlib.get_backend() == 'TkAgg':
+#    matplotlib.use('GTK3Cairo')
+#---------------------------------------------
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_gtk3agg import (
@@ -131,9 +135,7 @@ def shrinkArray(a, size, useMedian = False):
     index = 0
 
     while index < len(a):
-        nextIndex = index + indexScale
-        if nextIndex > len(a):
-            nextIndex = len(a)
+        nextIndex = min(index + indexScale, len(a))
 
         subA = a[int(index): int(nextIndex)]
         if useMedian:

@@ -56,10 +56,10 @@ class OutputEncoderCalibrationGenerator:
                 underMean = [dd for dd in listOfMeans if dd < mean - eps]
                 overMean = [dd for dd in listOfMeans if dd > mean + eps]
                 l = min(len(underMean), len(overMean))
-                if l != 0:
-                    self.meanList.append((sum(underMean[0:l]) + sum(overMean[0:l])) / (2 * l))
-                elif len(underMean) == 0 and len(overMean) == 0:
+                if l == 0:
                     self.meanList.append(None)
+                else:
+                    self.meanList.append((sum(underMean[0:l]) + sum(overMean[0:l])) / (2 * l))
 
         i = 0
         if wrapAround:

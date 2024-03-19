@@ -29,12 +29,15 @@ class OpticalEncoderDataVectorGenerator:
 
     def __init__(self, data, configFileAsString='', configClassName='', *,
             constVelIndex=10000, fftFilterLevel = 4, shouldAbort=None, updateProgress=None):
-        # pylint: disable=too-many-locals, too-many-branches, too-many-statements
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements, too-many-arguments
 
         self.data = data[:, 0:3]
         self.constVelIndex = constVelIndex
 
         self.shouldAbort = shouldAbort
+        if self.shouldAbort is None:
+            self.shouldAbort = lambda: False
+
         self.updateProgress = updateProgress
         if self.updateProgress is None:
             self.updateProgress = lambda _ : None
@@ -302,11 +305,11 @@ class OpticalEncoderDataVectorGenerator:
         self.updateProgress(1.0)
 
     def genVec(self, data, *, cutRatio, startSortFromChA):
+        # pylint: disable=too-many-locals
         data = data[:]
-        # pylint: disable=too-many-locals, too-many-statements
         if startSortFromChA:
             dataSumDiff = [(d[0], d[1], d[2]) for d in data]
-        
+
         else:
             dataSumDiff = [(d[0], d[2], d[1]) for d in data]
 
@@ -315,7 +318,7 @@ class OpticalEncoderDataVectorGenerator:
         self.sortedDataByA = sortedDataByA
 
         cutI = int(round(len(sortedDataByA) * cutRatio))
-        
+
         def getAvarageLinearTrend(data, averagingSize):
             temp = data[0:averagingSize]
             mean0 = sum(temp) / len(temp)
@@ -440,7 +443,7 @@ class OpticalEncoderDataVectorGenerator:
         chBDiffs = []
 
         calibrationData = (self.aVec, self.bVec)
-        for i, (_, a, b) in enumerate(self.data):
+        for _, a, b in self.data:
             pos, cost = OpticalEncoderDataVectorGenerator.calculatePosition(
                     a, b, calibrationData)
             positions.append(pos)
@@ -688,25 +691,28 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             try:
                 with createServoManager(nodeNr, getPortFun()) as servoManager:
                     startPos = servoManager.servoArray[0].getPosition(True)
+                    widget.set_label(f'Locked at {startPos / pi * 180.0:0.1f} degrees')
             except Exception as e:
                 GuiFunctions.exceptionMessage(parent, e)
                 widget.set_active(False)
+                widget.set_label('Lock')
 
         else:
             startPos = None
+            widget.set_label('Lock')
 
     limitMovementButton[1].connect('toggled', onLockPosition)
 
     testPwmValue = 0
     pwmValue = 0
-    pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+    pwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 1, getLowLev=True)
     pwmScale = (GuiFunctions.addTopLabelTo(
                 '<b>Motor pwm value</b>\n Choose a value that results in a moderate constant velocity', pwmScale[0]),
             pwmScale[1])
     calibrationBox.pack_start(pwmScale[0], False, False, 0)
 
     startPwmValue = 0
-    startPwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 10, getLowLev=True)
+    startPwmScale = GuiFunctions.creatHScale(pwmValue, 0, 1023, 1, getLowLev=True)
     startPwmScale = (GuiFunctions.addTopLabelTo(
                 '<b>Start motor pwm value</b>\n Choose a value that makes the motor start rotating', startPwmScale[0]),
             startPwmScale[1])
@@ -738,6 +744,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             pwmValue = widget.get_value()
             testPwmValue = pwmValue
 
+        if pwmValue > startPwmScale[1].get_value():
+            startPwmScale[1].set_value(pwmValue)
+
     pwmScale[1].connect('value-changed', updatePwmValue)
 
     def updateStartPwmValue(widget):
@@ -747,6 +756,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with threadMutex:
             startPwmValue = widget.get_value()
             testPwmValue = startPwmValue
+
+        if startPwmValue < pwmScale[1].get_value():
+            pwmScale[1].set_value(startPwmValue)
 
     startPwmScale[1].connect('value-changed', updateStartPwmValue)
 

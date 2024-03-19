@@ -74,6 +74,7 @@ class CoggingTorqueCalibrationGenerator:
         y = np.array([calcSpikeResistantAvarage(list(ls) + list(hs), excluded=0.25)
                 for ls, hs in zip(self.lowFriction, self.highFriction)])
         self.friction = fftFilter(x, y, max(ff), upSampleTt=outputX)
+        self.reducedFriction = [v * 0.80 for v in self.friction]
 
         self.oldCogging = None
         self.oldFriction = None
@@ -170,7 +171,7 @@ class CoggingTorqueCalibrationGenerator:
         x = np.arange(0, 2048, 4)
         if self.oldFriction is not None:
             plt.plot(x, self.oldFriction, 'c')
-        plt.plot(x, self.friction, 'g')
+        plt.plot(x, self.reducedFriction, 'g')
 
         plt.show()
 
@@ -210,7 +211,7 @@ class CoggingTorqueCalibrationGenerator:
             configClassString = re.sub(CoggingTorqueCalibrationGenerator._posForcePattern,
                     r'\g<beg>' + intArrayToString(self.cogging), configClassString)
             configClassString = re.sub(CoggingTorqueCalibrationGenerator._posFricPattern,
-                    r'\g<beg>' + intArrayToString(self.friction), configClassString)
+                    r'\g<beg>' + intArrayToString(self.reducedFriction), configClassString)
 
             configFileAsString = setConfigClassString(configFileAsString, configClassName, configClassString)
             return configFileAsString
@@ -220,7 +221,8 @@ class CoggingTorqueCalibrationGenerator:
     def getGeneratedVectors(self):
         out = ''
         out += 'constexpr static std::array<int16_t, 512> posDepForceCompVec = ' + intArrayToString(self.cogging)
-        out += '\nconstexpr static std::array<int16_t, 512> posDepFrictionCompVec = ' + intArrayToString(self.friction)
+        out += '\nconstexpr static std::array<int16_t, 512> posDepFrictionCompVec = ' + intArrayToString(
+                self.reducedFriction)
 
         return out
 
