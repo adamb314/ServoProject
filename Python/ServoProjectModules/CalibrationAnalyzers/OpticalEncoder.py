@@ -744,6 +744,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             pwmValue = widget.get_value()
             testPwmValue = pwmValue
 
+        if pwmValue > startPwmScale[1].get_value():
+            startPwmScale[1].set_value(pwmValue)
+
     pwmScale[1].connect('value-changed', updatePwmValue)
 
     def updateStartPwmValue(widget):
@@ -753,6 +756,9 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
         with threadMutex:
             startPwmValue = widget.get_value()
             testPwmValue = startPwmValue
+
+        if startPwmValue < pwmScale[1].get_value():
+            pwmScale[1].set_value(startPwmValue)
 
     startPwmScale[1].connect('value-changed', updateStartPwmValue)
 
