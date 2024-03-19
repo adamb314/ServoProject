@@ -73,9 +73,9 @@
 
 ### Modify the servo
 
-Modify the servo according to the [Build Video](https://youtu.be/ECLrLupFW10?t=94)
+Modify the servo according to the [Build Video](https://youtu.be/Ctb4s6fqnqo?t=21)
 
-[![Build Video](https://img.youtube.com/vi/ECLrLupFW10/0.jpg)](https://youtu.be/ECLrLupFW10?t=94)
+[![Build Video](https://img.youtube.com/vi/Ctb4s6fqnqo/0.jpg)](https://youtu.be/Ctb4s6fqnqo?t=21)
 
 Build steps in video:
 
@@ -83,43 +83,45 @@ Build steps in video:
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-13h57m31s735.png">
 
-2. Remove the gear from the motor and mount `encDiscTurningMount` on motor axis. Then mount `encDisc` on `encDiscTurningMount`
+2. The `encDisc` part has to  be completely smooth and free from defects. Getting the required resolution out of a normal FDM 3D printer is basically impossible. So to get a smooth `encDisc` part we first need to file it down while spinning it:
 
-    <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-13h59m28s296.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h02m07s356.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h03m29s228.png">
+    1. Remove the gear from the motor and mount `encDiscTurningMount` on motor axis. Then mount `encDisc` on `encDiscTurningMount`
 
-3. Apply 3-5 volts to the motor and file down 3D printing seams until `encDisc` is completely smooth
+        <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-13h59m28s296.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h02m07s356.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h03m29s228.png">
 
-    <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h04m26s735.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h07m40s843.png">
+    2. Apply 3-5 volts to the motor and file down 3D printing seams and printing lines until the surface of `encDisc` is completely smooth
 
-4. Mount `encDisc` and gear on the motor axis. Then glue `optSensorHolder` to the motor
+        <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h04m26s735.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h07m40s843.png">
+
+3. Mount the smooth `encDisc` and gear on the motor axis. Then glue `optSensorHolder` to the motor
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h10m10s171.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h14m38s165.png">
 
-5. Solder on a 3 lead wide flat cable to each of the two ITR8307 sensors. Make sure that the orientation of the sensors are mirrored
+4. Solder on a 3 lead wide flat cable to each of the two ITR8307 sensors. Make sure that the orientation of the sensors are mirrored
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h16m00s406.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h16m10s437.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h16m48s955.png">
 
-6. Mount the sensors in `optSensorHolder` so that the LED segment (pin 1) of the sensor are oriented towards each other
+5. Mount the sensors in `optSensorHolder` so that the LED segment (pin 1) of the sensor are oriented towards each other
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h17m42s497.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h21m31s828.png">
 
-7. Solder the ITR8307 sensors and potentiometer to the PCB
+6. Solder the ITR8307 sensors and potentiometer to the PCB
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h26m21s087.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h30m35s971.png">
 
-8. Mount `gearLidTop` to the gear box
+7. Mount `gearLidTop` to the gear box
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h35m39s072.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h37m03s713.png">
 
-9. Mount `gearLidBottom`, `optSensorHolder` and the potentiometer together with the aluminum heat sink
+8. Mount `gearLidBottom`, `optSensorHolder` and the potentiometer together with the aluminum heat sink
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h39m37s266.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h41m09s515.png">
 
-10. Mount `pcbMount` and screw everything together
+90. Mount `pcbMount` and screw everything together
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h42m46s404.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h43m30s998.png">
 
-11. Glue the PCB to the `pcbMount` and solder the motor connections
+10. Glue the PCB to the `pcbMount` and solder the motor connections
 
     <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h49m06s877.png"> <img width="300px" src="readmeResources/ServoDS3225/vlcsnap-2024-03-17-14h44m02s886.png">
 

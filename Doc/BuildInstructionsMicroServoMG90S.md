@@ -79,40 +79,42 @@ Build steps in video:
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-20h24m58s866.png">
 
-2. Remove the gear from the motor and mount `encDiscTurningMount` on motor axis. Then mount `encDisc` on `encDiscTurningMount`
+2. The `encDisc` part has to  be completely smooth and free from defects. Getting the required resolution out of a normal FDM 3D printer is basically impossible. So to get a smooth `encDisc` part we first need to file it down while spinning it:
 
-    <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-20h26m22s682.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-20h27m45s147.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h21m35s137.png">
+    1. Remove the gear from the motor and mount `encDiscTurningMount` on motor axis. Then mount `encDisc` on `encDiscTurningMount`
 
-3. Apply 3-5 volts to the motor and file down 3D printing seams until `encDisc` is completely smooth
+        <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-20h26m22s682.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-20h27m45s147.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h21m35s137.png">
 
-    <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h22m09s687.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h23m30s953.png">
+    2. Apply 3-5 volts to the motor and file down 3D printing seams and printing lines until the surface of `encDisc` is completely smooth
 
-4. Mount `encDisc` and gear on the motor axis
+        <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h22m09s687.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h23m30s953.png">
+
+3. Mount the smooth `encDisc` and gear on the motor axis
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h26m01s175.png">
 
-5. Solder on a 3 lead wide flat cable to each of the two ITR8307 sensors. Make sure that the orientation of the sensors are mirrored
+4. Solder on a 3 lead wide flat cable to each of the two ITR8307 sensors. Make sure that the orientation of the sensors are mirrored
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h27m25s869.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h27m32s682.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h27m50s789.png">
 
-6. Mount the sensors in `baseBox` so that the LED segment (pin 1) of the sensors are oriented towards each other
+5. Mount the sensors in `baseBox` so that the LED segment (pin 1) of the sensors are oriented towards each other
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h29m07s946.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h32m08s966.png">
 
-7. Solder the ITR8307 sensors and potentiometer to the PCB
+6. Solder the ITR8307 sensors and potentiometer to the PCB
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h33m13s877.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h33m52s353.png">
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h37m47s119.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h44m28s268.png">
 
-8. Put `baseBushing` on the center axis of the gear box
+7. Put `baseBushing` on the center axis of the gear box
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h40m17s274.png">
 
-9. Insert motor into `baseBox`, solder motor connections to PCB and screw everything together
+8. Insert motor into `baseBox`, solder motor connections to PCB and screw everything together
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h46m21s953.png"> <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h47m58s058.png">
 
-10. Done
+9. Done
 
     <img width="300px" src="readmeResources/MicroServoMG90S/vlcsnap-2024-03-17-21h49m10s475.png">
 
