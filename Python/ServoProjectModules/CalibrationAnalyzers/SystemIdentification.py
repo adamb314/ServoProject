@@ -720,11 +720,14 @@ class ServoModel:
 
         _, _, self.friction, (_, linearPwmList) = systemModel.getServoSystemModelParameters(dt)
 
+        self.reducedFriction = self.friction * 0.8
+
         self.pwmNonlinearityComp = PwmNonlinearityConfigHandler(pwmCompLookUp=linearPwmList)
 
         self.pwmToStallCurrent, self.backEmfCurrent = systemModel.getCurrentModelParameters()
 
-    def  getControlParametersClassContentStr(self, indent):
+    def getControlParametersClassContentStr(self, indent):
+
         out = ''
         out += indent + '  public:\n'
         out += indent + '    //kalman filter observer vector\n'
@@ -771,7 +774,7 @@ class ServoModel:
         out += indent + '    //system model friction comp value\n'
         out += indent + '    static float getFrictionComp()\n'
         out += indent + '    {\n'
-        out += indent + '        return ' + str(self.friction) + 'f;\n'
+        out += indent + '        return ' + str(self.reducedFriction) + 'f;\n'
         out += indent + '    }\n'
         out += indent + '};'
         return out
