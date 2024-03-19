@@ -691,12 +691,15 @@ def createGuiBox(parent, nodeNr, getPortFun, configFilePath, configClassName):
             try:
                 with createServoManager(nodeNr, getPortFun()) as servoManager:
                     startPos = servoManager.servoArray[0].getPosition(True)
+                    widget.set_label(f'Locked at {startPos / pi * 180.0:0.1f} degrees')
             except Exception as e:
                 GuiFunctions.exceptionMessage(parent, e)
                 widget.set_active(False)
+                widget.set_label('Lock')
 
         else:
             startPos = None
+            widget.set_label('Lock')
 
     limitMovementButton[1].connect('toggled', onLockPosition)
 
