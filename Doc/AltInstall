@@ -1,4 +1,5 @@
-Alternate way to install bootloader using openocd on windows using stlinkv2 clone
+Alternate way to install bootloader using openocd on windows using stlinkv2 clone.
+If you have installed openocd on windows using https://xpack.github.io/dev-tools/openocd/
 Modify the openocd.cfg file to have:
            source [find interface/stlink.cfg]
            transport select hla_swd
@@ -10,3 +11,4 @@ To this line
    set _CPUTAPID 0x0bc11477
 
 
+Another note: install zadig and replace the stlink driver with the one named libusb-win32. The default winusb driver may not work. Also windows likes to reinstall the old driver at times.
