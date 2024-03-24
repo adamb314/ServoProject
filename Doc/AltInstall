@@ -1,1 +1,12 @@
+Alternate way to install bootloader using openocd on windows using stlinkv2 clone
+Modify the openocd.cfg file to have:
+           source [find interface/stlink.cfg]
+           transport select hla_swd
+Modify this file
+  C:\Users\YOURUSERNAME\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-2.1\.content\openocd\scripts\target\at91samdXX.cfg
+Change this line 
+   set _CPUTAPID 0x4ba00477
+To this line
+   set _CPUTAPID 0x0bc11477
+
 
