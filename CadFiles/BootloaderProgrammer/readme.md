@@ -1,4 +1,4 @@
-This model allows you to 3d print a jig so that you do not need to solder wires on each board you wish to flash the bootloader to.
+This model allows you to 3d print a jig that makes it easier to connect the programmer to each board you wish to flash the bootloader to.
 
 Pogo pins I used: 
 `P50-B1`
