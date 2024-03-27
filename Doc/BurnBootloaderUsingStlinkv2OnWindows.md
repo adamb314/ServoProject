@@ -21,10 +21,3 @@
 
 Another note:
 - install zadig and replace the stlink driver with the one named libusb-win32. The default winusb driver may not work. Also windows likes to reinstall the old driver at times.
-
-
-Here are two quick videos showing the 3d printed bootloader programmer jig:
-
-[Video1](https://drive.google.com/file/d/1AFRwxy_VaWX9kVX6lG8Zu38JiU7I9y5j/view?usp=sharing)
-
-[Video2](https://drive.google.com/file/d/1AEs09E2EQ2-ZQHknpwGT4agmHoZNhjnj/view?usp=sharing)
