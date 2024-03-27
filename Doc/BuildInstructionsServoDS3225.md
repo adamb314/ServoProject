@@ -26,7 +26,11 @@
     - `PcbDesignes/combined/manufacture/jlcpcbPcbaBOM.csv`
     - `PcbDesignes/combined/manufacture/jlcpcbPcbaCPL.csv`
 
-2. Burn bootloader to PCB with a Raspberry Pi
+2. Burn bootloader to PCB.
+    The following instructions are for burning the bootloader using a Raspberry Pi.
+    
+    (For burning the bootloader with a `stlinkv2` on windows, see [stlinkv2 on windows](BurnBootloaderUsingStlinkv2OnWindows.md).
+    Also see [bootloader programmer](../CadFiles/BootloaderProgrammer/readme.md) for pogo-pin connector for PCB programmer)
 
     Power PCB via USB from pi and connect:
     ```

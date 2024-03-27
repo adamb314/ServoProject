@@ -1,19 +1,30 @@
-Alternate way to install bootloader using openocd on windows using stlinkv2 clone.
-If you have installed openocd on windows using https://xpack.github.io/dev-tools/openocd/
-Modify the openocd.cfg file to have:
-           source [find interface/stlink.cfg]
-           transport select hla_swd
-Modify this file
-  C:\Users\YOURUSERNAME\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-2.1\.content\openocd\scripts\target\at91samdXX.cfg
-Change this line 
-   set _CPUTAPID 0x4ba00477
-To this line
-   set _CPUTAPID 0x0bc11477
+#### Alternate way to install bootloader using openocd on windows using stlinkv2 clone.
+
+1. Install openocd on windows using https://xpack.github.io/dev-tools/openocd/
+
+2. Modify the openocd config file [openocd.cfg](../PcbDesignes/burnBootloaderWithOpenOCD.txt) to have:
+   ```
+              source [find interface/stlink.cfg]
+              transport select hla_swd
+   ```
+
+3. Modify this file: `C:\Users\YOURUSERNAME\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-2.1\.content\openocd\scripts\target\at91samdXX.cfg`
+
+   By change this line 
+   ```
+      set _CPUTAPID 0x4ba00477
+   ```
+   To this
+   ```
+      set _CPUTAPID 0x0bc11477
+   ```
+
+Another note:
+- install zadig and replace the stlink driver with the one named libusb-win32. The default winusb driver may not work. Also windows likes to reinstall the old driver at times.
 
 
-Another note: install zadig and replace the stlink driver with the one named libusb-win32. The default winusb driver may not work. Also windows likes to reinstall the old driver at times.
+Here are two quick videos showing the 3d printed bootloader programmer jig:
 
+[Video1](https://drive.google.com/file/d/1AFRwxy_VaWX9kVX6lG8Zu38JiU7I9y5j/view?usp=sharing)
 
-Here is a quick video showing the 3d printed bootloader programmer jig: 
-https://drive.google.com/file/d/1AFRwxy_VaWX9kVX6lG8Zu38JiU7I9y5j/view?usp=sharing
-https://drive.google.com/file/d/1AEs09E2EQ2-ZQHknpwGT4agmHoZNhjnj/view?usp=sharing
+[Video2](https://drive.google.com/file/d/1AEs09E2EQ2-ZQHknpwGT4agmHoZNhjnj/view?usp=sharing)
